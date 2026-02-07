@@ -1,36 +1,40 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { UserCheck, AlertCircle, CheckCircle } from "lucide-react";
+import { UserCheck, AlertCircle, LogIn, LogOut, Clock, User, Plus } from "lucide-react";
 import { format } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 const AdminCheckin = () => {
-  const { toast } = useToast();
   const [diaId, setDiaId] = useState<string | null>(null);
-  const [rotasAbertas, setRotasAbertas] = useState<any[]>([]);
+  const [rotas, setRotas] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Check-in form
   const [selectedRota, setSelectedRota] = useState("");
   const [selectedDriver, setSelectedDriver] = useState("");
   const [mxCodigo, setMxCodigo] = useState("");
-  const [obs, setObs] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   // Quick create driver
+  const [showNewDriver, setShowNewDriver] = useState(false);
   const [newDriverName, setNewDriverName] = useState("");
   const [newDriverPhone, setNewDriverPhone] = useState("");
-  const [showNewDriver, setShowNewDriver] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // NX dialog for routes with check-in done
+  const [nxRota, setNxRota] = useState<any | null>(null);
+  const [nxCodigo, setNxCodigo] = useState("");
+  const [nxSubmitting, setNxSubmitting] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const today = format(new Date(), "yyyy-MM-dd");
     const { data: dia } = await supabase
       .from("dias")
@@ -40,13 +44,11 @@ const AdminCheckin = () => {
 
     if (dia) {
       setDiaId(dia.id);
-
-      const [{ data: rotas }, { data: drv }] = await Promise.all([
+      const [{ data: rotasData }, { data: drv }] = await Promise.all([
         supabase
           .from("rotas")
-          .select("id, rota_codigo, periodo, status")
+          .select("*, drivers(id, nome, telefone, placa)")
           .eq("dia_id", dia.id)
-          .in("status", ["Em aberto", "Atribuída"])
           .order("rota_codigo"),
         supabase
           .from("drivers")
@@ -54,42 +56,50 @@ const AdminCheckin = () => {
           .eq("ativo", true)
           .order("nome"),
       ]);
-
-      setRotasAbertas(rotas || []);
+      setRotas(rotasData || []);
       setDrivers(drv || []);
     }
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const rotasParaCheckin = rotas.filter((r) =>
+    r.status === "Em aberto" || r.status === "Atribuída"
+  );
+
+  const rotasComCheckin = rotas.filter((r) => r.status === "Check-in feito");
 
   const handleQuickCreateDriver = async () => {
-    if (!newDriverName.trim()) return;
-
-    const { data, error } = await supabase
-      .from("drivers")
-      .insert({ nome: newDriverName.trim(), telefone: newDriverPhone.trim() || null })
-      .select()
-      .single();
-
-    if (error) {
-      toast({ title: "Erro ao criar motorista", description: error.message, variant: "destructive" });
+    if (!newDriverName.trim() || !newDriverPhone.trim()) {
+      toast.error("Nome e telefone são obrigatórios");
       return;
     }
-
+    const { data, error } = await supabase
+      .from("drivers")
+      .insert({ nome: newDriverName.trim(), telefone: newDriverPhone.trim() })
+      .select()
+      .single();
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     setDrivers((prev) => [...prev, data]);
     setSelectedDriver(data.id);
     setShowNewDriver(false);
     setNewDriverName("");
     setNewDriverPhone("");
-    toast({ title: "Motorista criado!" });
+    toast.success("Motorista criado!");
   };
 
   const handleCheckin = async () => {
     if (!selectedRota || !selectedDriver) {
-      toast({ title: "Selecione rota e motorista", variant: "destructive" });
+      toast.error("Selecione rota e motorista");
       return;
     }
     setSubmitting(true);
-
     try {
       const { error } = await supabase
         .from("rotas")
@@ -98,22 +108,53 @@ const AdminCheckin = () => {
           mx_codigo: mxCodigo.trim() || null,
           hora_chegada: new Date().toISOString(),
           status: "Check-in feito",
-          observacoes: obs.trim() || null,
         })
         .eq("id", selectedRota);
-
       if (error) throw error;
-
-      toast({ title: "Check-in realizado com sucesso!" });
+      toast.success("Check-in realizado com sucesso!");
       setSelectedRota("");
+      setSelectedDriver("");
       setMxCodigo("");
-      setObs("");
       await loadData();
     } catch (err: any) {
-      toast({ title: "Erro no check-in", description: err.message, variant: "destructive" });
+      toast.error(err.message);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleNx = async () => {
+    if (!nxRota) return;
+    setNxSubmitting(true);
+    try {
+      const horaSaida = new Date();
+      const horaChegada = new Date(nxRota.hora_chegada);
+      const tempoMin = Math.round((horaSaida.getTime() - horaChegada.getTime()) / 60000);
+
+      const { error } = await supabase
+        .from("rotas")
+        .update({
+          nx_codigo: nxCodigo.trim() || null,
+          hora_saida: horaSaida.toISOString(),
+          tempo_atendimento_min: tempoMin,
+          status: "Saída registrada (NX)",
+        })
+        .eq("id", nxRota.id);
+      if (error) throw error;
+      toast.success(`Saída registrada! Tempo: ${tempoMin} min`);
+      setNxRota(null);
+      setNxCodigo("");
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setNxSubmitting(false);
+    }
+  };
+
+  const formatTime = (iso: string | null) => {
+    if (!iso) return null;
+    return format(new Date(iso), "HH:mm");
   };
 
   if (loading) {
@@ -137,28 +178,38 @@ const AdminCheckin = () => {
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Check-in Motorista</h1>
-        <p className="text-sm text-muted-foreground">Registre a chegada do motorista.</p>
+        <h1 className="text-2xl font-bold text-foreground">Check-in / Saída</h1>
+        <p className="text-sm text-muted-foreground">Registre entrada e saída dos motoristas.</p>
       </div>
 
+      {/* Check-in form */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Novo Check-in</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-primary" />
+            Novo Check-in
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Rota</Label>
             <select
               value={selectedRota}
-              onChange={(e) => setSelectedRota(e.target.value)}
+              onChange={(e) => {
+                setSelectedRota(e.target.value);
+                // Auto-select driver if route already has one
+                const rota = rotasParaCheckin.find((r) => r.id === e.target.value);
+                if (rota?.driver_id) setSelectedDriver(rota.driver_id);
+              }}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
               <option value="">Selecione uma rota...</option>
-              {rotasAbertas.map((r) => (
+              {rotasParaCheckin.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.rota_codigo} ({r.periodo}) — {r.status}
+                  {r.drivers ? ` • ${r.drivers.nome}` : ""}
                 </option>
               ))}
             </select>
@@ -179,17 +230,17 @@ const AdminCheckin = () => {
             {showNewDriver ? (
               <div className="space-y-2 bg-muted p-3 rounded-md">
                 <Input
-                  placeholder="Nome do motorista"
+                  placeholder="Nome do motorista *"
                   value={newDriverName}
                   onChange={(e) => setNewDriverName(e.target.value)}
                 />
                 <Input
-                  placeholder="Telefone (opcional)"
+                  placeholder="Telefone *"
                   value={newDriverPhone}
                   onChange={(e) => setNewDriverPhone(e.target.value)}
                 />
                 <Button size="sm" onClick={handleQuickCreateDriver}>
-                  Criar motorista
+                  <Plus className="h-3 w-3 mr-1" /> Criar e selecionar
                 </Button>
               </div>
             ) : (
@@ -209,7 +260,7 @@ const AdminCheckin = () => {
           </div>
 
           <div className="space-y-2">
-            <Label>Código MX</Label>
+            <Label>Código MX (opcional)</Label>
             <Input
               value={mxCodigo}
               onChange={(e) => setMxCodigo(e.target.value)}
@@ -217,25 +268,78 @@ const AdminCheckin = () => {
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Observações (opcional)</Label>
-            <Textarea
-              rows={2}
-              value={obs}
-              onChange={(e) => setObs(e.target.value)}
-            />
-          </div>
-
-          <Button
-            onClick={handleCheckin}
-            disabled={submitting}
-            className="w-full bg-secondary text-secondary-foreground hover:brightness-95"
-          >
-            <UserCheck className="h-4 w-4 mr-2" />
+          <Button onClick={handleCheckin} disabled={submitting} className="w-full">
+            <LogIn className="h-4 w-4 mr-2" />
             {submitting ? "Registrando..." : "Registrar Check-in"}
           </Button>
         </CardContent>
       </Card>
+
+      {/* Routes pending NX */}
+      {rotasComCheckin.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold text-foreground">
+            Aguardando Saída (NX) — {rotasComCheckin.length}
+          </h2>
+          {rotasComCheckin.map((rota) => (
+            <Card key={rota.id} className="p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm">{rota.rota_codigo} ({rota.periodo})</p>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                    {rota.drivers && (
+                      <span className="flex items-center gap-1">
+                        <User className="h-3 w-3" /> {rota.drivers.nome}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" /> Entrada: {formatTime(rota.hora_chegada)}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7 px-2 shrink-0"
+                  onClick={() => { setNxRota(rota); setNxCodigo(""); }}
+                >
+                  <LogOut className="h-3 w-3 mr-1" /> Saída NX
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* NX Dialog */}
+      <Dialog open={!!nxRota} onOpenChange={(open) => !open && setNxRota(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Registrar Saída (NX)</DialogTitle>
+            <DialogDescription>
+              Rota: <strong>{nxRota?.rota_codigo}</strong>
+              {nxRota?.drivers && ` — ${nxRota.drivers.nome}`}
+              {nxRota?.hora_chegada && (
+                <span className="block mt-1">Entrada: {formatTime(nxRota.hora_chegada)}</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Código NX</Label>
+            <Input
+              value={nxCodigo}
+              onChange={(e) => setNxCodigo(e.target.value)}
+              placeholder="NX..."
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNxRota(null)}>Cancelar</Button>
+            <Button onClick={handleNx} disabled={nxSubmitting}>
+              {nxSubmitting ? "Registrando..." : "Registrar Saída"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

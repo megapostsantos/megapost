@@ -3,12 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Users, Plus, Search, Edit2, Check, X } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Users, Plus, Search, Edit2, Check, X, Power } from "lucide-react";
+import { toast } from "sonner";
 
 const AdminDrivers = () => {
-  const { toast } = useToast();
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -36,19 +36,22 @@ const AdminDrivers = () => {
   };
 
   const handleCreate = async () => {
-    if (!nome.trim()) return;
+    if (!nome.trim() || !telefone.trim()) {
+      toast.error("Nome e telefone são obrigatórios.");
+      return;
+    }
     setSubmitting(true);
 
     const { error } = await supabase.from("drivers").insert({
       nome: nome.trim(),
-      telefone: telefone.trim() || null,
+      telefone: telefone.trim(),
       placa: placa.trim() || null,
     });
 
     if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     } else {
-      toast({ title: "Motorista cadastrado!" });
+      toast.success("Motorista cadastrado!");
       setNome("");
       setTelefone("");
       setPlaca("");
@@ -66,22 +69,39 @@ const AdminDrivers = () => {
   };
 
   const handleSaveEdit = async () => {
-    if (!editingId || !editNome.trim()) return;
+    if (!editingId || !editNome.trim() || !editTelefone.trim()) {
+      toast.error("Nome e telefone são obrigatórios.");
+      return;
+    }
 
     const { error } = await supabase
       .from("drivers")
       .update({
         nome: editNome.trim(),
-        telefone: editTelefone.trim() || null,
+        telefone: editTelefone.trim(),
         placa: editPlaca.trim() || null,
       })
       .eq("id", editingId);
 
     if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast.error(error.message);
     } else {
-      toast({ title: "Motorista atualizado!" });
+      toast.success("Motorista atualizado!");
       setEditingId(null);
+      await loadDrivers();
+    }
+  };
+
+  const toggleAtivo = async (driver: any) => {
+    const { error } = await supabase
+      .from("drivers")
+      .update({ ativo: !driver.ativo })
+      .eq("id", driver.id);
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success(driver.ativo ? "Motorista desativado" : "Motorista reativado");
       await loadDrivers();
     }
   };
@@ -105,11 +125,12 @@ const AdminDrivers = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Motoristas</h1>
-          <p className="text-sm text-muted-foreground">{drivers.length} cadastrados</p>
+          <p className="text-sm text-muted-foreground">
+            {drivers.filter((d) => d.ativo).length} ativos de {drivers.length} cadastrados
+          </p>
         </div>
         <Button
           onClick={() => setShowForm(!showForm)}
-          className="bg-secondary text-secondary-foreground hover:brightness-95"
           size="sm"
         >
           <Plus className="h-4 w-4 mr-1" />
@@ -129,7 +150,7 @@ const AdminDrivers = () => {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Telefone</Label>
+                <Label>Telefone *</Label>
                 <Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="11 99999-9999" />
               </div>
               <div className="space-y-2">
@@ -156,12 +177,12 @@ const AdminDrivers = () => {
 
       <div className="space-y-2">
         {filtered.map((d) => (
-          <Card key={d.id} className="p-3">
+          <Card key={d.id} className={`p-3 ${!d.ativo ? "opacity-50" : ""}`}>
             {editingId === d.id ? (
               <div className="space-y-2">
                 <Input value={editNome} onChange={(e) => setEditNome(e.target.value)} placeholder="Nome" />
                 <div className="grid grid-cols-2 gap-2">
-                  <Input value={editTelefone} onChange={(e) => setEditTelefone(e.target.value)} placeholder="Telefone" />
+                  <Input value={editTelefone} onChange={(e) => setEditTelefone(e.target.value)} placeholder="Telefone *" />
                   <Input value={editPlaca} onChange={(e) => setEditPlaca(e.target.value)} placeholder="Placa" />
                 </div>
                 <div className="flex gap-2">
@@ -178,15 +199,23 @@ const AdminDrivers = () => {
                 <div className="flex items-center gap-3 min-w-0">
                   <Users className="h-4 w-4 text-primary shrink-0" />
                   <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{d.nome}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm truncate">{d.nome}</p>
+                      {!d.ativo && <Badge variant="outline" className="text-[10px] px-1">Inativo</Badge>}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {[d.telefone, d.placa].filter(Boolean).join(" • ") || "Sem contato"}
                     </p>
                   </div>
                 </div>
-                <button onClick={() => startEdit(d)} className="text-muted-foreground hover:text-foreground">
-                  <Edit2 className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => toggleAtivo(d)} className="text-muted-foreground hover:text-foreground p-1" title={d.ativo ? "Desativar" : "Ativar"}>
+                    <Power className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => startEdit(d)} className="text-muted-foreground hover:text-foreground p-1">
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             )}
           </Card>
