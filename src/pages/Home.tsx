@@ -142,6 +142,14 @@ const Home = () => {
               {content.atalho_faq}
             </Link>
           </div>
+          <div className="text-center mt-6">
+            <Link
+              to="/admin/login"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Sistema Interno →
+            </Link>
+          </div>
         </div>
       </section>
     </main>
