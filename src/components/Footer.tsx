@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import EditableText from "@/components/EditableText";
 
 const Footer = () => {
@@ -19,6 +20,12 @@ const Footer = () => {
           as="p"
           className="text-xs opacity-70"
         />
+        <Link
+          to="/admin/login"
+          className="inline-block text-xs opacity-40 hover:opacity-70 transition-opacity mt-2"
+        >
+          Sistema Interno
+        </Link>
       </div>
     </footer>
   );
