@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Users, Plus, Search, Edit2, Check, X, Power } from "lucide-react";
+import { Users, Plus, Search, Edit2, Check, X, Power, Camera, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 const AdminDrivers = () => {
@@ -21,43 +21,67 @@ const AdminDrivers = () => {
   const [editNome, setEditNome] = useState("");
   const [editTelefone, setEditTelefone] = useState("");
   const [editPlaca, setEditPlaca] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadDrivers();
   }, []);
 
   const loadDrivers = async () => {
-    const { data } = await supabase
-      .from("drivers")
-      .select("*")
-      .order("nome");
+    const { data } = await supabase.from("drivers").select("*").order("nome");
     setDrivers(data || []);
     setLoading(false);
   };
 
-  const handleCreate = async () => {
+  const uploadPhoto = async (file: File, driverId: string): Promise<string | null> => {
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${driverId}.${ext}`;
+      const { error } = await supabase.storage.from("driver-photos").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("driver-photos").getPublicUrl(path);
+      return urlData.publicUrl + "?t=" + Date.now();
+    } catch (err: any) {
+      toast.error("Erro no upload da foto: " + err.message);
+      return null;
+    }
+  };
+
+  const handleCreate = async (photoFile?: File) => {
     if (!nome.trim() || !telefone.trim()) {
       toast.error("Nome e telefone são obrigatórios.");
       return;
     }
     setSubmitting(true);
 
-    const { error } = await supabase.from("drivers").insert({
-      nome: nome.trim(),
-      telefone: telefone.trim(),
-      placa: placa.trim() || null,
-    });
+    const { data, error } = await supabase
+      .from("drivers")
+      .insert({ nome: nome.trim(), telefone: telefone.trim(), placa: placa.trim() || null })
+      .select()
+      .single();
 
     if (error) {
       toast.error(error.message);
-    } else {
-      toast.success("Motorista cadastrado!");
-      setNome("");
-      setTelefone("");
-      setPlaca("");
-      setShowForm(false);
-      await loadDrivers();
+      setSubmitting(false);
+      return;
     }
+
+    // Upload photo if provided
+    if (photoFile && data) {
+      const url = await uploadPhoto(photoFile, data.id);
+      if (url) {
+        await supabase.from("drivers").update({ foto_url: url } as any).eq("id", data.id);
+      }
+    }
+
+    toast.success("Motorista cadastrado!");
+    setNome("");
+    setTelefone("");
+    setPlaca("");
+    setShowForm(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    await loadDrivers();
     setSubmitting(false);
   };
 
@@ -73,16 +97,10 @@ const AdminDrivers = () => {
       toast.error("Nome e telefone são obrigatórios.");
       return;
     }
-
     const { error } = await supabase
       .from("drivers")
-      .update({
-        nome: editNome.trim(),
-        telefone: editTelefone.trim(),
-        placa: editPlaca.trim() || null,
-      })
+      .update({ nome: editNome.trim(), telefone: editTelefone.trim(), placa: editPlaca.trim() || null })
       .eq("id", editingId);
-
     if (error) {
       toast.error(error.message);
     } else {
@@ -92,12 +110,19 @@ const AdminDrivers = () => {
     }
   };
 
-  const toggleAtivo = async (driver: any) => {
-    const { error } = await supabase
-      .from("drivers")
-      .update({ ativo: !driver.ativo })
-      .eq("id", driver.id);
+  const handleEditPhoto = async (e: React.ChangeEvent<HTMLInputElement>, driverId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await uploadPhoto(file, driverId);
+    if (url) {
+      await supabase.from("drivers").update({ foto_url: url } as any).eq("id", driverId);
+      toast.success("Foto atualizada!");
+      await loadDrivers();
+    }
+  };
 
+  const toggleAtivo = async (driver: any) => {
+    const { error } = await supabase.from("drivers").update({ ativo: !driver.ativo }).eq("id", driver.id);
     if (error) {
       toast.error(error.message);
     } else {
@@ -129,12 +154,8 @@ const AdminDrivers = () => {
             {drivers.filter((d) => d.ativo).length} ativos de {drivers.length} cadastrados
           </p>
         </div>
-        <Button
-          onClick={() => setShowForm(!showForm)}
-          size="sm"
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          Novo
+        <Button onClick={() => setShowForm(!showForm)} size="sm">
+          <Plus className="h-4 w-4 mr-1" /> Novo
         </Button>
       </div>
 
@@ -158,7 +179,20 @@ const AdminDrivers = () => {
                 <Input value={placa} onChange={(e) => setPlaca(e.target.value)} placeholder="ABC-1234" />
               </div>
             </div>
-            <Button onClick={handleCreate} disabled={submitting}>
+            <div className="space-y-2">
+              <Label>Foto</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:opacity-90"
+              />
+            </div>
+            <Button
+              onClick={() => handleCreate(fileInputRef.current?.files?.[0] || undefined)}
+              disabled={submitting}
+            >
               {submitting ? "Salvando..." : "Cadastrar"}
             </Button>
           </CardContent>
@@ -197,7 +231,30 @@ const AdminDrivers = () => {
             ) : (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
-                  <Users className="h-4 w-4 text-primary shrink-0" />
+                  {/* Photo */}
+                  <div className="relative group shrink-0">
+                    {d.foto_url ? (
+                      <img src={d.foto_url} alt={d.nome} className="h-10 w-10 rounded-full object-cover border border-border" />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                        <Users className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        const input = document.createElement("input");
+                        input.type = "file";
+                        input.accept = "image/*";
+                        input.capture = "environment";
+                        input.onchange = (e) => handleEditPhoto(e as any, d.id);
+                        input.click();
+                      }}
+                      className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Alterar foto"
+                    >
+                      <Camera className="h-3 w-3" />
+                    </button>
+                  </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-sm truncate">{d.nome}</p>

@@ -2,11 +2,12 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import {
   Route, Users, Clock, AlertTriangle, CheckCircle, Package, ArrowRight,
-  UserCheck, RefreshCw,
+  UserCheck, RefreshCw, LogOut, Archive,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 
@@ -19,17 +20,24 @@ interface DayMetrics {
   comSaida: number;
   ocorrenciasAbertas: number;
   tempoMedio: number | null;
+  estoqueAtivo: number;
+  estoqueAvarias: number;
+  estoqueTentativas: number;
+  pacotesParados: number;
 }
 
 const AdminDashboard = () => {
   const [metrics, setMetrics] = useState<DayMetrics>({
     totalAM0: 0, totalAM1: 0, emAberto: 0, atribuidas: 0,
     comCheckin: 0, comSaida: 0, ocorrenciasAbertas: 0, tempoMedio: null,
+    estoqueAtivo: 0, estoqueAvarias: 0, estoqueTentativas: 0, pacotesParados: 0,
   });
   const [recentRoutes, setRecentRoutes] = useState<any[]>([]);
   const [diaAtivo, setDiaAtivo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const { settings } = useSiteSettings();
+  const diasAlerta = parseInt(settings.dias_alerta_estoque || "3") || 3;
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -40,8 +48,28 @@ const AdminDashboard = () => {
         .eq("data", today)
         .maybeSingle();
 
+      // Load stock metrics regardless of dia
+      const { data: estoque } = await supabase
+        .from("estoque")
+        .select("*")
+        .eq("status", "em_estoque");
+
+      const allEstoque = estoque || [];
+      const avarias = allEstoque.filter((p: any) => p.tipo_insucesso === "avaria").length;
+      const tentativas = allEstoque.filter((p: any) => p.tipo_insucesso === "tentativa_de_entrega").length;
+      const parados = allEstoque.filter(
+        (p: any) => differenceInDays(new Date(), new Date(p.data_entrada)) >= diasAlerta
+      ).length;
+
       if (!dia) {
         setDiaAtivo(null);
+        setMetrics((prev) => ({
+          ...prev,
+          estoqueAtivo: allEstoque.length,
+          estoqueAvarias: avarias,
+          estoqueTentativas: tentativas,
+          pacotesParados: parados,
+        }));
         setLoading(false);
         return;
       }
@@ -55,19 +83,19 @@ const AdminDashboard = () => {
         .order("updated_at", { ascending: false });
 
       const allRotas = rotas || [];
-      const am0 = allRotas.filter((r) => r.periodo === "AM0");
-      const am1 = allRotas.filter((r) => r.periodo === "AM1");
-      const emAberto = allRotas.filter((r) => r.status === "Em aberto").length;
-      const atribuidas = allRotas.filter((r) => r.status === "Atribuída").length;
-      const comCheckin = allRotas.filter((r) => r.status === "Check-in feito").length;
-      const comSaida = allRotas.filter((r) => r.status === "Saída registrada (NX)").length;
+      const am0 = allRotas.filter((r: any) => r.periodo === "AM0");
+      const am1 = allRotas.filter((r: any) => r.periodo === "AM1");
+      const emAberto = allRotas.filter((r: any) => r.status === "Em aberto").length;
+      const atribuidas = allRotas.filter((r: any) => r.status === "Atribuída").length;
+      const comCheckin = allRotas.filter((r: any) => r.status === "Check-in feito").length;
+      const comSaida = allRotas.filter((r: any) => r.status === "Saída registrada (NX)").length;
 
-      const rotasComTempo = allRotas.filter((r) => r.tempo_atendimento_min != null);
+      const rotasComTempo = allRotas.filter((r: any) => r.tempo_atendimento_min != null);
       const tempoMedio = rotasComTempo.length > 0
-        ? rotasComTempo.reduce((sum, r) => sum + Number(r.tempo_atendimento_min), 0) / rotasComTempo.length
+        ? rotasComTempo.reduce((sum: number, r: any) => sum + Number(r.tempo_atendimento_min), 0) / rotasComTempo.length
         : null;
 
-      const rotaIds = allRotas.map((r) => r.id);
+      const rotaIds = allRotas.map((r: any) => r.id);
       let ocCount = 0;
       if (rotaIds.length > 0) {
         const { count } = await supabase
@@ -87,9 +115,12 @@ const AdminDashboard = () => {
         comSaida,
         ocorrenciasAbertas: ocCount,
         tempoMedio,
+        estoqueAtivo: allEstoque.length,
+        estoqueAvarias: avarias,
+        estoqueTentativas: tentativas,
+        pacotesParados: parados,
       });
 
-      // Recent activity: last 5 updated routes
       setRecentRoutes(allRotas.slice(0, 5));
       setLastRefresh(new Date());
     } catch (err) {
@@ -97,11 +128,10 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [diasAlerta]);
 
   useEffect(() => {
     loadDashboard();
-    // Auto-refresh every 30 seconds
     const interval = setInterval(loadDashboard, 30000);
     return () => clearInterval(interval);
   }, [loadDashboard]);
@@ -110,8 +140,7 @@ const AdminDashboard = () => {
     { label: "Rotas AM0", value: metrics.totalAM0, icon: Route, color: "text-primary" },
     { label: "Rotas AM1", value: metrics.totalAM1, icon: Route, color: "text-primary" },
     { label: "Em aberto", value: metrics.emAberto, icon: Package, color: "text-orange-500" },
-    { label: "Atribuídas", value: metrics.atribuidas, icon: UserCheck, color: "text-blue-500" },
-    { label: "Com check-in", value: metrics.comCheckin, icon: Users, color: "text-indigo-500" },
+    { label: "Check-in", value: metrics.comCheckin, icon: UserCheck, color: "text-blue-500" },
     { label: "Saída (NX)", value: metrics.comSaida, icon: CheckCircle, color: "text-green-600" },
     { label: "Ocorrências", value: metrics.ocorrenciasAbertas, icon: AlertTriangle, color: "text-destructive" },
     {
@@ -120,6 +149,13 @@ const AdminDashboard = () => {
       icon: Clock,
       color: "text-violet-500",
     },
+    { label: "Estoque ativo", value: metrics.estoqueAtivo, icon: Archive, color: "text-indigo-500" },
+  ];
+
+  const stockCards = [
+    { label: "Avarias", value: metrics.estoqueAvarias, color: "text-red-500" },
+    { label: "Tentativas", value: metrics.estoqueTentativas, color: "text-orange-500" },
+    { label: `Parados (>${diasAlerta}d)`, value: metrics.pacotesParados, color: "text-destructive" },
   ];
 
   const statusColors: Record<string, string> = {
@@ -148,14 +184,12 @@ const AdminDashboard = () => {
             {format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
           </p>
         </div>
-        {diaAtivo && (
-          <Button variant="ghost" size="sm" onClick={loadDashboard} title="Atualizar">
-            <RefreshCw className="h-4 w-4 mr-1" />
-            <span className="text-xs text-muted-foreground">
-              {format(lastRefresh, "HH:mm:ss")}
-            </span>
-          </Button>
-        )}
+        <Button variant="ghost" size="sm" onClick={loadDashboard} title="Atualizar">
+          <RefreshCw className="h-4 w-4 mr-1" />
+          <span className="text-xs text-muted-foreground">
+            {format(lastRefresh, "HH:mm:ss")}
+          </span>
+        </Button>
       </div>
 
       {!diaAtivo ? (
@@ -192,63 +226,81 @@ const AdminDashboard = () => {
               </Card>
             ))}
           </div>
-
-          {/* Recent Activity */}
-          {recentRoutes.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Atividade Recente
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {recentRoutes.map((rota) => (
-                  <div key={rota.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Route className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span className="font-medium truncate">{rota.rota_codigo}</span>
-                      {rota.drivers && (
-                        <span className="text-xs text-muted-foreground truncate">• {rota.drivers.nome}</span>
-                      )}
-                    </div>
-                    <Badge variant="outline" className={`text-[10px] shrink-0 ${statusColors[rota.status] || ""}`}>
-                      {rota.status}
-                    </Badge>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <a href="/admin/rotas" className="block">
-              <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-                <CardContent className="py-4 text-center">
-                  <Route className="h-6 w-6 mx-auto mb-2 text-primary" />
-                  <p className="text-sm font-medium">Gerenciar Rotas</p>
-                </CardContent>
-              </Card>
-            </a>
-            <a href="/admin/checkin" className="block">
-              <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-                <CardContent className="py-4 text-center">
-                  <UserCheck className="h-6 w-6 mx-auto mb-2 text-primary" />
-                  <p className="text-sm font-medium">Check-in</p>
-                </CardContent>
-              </Card>
-            </a>
-            <a href="/admin/drivers" className="block">
-              <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-                <CardContent className="py-4 text-center">
-                  <Users className="h-6 w-6 mx-auto mb-2 text-primary" />
-                  <p className="text-sm font-medium">Motoristas</p>
-                </CardContent>
-              </Card>
-            </a>
-          </div>
         </>
       )}
+
+      {/* Stock Summary */}
+      {metrics.estoqueAtivo > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Package className="h-4 w-4" /> Estoque de Insucessos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              {stockCards.map((card) => (
+                <div key={card.label}>
+                  <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                  <p className="text-xs text-muted-foreground">{card.label}</p>
+                </div>
+              ))}
+            </div>
+            {metrics.pacotesParados > 0 && (
+              <div className="mt-3 flex items-center gap-2 bg-destructive/10 text-destructive text-sm p-2 rounded-md">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {metrics.pacotesParados} pacote(s) parado(s) há mais de {diasAlerta} dias!
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Activity */}
+      {recentRoutes.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Atividade Recente
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {recentRoutes.map((rota: any) => (
+              <div key={rota.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Route className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="font-medium truncate">{rota.rota_codigo}</span>
+                  {rota.drivers && (
+                    <span className="text-xs text-muted-foreground truncate">• {rota.drivers.nome}</span>
+                  )}
+                </div>
+                <Badge variant="outline" className={`text-[10px] shrink-0 ${statusColors[rota.status] || ""}`}>
+                  {rota.status}
+                </Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { href: "/admin/rotas", icon: Route, label: "Rotas" },
+          { href: "/admin/checkin", icon: UserCheck, label: "Check-in" },
+          { href: "/admin/saida", icon: LogOut, label: "Saída" },
+          { href: "/admin/estoque", icon: Package, label: "Estoque" },
+        ].map((action) => (
+          <a key={action.href} href={action.href} className="block">
+            <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+              <CardContent className="py-4 text-center">
+                <action.icon className="h-6 w-6 mx-auto mb-2 text-primary" />
+                <p className="text-sm font-medium">{action.label}</p>
+              </CardContent>
+            </Card>
+          </a>
+        ))}
+      </div>
     </div>
   );
 };

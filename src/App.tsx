@@ -11,8 +11,8 @@ import EditToggle from "@/components/EditToggle";
 import Home from "@/pages/Home";
 import ComoFunciona from "@/pages/ComoFunciona";
 import Suporte from "@/pages/Suporte";
-import FAQ from "@/pages/FAQ";
 import SejaParceiro from "@/pages/SejaParceiro";
+import RegistrarOcorrencia from "@/pages/RegistrarOcorrencia";
 import NotFound from "@/pages/NotFound";
 
 // Admin pages
@@ -23,11 +23,24 @@ import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminDia from "@/pages/admin/AdminDia";
 import AdminRotas from "@/pages/admin/AdminRotas";
 import AdminCheckin from "@/pages/admin/AdminCheckin";
+import AdminSaida from "@/pages/admin/AdminSaida";
 import AdminOcorrencias from "@/pages/admin/AdminOcorrencias";
 import AdminDrivers from "@/pages/admin/AdminDrivers";
+import AdminEstoque from "@/pages/admin/AdminEstoque";
+import AdminEstoqueArquivo from "@/pages/admin/AdminEstoqueArquivo";
+import AdminSettings from "@/pages/admin/AdminSettings";
 import AdminTV from "@/pages/admin/AdminTV";
 
 const queryClient = new QueryClient();
+
+const PublicLayout = ({ children }: { children: React.ReactNode }) => (
+  <div className="flex flex-col min-h-screen">
+    <Header />
+    {children}
+    <Footer />
+    <EditToggle />
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -39,61 +52,11 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               {/* Public site */}
-              <Route
-                path="/"
-                element={
-                  <div className="flex flex-col min-h-screen">
-                    <Header />
-                    <Home />
-                    <Footer />
-                    <EditToggle />
-                  </div>
-                }
-              />
-              <Route
-                path="/como-funciona"
-                element={
-                  <div className="flex flex-col min-h-screen">
-                    <Header />
-                    <ComoFunciona />
-                    <Footer />
-                    <EditToggle />
-                  </div>
-                }
-              />
-              <Route
-                path="/suporte"
-                element={
-                  <div className="flex flex-col min-h-screen">
-                    <Header />
-                    <Suporte />
-                    <Footer />
-                    <EditToggle />
-                  </div>
-                }
-              />
-              <Route
-                path="/faq"
-                element={
-                  <div className="flex flex-col min-h-screen">
-                    <Header />
-                    <FAQ />
-                    <Footer />
-                    <EditToggle />
-                  </div>
-                }
-              />
-              <Route
-                path="/seja-parceiro"
-                element={
-                  <div className="flex flex-col min-h-screen">
-                    <Header />
-                    <SejaParceiro />
-                    <Footer />
-                    <EditToggle />
-                  </div>
-                }
-              />
+              <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
+              <Route path="/como-funciona" element={<PublicLayout><ComoFunciona /></PublicLayout>} />
+              <Route path="/suporte" element={<PublicLayout><Suporte /></PublicLayout>} />
+              <Route path="/seja-parceiro" element={<PublicLayout><SejaParceiro /></PublicLayout>} />
+              <Route path="/registrar-ocorrencia" element={<PublicLayout><RegistrarOcorrencia /></PublicLayout>} />
 
               {/* Admin routes */}
               <Route path="/admin/login" element={<AdminLogin />} />
@@ -110,9 +73,13 @@ const App = () => (
                 <Route path="dia" element={<AdminDia />} />
                 <Route path="rotas" element={<AdminRotas />} />
                 <Route path="checkin" element={<AdminCheckin />} />
+                <Route path="saida" element={<AdminSaida />} />
                 <Route path="ocorrencias" element={<AdminOcorrencias />} />
                 <Route path="drivers" element={<AdminDrivers />} />
                 <Route path="motoristas" element={<AdminDrivers />} />
+                <Route path="estoque" element={<AdminEstoque />} />
+                <Route path="estoque/arquivo" element={<AdminEstoqueArquivo />} />
+                <Route path="configuracoes" element={<AdminSettings />} />
                 <Route path="tv" element={<AdminTV />} />
               </Route>
 

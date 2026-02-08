@@ -1,12 +1,17 @@
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useContent } from "@/contexts/ContentContext";
 import EditableText from "@/components/EditableText";
-import StepCard from "@/components/StepCard";
-import CTAButton from "@/components/CTAButton";
 import { MessageSquare, Headphones, ArrowDown, ShieldCheck, Truck, Package, ClipboardCheck, LogOut, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Home = () => {
   const { content } = useContent();
+  const { settings, loading } = useSiteSettings();
+
+  const grupoLink = settings.link_grupo_wpp || content.link_grupo_wpp;
+  const megapostWpp = settings.whatsapp_megapost ? `https://wa.me/${settings.whatsapp_megapost}` : content.link_suporte_wpp;
+  const btn1Text = settings.hero_btn1_texto || content.hero_btn1;
+  const btn2Text = settings.hero_btn2_texto || content.hero_btn2;
 
   return (
     <main className="min-h-screen">
@@ -24,54 +29,27 @@ const Home = () => {
             className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto"
           />
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
-            <CTAButton
-              contentKey="hero_btn1"
-              href={content.link_grupo_wpp}
-              icon={<MessageSquare className="h-5 w-5" />}
-            />
-            <CTAButton
-              contentKey="hero_btn2"
-              href={content.link_suporte_wpp}
-              variant="secondary"
-              icon={<Headphones className="h-5 w-5" />}
-            />
+            <a
+              href={grupoLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm bg-secondary text-secondary-foreground hover:brightness-95 shadow-sm transition-all w-full sm:w-auto"
+            >
+              <MessageSquare className="h-5 w-5" />
+              {btn1Text}
+            </a>
+            <a
+              href={megapostWpp}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all w-full sm:w-auto"
+            >
+              <Headphones className="h-5 w-5" />
+              {btn2Text}
+            </a>
             <Link to="/como-funciona" className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm border-2 border-border text-foreground hover:bg-muted transition-colors w-full sm:w-auto">
               <ArrowDown className="h-5 w-5" />
               {content.hero_btn3}
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Como Funciona - Preview */}
-      <section className="py-12 md:py-16">
-        <div className="container">
-          <div className="text-center mb-10">
-            <EditableText
-              contentKey="como_titulo"
-              as="h2"
-              className="text-2xl md:text-3xl font-bold text-foreground mb-3"
-            />
-            <EditableText
-              contentKey="como_subtitulo"
-              as="p"
-              className="text-muted-foreground"
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <StepCard titleKey="passo1_titulo" textKey="passo1_texto" icon={<Truck className="h-6 w-6" />} />
-            <StepCard titleKey="passo2_titulo" textKey="passo2_texto" icon={<Users className="h-6 w-6" />} />
-            <StepCard titleKey="passo3_titulo" textKey="passo3_texto" icon={<ClipboardCheck className="h-6 w-6" />} />
-            <StepCard titleKey="passo4_titulo" textKey="passo4_texto" icon={<Package className="h-6 w-6" />} />
-            <StepCard titleKey="passo5_titulo" textKey="passo5_texto" icon={<LogOut className="h-6 w-6" />} />
-          </div>
-          <div className="text-center mt-8">
-            <Link
-              to="/como-funciona"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm bg-secondary text-secondary-foreground hover:brightness-95 transition"
-            >
-              Ver Passo a Passo Completo
-              <ArrowDown className="h-4 w-4" />
             </Link>
           </div>
         </div>
@@ -116,17 +94,24 @@ const Home = () => {
             className="text-2xl md:text-3xl font-bold text-center mb-8 text-foreground"
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
-            <CTAButton
-              contentKey="atalho_grupo"
-              href={content.link_grupo_wpp}
-              icon={<MessageSquare className="h-5 w-5" />}
-            />
-            <CTAButton
-              contentKey="atalho_suporte"
-              href={content.link_suporte_wpp}
-              variant="secondary"
-              icon={<Headphones className="h-5 w-5" />}
-            />
+            <a
+              href={grupoLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm bg-secondary text-secondary-foreground hover:brightness-95 shadow-sm transition-all"
+            >
+              <MessageSquare className="h-5 w-5" />
+              {content.atalho_grupo}
+            </a>
+            <a
+              href={megapostWpp}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
+            >
+              <Headphones className="h-5 w-5" />
+              {content.atalho_suporte}
+            </a>
             <Link
               to="/como-funciona"
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm border-2 border-border text-foreground hover:bg-background transition-colors"
@@ -135,11 +120,11 @@ const Home = () => {
               {content.atalho_como}
             </Link>
             <Link
-              to="/faq"
+              to="/seja-parceiro"
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-sm border-2 border-border text-foreground hover:bg-background transition-colors"
             >
-              <ArrowDown className="h-5 w-5" />
-              {content.atalho_faq}
+              <Package className="h-5 w-5" />
+              Seja Parceiro
             </Link>
           </div>
           <div className="text-center mt-6">
