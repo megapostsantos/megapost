@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          acao: string
+          created_at: string
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          id: string
+          registro_id: string
+          tabela: string
+          user_id: string | null
+        }
+        Insert: {
+          acao: string
+          created_at?: string
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          registro_id: string
+          tabela: string
+          user_id?: string | null
+        }
+        Update: {
+          acao?: string
+          created_at?: string
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          registro_id?: string
+          tabela?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       conferencias: {
         Row: {
           created_at: string
@@ -83,6 +116,7 @@ export type Database = {
         Row: {
           ativo: boolean
           created_at: string
+          foto_url: string | null
           id: string
           nome: string
           placa: string | null
@@ -92,6 +126,7 @@ export type Database = {
         Insert: {
           ativo?: boolean
           created_at?: string
+          foto_url?: string | null
           id?: string
           nome: string
           placa?: string | null
@@ -101,6 +136,7 @@ export type Database = {
         Update: {
           ativo?: boolean
           created_at?: string
+          foto_url?: string | null
           id?: string
           nome?: string
           placa?: string | null
@@ -109,13 +145,75 @@ export type Database = {
         }
         Relationships: []
       }
+      estoque: {
+        Row: {
+          codigo_pacote: string
+          created_at: string
+          data_entrada: string
+          dia_id: string | null
+          enviado_em: string | null
+          id: string
+          rota_id: string | null
+          rota_origem: string | null
+          status: string
+          tipo_insucesso: string
+          updated_at: string
+        }
+        Insert: {
+          codigo_pacote: string
+          created_at?: string
+          data_entrada?: string
+          dia_id?: string | null
+          enviado_em?: string | null
+          id?: string
+          rota_id?: string | null
+          rota_origem?: string | null
+          status?: string
+          tipo_insucesso: string
+          updated_at?: string
+        }
+        Update: {
+          codigo_pacote?: string
+          created_at?: string
+          data_entrada?: string
+          dia_id?: string | null
+          enviado_em?: string | null
+          id?: string
+          rota_id?: string | null
+          rota_origem?: string | null
+          status?: string
+          tipo_insucesso?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estoque_dia_id_fkey"
+            columns: ["dia_id"]
+            isOneToOne: false
+            referencedRelation: "dias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estoque_rota_id_fkey"
+            columns: ["rota_id"]
+            isOneToOne: false
+            referencedRelation: "rotas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ocorrencias: {
         Row: {
           created_at: string
           descricao: string | null
           id: string
+          nome_motorista: string | null
+          nx_codigo_oc: string | null
+          origem: string
+          placa_veiculo: string | null
           resolvido_em: string | null
           rota_id: string
+          rota_numero: string | null
           status: string
           tipo: string
         }
@@ -123,8 +221,13 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           id?: string
+          nome_motorista?: string | null
+          nx_codigo_oc?: string | null
+          origem?: string
+          placa_veiculo?: string | null
           resolvido_em?: string | null
           rota_id: string
+          rota_numero?: string | null
           status?: string
           tipo: string
         }
@@ -132,8 +235,13 @@ export type Database = {
           created_at?: string
           descricao?: string | null
           id?: string
+          nome_motorista?: string | null
+          nx_codigo_oc?: string | null
+          origem?: string
+          placa_veiculo?: string | null
           resolvido_em?: string | null
           rota_id?: string
+          rota_numero?: string | null
           status?: string
           tipo?: string
         }
@@ -180,6 +288,7 @@ export type Database = {
           nx_codigo: string | null
           observacoes: string | null
           periodo: string
+          qr_codigo: string | null
           rota_codigo: string
           status: string
           tempo_atendimento_min: number | null
@@ -196,6 +305,7 @@ export type Database = {
           nx_codigo?: string | null
           observacoes?: string | null
           periodo: string
+          qr_codigo?: string | null
           rota_codigo: string
           status?: string
           tempo_atendimento_min?: number | null
@@ -212,6 +322,7 @@ export type Database = {
           nx_codigo?: string | null
           observacoes?: string | null
           periodo?: string
+          qr_codigo?: string | null
           rota_codigo?: string
           status?: string
           tempo_atendimento_min?: number | null
@@ -233,6 +344,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      site_settings: {
+        Row: {
+          id: string
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: string | null
+        }
+        Insert: {
+          id?: string
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string | null
+        }
+        Update: {
+          id?: string
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string | null
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
