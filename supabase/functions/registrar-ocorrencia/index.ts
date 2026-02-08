@@ -20,7 +20,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate input lengths
     if (nome.length > 200 || placa.length > 20 || rota.length > 50 || nx.length > 50 || tipo.length > 100 || descricao.length > 2000) {
       return new Response(
         JSON.stringify({ error: "Dados inválidos: tamanho excedido" }),
@@ -32,20 +31,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const { error } = await supabase.from("ocorrencias").insert({
-      tipo,
-      descricao,
-      nome_motorista: nome,
-      placa_veiculo: placa,
-      rota_numero: rota,
-      nx_codigo_oc: nx,
-      origem: "externo",
-      status: "aberta",
-      // rota_id is required but we don't have it for external submissions
-      // We'll need to find the route or use a placeholder
-    });
-
-    // Try to find matching route and link
+    // Try to find matching route for today
     const today = new Date().toISOString().split("T")[0];
     const { data: dia } = await supabase
       .from("dias")
@@ -66,8 +52,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Insert occurrence with or without rota_id
-    const insertData: any = {
+    console.log(`Registrando ocorrência externa: nome=${nome}, rota=${rota}, rotaId=${rotaId}`);
+
+    const insertData: Record<string, unknown> = {
       tipo,
       descricao,
       nome_motorista: nome,
@@ -77,14 +64,11 @@ Deno.serve(async (req) => {
       origem: "externo",
       status: "aberta",
     };
-    
+
     if (rotaId) {
       insertData.rota_id = rotaId;
     }
 
-    // Since rota_id is required in the schema, we need to handle this
-    // If no matching route found, we'll still try to insert
-    // The edge function bypasses RLS with service role key
     const { error: insertError } = await supabase.from("ocorrencias").insert(insertData);
 
     if (insertError) {
@@ -95,6 +79,7 @@ Deno.serve(async (req) => {
       );
     }
 
+    console.log("Ocorrência registrada com sucesso");
     return new Response(
       JSON.stringify({ success: true }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

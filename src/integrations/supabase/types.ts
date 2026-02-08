@@ -212,7 +212,7 @@ export type Database = {
           origem: string
           placa_veiculo: string | null
           resolvido_em: string | null
-          rota_id: string
+          rota_id: string | null
           rota_numero: string | null
           status: string
           tipo: string
@@ -226,7 +226,7 @@ export type Database = {
           origem?: string
           placa_veiculo?: string | null
           resolvido_em?: string | null
-          rota_id: string
+          rota_id?: string | null
           rota_numero?: string | null
           status?: string
           tipo: string
@@ -240,7 +240,7 @@ export type Database = {
           origem?: string
           placa_veiculo?: string | null
           resolvido_em?: string | null
-          rota_id?: string
+          rota_id?: string | null
           rota_numero?: string | null
           status?: string
           tipo?: string

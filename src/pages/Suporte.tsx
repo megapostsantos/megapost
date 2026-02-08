@@ -1,27 +1,19 @@
-import { useState } from "react";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useContent } from "@/contexts/ContentContext";
 import EditableText from "@/components/EditableText";
-import CTAButton from "@/components/CTAButton";
-import { MessageSquare, Headphones, Phone } from "lucide-react";
-import { toast } from "sonner";
+import { Headphones, MessageSquare, AlertTriangle } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Suporte = () => {
   const { content } = useContent();
-  const [formData, setFormData] = useState({
-    nome: "",
-    placa: "",
-    tipo: "",
-    descricao: "",
-  });
-  const [submitted, setSubmitted] = useState(false);
+  const { settings } = useSiteSettings();
 
-  const tipos = (content.sup_tipos || "").split(",").map((t) => t.trim());
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitted(true);
-    toast.success("Ocorrência registrada!");
-  };
+  const megapostWpp = settings.whatsapp_megapost
+    ? `https://wa.me/${settings.whatsapp_megapost}`
+    : content.link_suporte_wpp;
+  const mlWpp = settings.whatsapp_mercadolivre
+    ? `https://wa.me/${settings.whatsapp_mercadolivre}`
+    : "#";
 
   return (
     <main className="min-h-screen py-10 md:py-16">
@@ -39,112 +31,36 @@ const Suporte = () => {
           />
         </div>
 
-        {/* Contact Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 justify-center mb-12">
-          <CTAButton
-            contentKey="sup_btn_wpp"
-            href={content.link_suporte_wpp}
-            icon={<Headphones className="h-5 w-5" />}
-          />
-          <CTAButton
-            contentKey="sup_btn_grupo"
-            href={content.link_grupo_wpp}
-            variant="secondary"
-            icon={<MessageSquare className="h-5 w-5" />}
-          />
-          <CTAButton
-            contentKey="sup_btn_tel"
-            href={`tel:+55${content.telefone_suporte?.replace(/\D/g, "")}`}
-            variant="outline"
-            icon={<Phone className="h-5 w-5" />}
-          />
+        {/* 3 Buttons */}
+        <div className="flex flex-col gap-4 max-w-md mx-auto">
+          <a
+            href={megapostWpp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-3 px-6 py-4 rounded-lg font-semibold text-base bg-secondary text-secondary-foreground hover:brightness-95 shadow-sm transition-all"
+          >
+            <Headphones className="h-6 w-6" />
+            Falar com a Mega POST
+          </a>
+
+          <a
+            href={mlWpp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-3 px-6 py-4 rounded-lg font-semibold text-base bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
+          >
+            <MessageSquare className="h-6 w-6" />
+            Falar com o Suporte do Mercado Livre
+          </a>
+
+          <Link
+            to="/registrar-ocorrencia"
+            className="inline-flex items-center justify-center gap-3 px-6 py-4 rounded-lg font-semibold text-base border-2 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all"
+          >
+            <AlertTriangle className="h-6 w-6" />
+            Registrar Ocorrência
+          </Link>
         </div>
-
-        {/* Formulário de Ocorrência */}
-        <section className="bg-card border border-border rounded-lg p-6 md:p-8">
-          <EditableText
-            contentKey="sup_form_titulo"
-            as="h2"
-            className="text-xl font-bold text-foreground mb-6"
-          />
-
-          {submitted ? (
-            <div className="text-center py-8">
-              <EditableText
-                contentKey="sup_form_sucesso"
-                as="p"
-                className="text-lg text-foreground font-medium"
-              />
-              <button
-                onClick={() => {
-                  setSubmitted(false);
-                  setFormData({ nome: "", placa: "", tipo: "", descricao: "" });
-                }}
-                className="mt-4 text-sm text-primary underline hover:no-underline"
-              >
-                Registrar nova ocorrência
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  {content.sup_form_nome}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  {content.sup_form_placa}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.placa}
-                  onChange={(e) => setFormData({ ...formData, placa: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  {content.sup_form_tipo}
-                </label>
-                <select
-                  required
-                  value={formData.tipo}
-                  onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:outline-none"
-                >
-                  <option value="">Selecione...</option>
-                  {tipos.map((tipo) => (
-                    <option key={tipo} value={tipo}>
-                      {tipo}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">
-                  {content.sup_form_descricao}
-                </label>
-                <textarea
-                  required
-                  rows={4}
-                  value={formData.descricao}
-                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring focus:outline-none resize-none"
-                />
-              </div>
-              <CTAButton contentKey="sup_form_btn" type="submit" />
-            </form>
-          )}
-        </section>
       </div>
     </main>
   );

@@ -1,1 +1,4 @@
 project_id = "otfjcpajobmjlwitgnqi"
+
+[functions.registrar-ocorrencia]
+verify_jwt = false
