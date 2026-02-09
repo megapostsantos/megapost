@@ -30,6 +30,7 @@ import AdminEstoque from "@/pages/admin/AdminEstoque";
 import AdminEstoqueArquivo from "@/pages/admin/AdminEstoqueArquivo";
 import AdminSettings from "@/pages/admin/AdminSettings";
 import AdminTV from "@/pages/admin/AdminTV";
+import AdminAjuda from "@/pages/admin/AdminAjuda";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ const App = () => (
                 <Route path="estoque/arquivo" element={<AdminEstoqueArquivo />} />
                 <Route path="configuracoes" element={<AdminSettings />} />
                 <Route path="tv" element={<AdminTV />} />
+                <Route path="ajuda" element={<AdminAjuda />} />
               </Route>
 
               <Route
