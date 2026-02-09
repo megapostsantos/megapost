@@ -60,8 +60,8 @@ const AdminDia = () => {
   };
   return <div className="max-w-lg mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground bg-secondary">Criar / Abrir Dia</h1>
-        <p className="text-sm text-muted-foreground bg-secondary">Configure a operação do dia.</p>
+        <h1 className="text-2xl font-bold text-foreground">Operação do Dia</h1>
+        <p className="text-sm text-muted-foreground">Configure e inicie a operação.</p>
       </div>
 
       <Card>
@@ -91,7 +91,7 @@ const AdminDia = () => {
             </div>
           </div>
 
-          <Button onClick={handleCriarDia} disabled={submitting} className="w-full bg-secondary text-secondary-foreground hover:brightness-95">
+          <Button onClick={handleCriarDia} disabled={submitting} className="w-full">
             <CalendarPlus className="h-4 w-4 mr-2" />
             {submitting ? "Criando..." : "Abrir Operação do Dia"}
           </Button>
