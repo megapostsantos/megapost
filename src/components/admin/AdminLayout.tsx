@@ -18,7 +18,7 @@ const navItems: NavItem[] = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/dia", label: "Operação", icon: CalendarPlus },
   { to: "/admin/rotas", label: "Rotas", icon: Route },
-  { to: "/admin/estoque", label: "Insucessos", icon: Package },
+  { to: "/admin/estoque", label: "Insucessos (Estoque)", icon: Package },
   { to: "/admin/motoristas", label: "Motoristas", icon: Users },
   { to: "/admin/ajuda", label: "Ajuda", icon: HelpCircle },
 ];
