@@ -150,11 +150,16 @@ export type Database = {
           codigo_pacote: string
           created_at: string
           data_entrada: string
+          destino_saida: string | null
           dia_id: string | null
           enviado_em: string | null
           id: string
+          motivo: string | null
+          origem_driver_id: string | null
+          retirada_id: string | null
           rota_id: string | null
           rota_origem: string | null
+          saida_route_id: string | null
           status: string
           tipo_insucesso: string
           updated_at: string
@@ -163,11 +168,16 @@ export type Database = {
           codigo_pacote: string
           created_at?: string
           data_entrada?: string
+          destino_saida?: string | null
           dia_id?: string | null
           enviado_em?: string | null
           id?: string
+          motivo?: string | null
+          origem_driver_id?: string | null
+          retirada_id?: string | null
           rota_id?: string | null
           rota_origem?: string | null
+          saida_route_id?: string | null
           status?: string
           tipo_insucesso: string
           updated_at?: string
@@ -176,11 +186,16 @@ export type Database = {
           codigo_pacote?: string
           created_at?: string
           data_entrada?: string
+          destino_saida?: string | null
           dia_id?: string | null
           enviado_em?: string | null
           id?: string
+          motivo?: string | null
+          origem_driver_id?: string | null
+          retirada_id?: string | null
           rota_id?: string | null
           rota_origem?: string | null
+          saida_route_id?: string | null
           status?: string
           tipo_insucesso?: string
           updated_at?: string
@@ -194,8 +209,29 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "estoque_origem_driver_id_fkey"
+            columns: ["origem_driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estoque_retirada_id_fkey"
+            columns: ["retirada_id"]
+            isOneToOne: false
+            referencedRelation: "stock_pickups"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "estoque_rota_id_fkey"
             columns: ["rota_id"]
+            isOneToOne: false
+            referencedRelation: "rotas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estoque_saida_route_id_fkey"
+            columns: ["saida_route_id"]
             isOneToOne: false
             referencedRelation: "rotas"
             referencedColumns: ["id"]
@@ -345,6 +381,41 @@ export type Database = {
           },
         ]
       }
+      route_event_log: {
+        Row: {
+          action: string
+          actor_role: string
+          created_at: string
+          id: string
+          payload_json: Json | null
+          route_id: string
+        }
+        Insert: {
+          action: string
+          actor_role?: string
+          created_at?: string
+          id?: string
+          payload_json?: Json | null
+          route_id: string
+        }
+        Update: {
+          action?: string
+          actor_role?: string
+          created_at?: string
+          id?: string
+          payload_json?: Json | null
+          route_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_event_log_route_id_fkey"
+            columns: ["route_id"]
+            isOneToOne: false
+            referencedRelation: "rotas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_settings: {
         Row: {
           id: string
@@ -368,6 +439,53 @@ export type Database = {
           value?: string | null
         }
         Relationships: []
+      }
+      stock_pickups: {
+        Row: {
+          created_at: string
+          dia_id: string | null
+          id: string
+          motorista_nome: string
+          observacao: string | null
+          placa: string | null
+          quantidade_informada: number | null
+          telefone: string | null
+          tipo_retirada: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dia_id?: string | null
+          id?: string
+          motorista_nome: string
+          observacao?: string | null
+          placa?: string | null
+          quantidade_informada?: number | null
+          telefone?: string | null
+          tipo_retirada?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dia_id?: string | null
+          id?: string
+          motorista_nome?: string
+          observacao?: string | null
+          placa?: string | null
+          quantidade_informada?: number | null
+          telefone?: string | null
+          tipo_retirada?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_pickups_dia_id_fkey"
+            columns: ["dia_id"]
+            isOneToOne: false
+            referencedRelation: "dias"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
