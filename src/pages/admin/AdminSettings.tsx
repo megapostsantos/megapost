@@ -206,8 +206,9 @@ const AdminCleanup = () => {
   };
 
   const handleResetTotal = async () => {
-    if (confirmText !== "APAGAR") { toast.error('Digite "APAGAR" para confirmar.'); return; }
+    if (confirmText !== "APAGAR TUDO") { toast.error('Digite "APAGAR TUDO" para confirmar.'); return; }
     setDeleting(true);
+    // Delete in order respecting foreign keys
     await supabase.from("estoque").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     await supabase.from("route_event_log").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     await supabase.from("conferencias").delete().neq("id", "00000000-0000-0000-0000-000000000000");
@@ -217,7 +218,8 @@ const AdminCleanup = () => {
     await supabase.from("dias").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     await supabase.from("financeiro_entradas").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     await supabase.from("financeiro_saidas").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    toast.success("Todos os dados operacionais foram apagados.");
+    await supabase.from("drivers").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    toast.success("RESET TOTAL concluído — todos os dados foram apagados.");
     setDias([]);
     setConfirmText("");
     setDeleting(false);
@@ -252,11 +254,11 @@ const AdminCleanup = () => {
         <div className="pt-3 border-t border-border space-y-2">
           <div className="flex items-center gap-2 text-sm text-destructive">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span>Reset total: apaga TODOS os dados operacionais (dias, rotas, estoque, financeiro).</span>
+            <span>RESET TOTAL: apaga ABSOLUTAMENTE TUDO (dias, rotas, estoque, financeiro, motoristas). O app volta como novo.</span>
           </div>
           <div className="flex gap-2">
-            <Input placeholder='Digite "APAGAR" para confirmar' value={confirmText} onChange={(e) => setConfirmText(e.target.value)} className="flex-1" />
-            <Button variant="destructive" size="sm" disabled={deleting || confirmText !== "APAGAR"} onClick={handleResetTotal}>
+            <Input placeholder='Digite "APAGAR TUDO" para confirmar' value={confirmText} onChange={(e) => setConfirmText(e.target.value)} className="flex-1" />
+            <Button variant="destructive" size="sm" disabled={deleting || confirmText !== "APAGAR TUDO"} onClick={handleResetTotal}>
               Reset Total
             </Button>
           </div>
