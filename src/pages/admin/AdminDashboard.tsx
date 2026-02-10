@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import {
   Route, Users, Clock, AlertTriangle, CheckCircle, Package, ArrowRight,
-  UserCheck, RefreshCw, LogOut, Archive,
+  UserCheck, RefreshCw, Truck, Archive,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -15,9 +15,9 @@ interface DayMetrics {
   totalAM0: number;
   totalAM1: number;
   emAberto: number;
-  atribuidas: number;
-  comCheckin: number;
-  comSaida: number;
+  checkin: number;
+  carregando: number;
+  finalizada: number;
   ocorrenciasAbertas: number;
   tempoMedio: number | null;
   estoqueAtivo: number;
@@ -28,8 +28,8 @@ interface DayMetrics {
 
 const AdminDashboard = () => {
   const [metrics, setMetrics] = useState<DayMetrics>({
-    totalAM0: 0, totalAM1: 0, emAberto: 0, atribuidas: 0,
-    comCheckin: 0, comSaida: 0, ocorrenciasAbertas: 0, tempoMedio: null,
+    totalAM0: 0, totalAM1: 0, emAberto: 0, checkin: 0,
+    carregando: 0, finalizada: 0, ocorrenciasAbertas: 0, tempoMedio: null,
     estoqueAtivo: 0, estoqueAvarias: 0, estoqueTentativas: 0, pacotesParados: 0,
   });
   const [recentRoutes, setRecentRoutes] = useState<any[]>([]);
@@ -43,20 +43,14 @@ const AdminDashboard = () => {
     try {
       const today = format(new Date(), "yyyy-MM-dd");
       const { data: dia } = await supabase
-        .from("dias")
-        .select("id, data, status")
-        .eq("data", today)
-        .maybeSingle();
+        .from("dias").select("id, data, status").eq("data", today).maybeSingle();
 
-      // Load stock metrics regardless of dia
       const { data: estoque } = await supabase
-        .from("estoque")
-        .select("*")
-        .eq("status", "em_estoque");
+        .from("estoque").select("*").eq("status", "NO_LOCAL");
 
       const allEstoque = estoque || [];
-      const avarias = allEstoque.filter((p: any) => p.tipo_insucesso === "avaria").length;
-      const tentativas = allEstoque.filter((p: any) => p.tipo_insucesso === "tentativa_de_entrega").length;
+      const avarias = allEstoque.filter((p: any) => p.tipo_insucesso === "AVARIA").length;
+      const tentativas = allEstoque.filter((p: any) => p.tipo_insucesso === "TENTATIVA").length;
       const parados = allEstoque.filter(
         (p: any) => differenceInDays(new Date(), new Date(p.data_entrada)) >= diasAlerta
       ).length;
@@ -65,10 +59,8 @@ const AdminDashboard = () => {
         setDiaAtivo(null);
         setMetrics((prev) => ({
           ...prev,
-          estoqueAtivo: allEstoque.length,
-          estoqueAvarias: avarias,
-          estoqueTentativas: tentativas,
-          pacotesParados: parados,
+          estoqueAtivo: allEstoque.length, estoqueAvarias: avarias,
+          estoqueTentativas: tentativas, pacotesParados: parados,
         }));
         setLoading(false);
         return;
@@ -77,18 +69,12 @@ const AdminDashboard = () => {
       setDiaAtivo(dia.id);
 
       const { data: rotas } = await supabase
-        .from("rotas")
-        .select("*, drivers(nome, placa)")
-        .eq("dia_id", dia.id)
+        .from("rotas").select("*, drivers(nome, placa)").eq("dia_id", dia.id)
         .order("updated_at", { ascending: false });
 
       const allRotas = rotas || [];
       const am0 = allRotas.filter((r: any) => r.periodo === "AM0");
       const am1 = allRotas.filter((r: any) => r.periodo === "AM1");
-      const emAberto = allRotas.filter((r: any) => r.status === "Em aberto").length;
-      const atribuidas = allRotas.filter((r: any) => r.status === "Atribuída").length;
-      const comCheckin = allRotas.filter((r: any) => r.status === "Check-in feito").length;
-      const comSaida = allRotas.filter((r: any) => r.status === "Saída registrada (NX)").length;
 
       const rotasComTempo = allRotas.filter((r: any) => r.tempo_atendimento_min != null);
       const tempoMedio = rotasComTempo.length > 0
@@ -99,26 +85,22 @@ const AdminDashboard = () => {
       let ocCount = 0;
       if (rotaIds.length > 0) {
         const { count } = await supabase
-          .from("ocorrencias")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "aberta")
-          .in("rota_id", rotaIds);
+          .from("ocorrencias").select("id", { count: "exact", head: true })
+          .eq("status", "aberta").in("rota_id", rotaIds);
         ocCount = count || 0;
       }
 
       setMetrics({
         totalAM0: am0.length,
         totalAM1: am1.length,
-        emAberto,
-        atribuidas,
-        comCheckin,
-        comSaida,
+        emAberto: allRotas.filter((r: any) => r.status === "Em aberto").length,
+        checkin: allRotas.filter((r: any) => r.status === "Check-in").length,
+        carregando: allRotas.filter((r: any) => r.status === "Carregando").length,
+        finalizada: allRotas.filter((r: any) => r.status === "Finalizada").length,
         ocorrenciasAbertas: ocCount,
         tempoMedio,
-        estoqueAtivo: allEstoque.length,
-        estoqueAvarias: avarias,
-        estoqueTentativas: tentativas,
-        pacotesParados: parados,
+        estoqueAtivo: allEstoque.length, estoqueAvarias: avarias,
+        estoqueTentativas: tentativas, pacotesParados: parados,
       });
 
       setRecentRoutes(allRotas.slice(0, 5));
@@ -140,15 +122,14 @@ const AdminDashboard = () => {
     { label: "Rotas AM0", value: metrics.totalAM0, icon: Route, color: "text-primary", href: "/admin/rotas" },
     { label: "Rotas AM1", value: metrics.totalAM1, icon: Route, color: "text-primary", href: "/admin/rotas" },
     { label: "Em aberto", value: metrics.emAberto, icon: Package, color: "text-orange-500", href: "/admin/rotas" },
-    { label: "Check-in", value: metrics.comCheckin, icon: UserCheck, color: "text-blue-500", href: "/admin/rotas" },
-    { label: "Saída (NX)", value: metrics.comSaida, icon: CheckCircle, color: "text-green-600", href: "/admin/rotas" },
+    { label: "Check-in", value: metrics.checkin, icon: UserCheck, color: "text-blue-500", href: "/admin/rotas" },
+    { label: "Carregando", value: metrics.carregando, icon: Truck, color: "text-indigo-500", href: "/admin/rotas" },
+    { label: "Finalizadas", value: metrics.finalizada, icon: CheckCircle, color: "text-green-600", href: "/admin/rotas" },
     { label: "Ocorrências", value: metrics.ocorrenciasAbertas, icon: AlertTriangle, color: "text-destructive", href: "/admin/ocorrencias" },
     {
       label: "Tempo médio",
       value: metrics.tempoMedio != null ? `${Math.round(metrics.tempoMedio)} min` : "—",
-      icon: Clock,
-      color: "text-violet-500",
-      href: "/admin/rotas",
+      icon: Clock, color: "text-violet-500", href: "/admin/rotas",
     },
     { label: "Estoque ativo", value: metrics.estoqueAtivo, icon: Archive, color: "text-indigo-500", href: "/admin/estoque" },
   ];
@@ -161,11 +142,9 @@ const AdminDashboard = () => {
 
   const statusColors: Record<string, string> = {
     "Em aberto": "bg-orange-100 text-orange-800",
-    "Atribuída": "bg-blue-100 text-blue-800",
-    "Check-in feito": "bg-indigo-100 text-indigo-800",
-    "Saída registrada (NX)": "bg-green-100 text-green-800",
-    "Com ocorrência": "bg-red-100 text-red-800",
-    "Finalizada": "bg-gray-100 text-gray-800",
+    "Check-in": "bg-blue-100 text-blue-800",
+    "Carregando": "bg-indigo-100 text-indigo-800",
+    "Finalizada": "bg-green-100 text-green-800",
   };
 
   if (loading) {
@@ -180,16 +159,14 @@ const AdminDashboard = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard do Dia</h1>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
             {format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={loadDashboard} title="Atualizar">
           <RefreshCw className="h-4 w-4 mr-1" />
-          <span className="text-xs text-muted-foreground">
-            {format(lastRefresh, "HH:mm:ss")}
-          </span>
+          <span className="text-xs text-muted-foreground">{format(lastRefresh, "HH:mm:ss")}</span>
         </Button>
       </div>
 
@@ -198,38 +175,30 @@ const AdminDashboard = () => {
           <CardContent className="py-12 text-center">
             <CalendarIcon className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
             <h3 className="font-semibold text-lg text-foreground mb-2">Nenhum dia aberto</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Abra a operação do dia para começar a monitorar.
-            </p>
-            <a
-              href="/admin/dia"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition"
-            >
-              Abrir Dia <ArrowRight className="h-4 w-4" />
+            <p className="text-sm text-muted-foreground mb-4">Abra o dia na tela de Rotas.</p>
+            <a href="/admin/rotas" className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition">
+              Abrir Rotas <ArrowRight className="h-4 w-4" />
             </a>
           </CardContent>
         </Card>
       ) : (
-        <>
-          {/* Metrics Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {metricCards.map((card) => (
-              <a key={card.label} href={card.href}>
-                <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-                  <CardHeader className="pb-2 pt-4 px-4">
-                    <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                      <card.icon className={`h-3.5 w-3.5 ${card.color}`} />
-                      {card.label}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4">
-                    <p className="text-2xl font-bold text-foreground">{card.value}</p>
-                  </CardContent>
-                </Card>
-              </a>
-            ))}
-          </div>
-        </>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {metricCards.map((card) => (
+            <a key={card.label} href={card.href}>
+              <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                    <card.icon className={`h-3.5 w-3.5 ${card.color}`} />
+                    {card.label}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <p className="text-2xl font-bold text-foreground">{card.value}</p>
+                </CardContent>
+              </Card>
+            </a>
+          ))}
+        </div>
       )}
 
       {/* Stock Summary */}
@@ -263,9 +232,7 @@ const AdminDashboard = () => {
       {recentRoutes.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Atividade Recente
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Atividade Recente</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {recentRoutes.map((rota: any) => (
@@ -273,9 +240,7 @@ const AdminDashboard = () => {
                 <div className="flex items-center gap-2 min-w-0">
                   <Route className="h-3.5 w-3.5 text-primary shrink-0" />
                   <span className="font-medium truncate">{rota.rota_codigo}</span>
-                  {rota.drivers && (
-                    <span className="text-xs text-muted-foreground truncate">• {rota.drivers.nome}</span>
-                  )}
+                  {rota.drivers && <span className="text-xs text-muted-foreground truncate">• {rota.drivers.nome}</span>}
                 </div>
                 <Badge variant="outline" className={`text-[10px] shrink-0 ${statusColors[rota.status] || ""}`}>
                   {rota.status}
@@ -289,10 +254,10 @@ const AdminDashboard = () => {
       {/* Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { href: "/admin/dia", icon: CalendarIcon, label: "Operação" },
           { href: "/admin/rotas", icon: Route, label: "Rotas" },
           { href: "/admin/estoque", icon: Package, label: "Estoque" },
           { href: "/admin/motoristas", icon: Users, label: "Motoristas" },
+          { href: "/admin/ocorrencias", icon: AlertTriangle, label: "Ocorrências" },
         ].map((action) => (
           <a key={action.href} href={action.href} className="block">
             <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
