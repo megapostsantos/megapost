@@ -3,13 +3,16 @@ import { Link, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard, Route, HelpCircle,
+  LayoutDashboard, Route, Package, Users, HelpCircle, AlertTriangle,
   Menu, X, ChevronLeft, LogOut as LogOutIcon,
 } from "lucide-react";
 
 const navItems = [
   { to: "/op/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/op/rotas", label: "Rotas", icon: Route },
+  { to: "/op/estoque", label: "Estoque", icon: Package },
+  { to: "/op/ocorrencias", label: "Ocorrências", icon: AlertTriangle },
+  { to: "/op/motoristas", label: "Motoristas", icon: Users },
   { to: "/op/ajuda", label: "Ajuda", icon: HelpCircle },
 ];
 
