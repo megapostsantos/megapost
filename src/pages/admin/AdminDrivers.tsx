@@ -1,12 +1,13 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Users, Plus, Search, Edit2, Check, X, Power, Camera, Upload } from "lucide-react";
+import { Users, Plus, Search, Edit2, Check, X, Power, Camera, Upload, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 
 const AdminDrivers = () => {
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -23,11 +24,13 @@ const AdminDrivers = () => {
   const [editPlaca, setEditPlaca] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileRef = useRef<HTMLInputElement>(null);
+  const [expandedDriver, setExpandedDriver] = useState<string | null>(null);
+  const [driverMetrics, setDriverMetrics] = useState<any>(null);
+  const [metricsMonth, setMetricsMonth] = useState(format(new Date(), "yyyy-MM"));
 
   useEffect(() => {
     loadDrivers();
   }, []);
-
   const loadDrivers = async () => {
     const { data } = await supabase.from("drivers").select("*").order("nome");
     setDrivers(data || []);
@@ -130,6 +133,41 @@ const AdminDrivers = () => {
       await loadDrivers();
     }
   };
+
+  const loadDriverMetrics = useCallback(async (driverId: string) => {
+    if (expandedDriver === driverId) { setExpandedDriver(null); setDriverMetrics(null); return; }
+    setExpandedDriver(driverId);
+    setDriverMetrics(null);
+
+    const monthStart = `${metricsMonth}-01`;
+    const monthEnd = format(endOfMonth(new Date(metricsMonth + "-01")), "yyyy-MM-dd");
+
+    const [{ data: allRotas }, { data: monthRotas }, { data: allEstoque }, { data: monthEstoque }] = await Promise.all([
+      supabase.from("rotas").select("id, status").eq("driver_id", driverId),
+      supabase.from("rotas").select("id, status, periodo")
+        .eq("driver_id", driverId)
+        .gte("created_at", monthStart + "T00:00:00")
+        .lte("created_at", monthEnd + "T23:59:59"),
+      supabase.from("estoque").select("id, tipo_insucesso").eq("origem_driver_id", driverId),
+      supabase.from("estoque").select("id, tipo_insucesso")
+        .eq("origem_driver_id", driverId)
+        .gte("data_entrada", monthStart)
+        .lte("data_entrada", monthEnd),
+    ]);
+
+    setDriverMetrics({
+      totalRotas: allRotas?.length || 0,
+      mesRotas: monthRotas?.length || 0,
+      totalInsucessos: allEstoque?.length || 0,
+      mesInsucessos: monthEstoque?.length || 0,
+      totalAvarias: allEstoque?.filter((e: any) => e.tipo_insucesso === "AVARIA").length || 0,
+      mesAvarias: monthEstoque?.filter((e: any) => e.tipo_insucesso === "AVARIA").length || 0,
+      totalTentativas: allEstoque?.filter((e: any) => e.tipo_insucesso === "TENTATIVA").length || 0,
+      mesTentativas: monthEstoque?.filter((e: any) => e.tipo_insucesso === "TENTATIVA").length || 0,
+      totalFaltantes: allEstoque?.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length || 0,
+      mesFaltantes: monthEstoque?.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length || 0,
+    });
+  }, [expandedDriver, metricsMonth]);
 
   const filtered = drivers.filter(
     (d) =>
@@ -266,12 +304,41 @@ const AdminDrivers = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  <button onClick={() => loadDriverMetrics(d.id)} className="text-muted-foreground hover:text-foreground p-1" title="Ver métricas">
+                    {expandedDriver === d.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
                   <button onClick={() => toggleAtivo(d)} className="text-muted-foreground hover:text-foreground p-1" title={d.ativo ? "Desativar" : "Ativar"}>
                     <Power className="h-4 w-4" />
                   </button>
                   <button onClick={() => startEdit(d)} className="text-muted-foreground hover:text-foreground p-1">
                     <Edit2 className="h-4 w-4" />
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* Metrics panel */}
+            {expandedDriver === d.id && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs text-muted-foreground">Mês:</span>
+                  <Input type="month" value={metricsMonth} onChange={(e) => { setMetricsMonth(e.target.value); setExpandedDriver(null); }} className="h-7 text-xs w-36" />
+                </div>
+                {driverMetrics ? (
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center">
+                    <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesRotas}</p><p className="text-[10px] text-muted-foreground">Rotas (mês)</p></div>
+                    <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesInsucessos}</p><p className="text-[10px] text-muted-foreground">Insucessos (mês)</p></div>
+                    <div><p className="text-sm font-bold text-red-500">{driverMetrics.mesAvarias}</p><p className="text-[10px] text-muted-foreground">Avarias (mês)</p></div>
+                    <div><p className="text-sm font-bold text-orange-500">{driverMetrics.mesTentativas}</p><p className="text-[10px] text-muted-foreground">Tentativas (mês)</p></div>
+                    <div><p className="text-sm font-bold text-blue-500">{driverMetrics.mesFaltantes}</p><p className="text-[10px] text-muted-foreground">Faltantes (mês)</p></div>
+                  </div>
+                ) : (
+                  <div className="flex justify-center py-2"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" /></div>
+                )}
+                <div className="mt-2 pt-2 border-t border-border/50">
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    Histórico total: {driverMetrics?.totalRotas || 0} rotas • {driverMetrics?.totalInsucessos || 0} insucessos • {driverMetrics?.totalAvarias || 0} avarias
+                  </p>
                 </div>
               </div>
             )}

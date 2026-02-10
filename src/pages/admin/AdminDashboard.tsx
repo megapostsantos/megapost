@@ -137,19 +137,20 @@ const AdminDashboard = () => {
   }, [loadDashboard]);
 
   const metricCards = [
-    { label: "Rotas AM0", value: metrics.totalAM0, icon: Route, color: "text-primary" },
-    { label: "Rotas AM1", value: metrics.totalAM1, icon: Route, color: "text-primary" },
-    { label: "Em aberto", value: metrics.emAberto, icon: Package, color: "text-orange-500" },
-    { label: "Check-in", value: metrics.comCheckin, icon: UserCheck, color: "text-blue-500" },
-    { label: "Saída (NX)", value: metrics.comSaida, icon: CheckCircle, color: "text-green-600" },
-    { label: "Ocorrências", value: metrics.ocorrenciasAbertas, icon: AlertTriangle, color: "text-destructive" },
+    { label: "Rotas AM0", value: metrics.totalAM0, icon: Route, color: "text-primary", href: "/admin/rotas" },
+    { label: "Rotas AM1", value: metrics.totalAM1, icon: Route, color: "text-primary", href: "/admin/rotas" },
+    { label: "Em aberto", value: metrics.emAberto, icon: Package, color: "text-orange-500", href: "/admin/rotas" },
+    { label: "Check-in", value: metrics.comCheckin, icon: UserCheck, color: "text-blue-500", href: "/admin/rotas" },
+    { label: "Saída (NX)", value: metrics.comSaida, icon: CheckCircle, color: "text-green-600", href: "/admin/rotas" },
+    { label: "Ocorrências", value: metrics.ocorrenciasAbertas, icon: AlertTriangle, color: "text-destructive", href: "/admin/ocorrencias" },
     {
       label: "Tempo médio",
       value: metrics.tempoMedio != null ? `${Math.round(metrics.tempoMedio)} min` : "—",
       icon: Clock,
       color: "text-violet-500",
+      href: "/admin/rotas",
     },
-    { label: "Estoque ativo", value: metrics.estoqueAtivo, icon: Archive, color: "text-indigo-500" },
+    { label: "Estoque ativo", value: metrics.estoqueAtivo, icon: Archive, color: "text-indigo-500", href: "/admin/estoque" },
   ];
 
   const stockCards = [
@@ -213,17 +214,19 @@ const AdminDashboard = () => {
           {/* Metrics Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {metricCards.map((card) => (
-              <Card key={card.label}>
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <card.icon className={`h-3.5 w-3.5 ${card.color}`} />
-                    {card.label}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 pb-4">
-                  <p className="text-2xl font-bold text-foreground">{card.value}</p>
-                </CardContent>
-              </Card>
+              <a key={card.label} href={card.href}>
+                <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+                  <CardHeader className="pb-2 pt-4 px-4">
+                    <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <card.icon className={`h-3.5 w-3.5 ${card.color}`} />
+                      {card.label}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4">
+                    <p className="text-2xl font-bold text-foreground">{card.value}</p>
+                  </CardContent>
+                </Card>
+              </a>
             ))}
           </div>
         </>
@@ -286,10 +289,10 @@ const AdminDashboard = () => {
       {/* Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
+          { href: "/admin/dia", icon: CalendarIcon, label: "Operação" },
           { href: "/admin/rotas", icon: Route, label: "Rotas" },
-          { href: "/admin/checkin", icon: UserCheck, label: "Check-in" },
-          { href: "/admin/saida", icon: LogOut, label: "Saída" },
           { href: "/admin/estoque", icon: Package, label: "Estoque" },
+          { href: "/admin/motoristas", icon: Users, label: "Motoristas" },
         ].map((action) => (
           <a key={action.href} href={action.href} className="block">
             <Card className="hover:bg-accent/50 transition-colors cursor-pointer">

@@ -6,8 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
-import { Save, Upload, Image, Settings } from "lucide-react";
+import { Save, Upload, Image, Settings, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const AdminSettings = () => {
   const { settings, loading, updateSetting, refetch } = useSiteSettings();
@@ -163,7 +165,104 @@ const AdminSettings = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Admin Cleanup */}
+      <AdminCleanup />
     </div>
+  );
+};
+
+const AdminCleanup = () => {
+  const [dias, setDias] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    supabase.from("dias").select("id, data, status").order("data", { ascending: false }).limit(50)
+      .then(({ data }) => { setDias(data || []); setLoading(false); });
+  }, []);
+
+  const handleDeleteDia = async (diaId: string, diaData: string) => {
+    if (!confirm(`Apagar o dia ${format(new Date(diaData + "T12:00:00"), "dd/MM/yyyy")} e TODOS os dados associados (rotas, estoque, logs)?`)) return;
+    setDeleting(true);
+    // Delete in order: estoque, route_event_log, conferencias, rotas, stock_pickups, then dia
+    await supabase.from("estoque").delete().eq("dia_id", diaId);
+    const { data: rotasDoDia } = await supabase.from("rotas").select("id").eq("dia_id", diaId);
+    if (rotasDoDia) {
+      const rotaIds = rotasDoDia.map((r: any) => r.id);
+      if (rotaIds.length > 0) {
+        await supabase.from("route_event_log").delete().in("route_id", rotaIds);
+        await supabase.from("conferencias").delete().in("rota_id", rotaIds);
+        await supabase.from("ocorrencias").delete().in("rota_id", rotaIds);
+      }
+    }
+    await supabase.from("rotas").delete().eq("dia_id", diaId);
+    await supabase.from("stock_pickups").delete().eq("dia_id", diaId);
+    await supabase.from("dias").delete().eq("id", diaId);
+    toast.success("Dia e dados associados removidos.");
+    setDias((prev) => prev.filter((d) => d.id !== diaId));
+    setDeleting(false);
+  };
+
+  const handleResetTotal = async () => {
+    if (confirmText !== "APAGAR") { toast.error('Digite "APAGAR" para confirmar.'); return; }
+    setDeleting(true);
+    await supabase.from("estoque").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("route_event_log").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("conferencias").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("ocorrencias").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("rotas").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("stock_pickups").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("dias").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("financeiro_entradas").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("financeiro_saidas").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    toast.success("Todos os dados operacionais foram apagados.");
+    setDias([]);
+    setConfirmText("");
+    setDeleting(false);
+  };
+
+  return (
+    <Card className="border-destructive/30">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2 text-destructive">
+          <Trash2 className="h-5 w-5" /> Limpeza de Dados
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">Apagar dias de teste ou resetar dados operacionais. Ação irreversível.</p>
+
+        {/* Delete individual days */}
+        {!loading && dias.length > 0 && (
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {dias.map((dia) => (
+              <div key={dia.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border last:border-0">
+                <span>{format(new Date(dia.data + "T12:00:00"), "dd/MM/yyyy (EEE)", { locale: ptBR })}</span>
+                <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" disabled={deleting}
+                  onClick={() => handleDeleteDia(dia.id, dia.data)}>
+                  <Trash2 className="h-3 w-3 mr-1" /> Apagar
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Total reset */}
+        <div className="pt-3 border-t border-border space-y-2">
+          <div className="flex items-center gap-2 text-sm text-destructive">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>Reset total: apaga TODOS os dados operacionais (dias, rotas, estoque, financeiro).</span>
+          </div>
+          <div className="flex gap-2">
+            <Input placeholder='Digite "APAGAR" para confirmar' value={confirmText} onChange={(e) => setConfirmText(e.target.value)} className="flex-1" />
+            <Button variant="destructive" size="sm" disabled={deleting || confirmText !== "APAGAR"} onClick={handleResetTotal}>
+              Reset Total
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
