@@ -112,6 +112,69 @@ export type Database = {
         }
         Relationships: []
       }
+      documentos: {
+        Row: {
+          arquivo_nome: string | null
+          arquivo_url: string | null
+          created_at: string
+          data_referencia: string | null
+          financeiro_entrada_id: string | null
+          financeiro_saida_id: string | null
+          id: string
+          observacao: string | null
+          status: string
+          tipo: string
+          titulo: string
+          updated_at: string
+          valor: number | null
+        }
+        Insert: {
+          arquivo_nome?: string | null
+          arquivo_url?: string | null
+          created_at?: string
+          data_referencia?: string | null
+          financeiro_entrada_id?: string | null
+          financeiro_saida_id?: string | null
+          id?: string
+          observacao?: string | null
+          status?: string
+          tipo?: string
+          titulo: string
+          updated_at?: string
+          valor?: number | null
+        }
+        Update: {
+          arquivo_nome?: string | null
+          arquivo_url?: string | null
+          created_at?: string
+          data_referencia?: string | null
+          financeiro_entrada_id?: string | null
+          financeiro_saida_id?: string | null
+          id?: string
+          observacao?: string | null
+          status?: string
+          tipo?: string
+          titulo?: string
+          updated_at?: string
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_financeiro_entrada_id_fkey"
+            columns: ["financeiro_entrada_id"]
+            isOneToOne: false
+            referencedRelation: "financeiro_entradas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_financeiro_saida_id_fkey"
+            columns: ["financeiro_saida_id"]
+            isOneToOne: false
+            referencedRelation: "financeiro_saidas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       drivers: {
         Row: {
           ativo: boolean
@@ -234,6 +297,116 @@ export type Database = {
             columns: ["saida_route_id"]
             isOneToOne: false
             referencedRelation: "rotas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financeiro_entradas: {
+        Row: {
+          created_at: string
+          data_referencia: string
+          descricao: string
+          dia_id: string | null
+          documento_id: string | null
+          id: string
+          observacao: string | null
+          recebido_em: string | null
+          status: string
+          tipo: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          data_referencia?: string
+          descricao: string
+          dia_id?: string | null
+          documento_id?: string | null
+          id?: string
+          observacao?: string | null
+          recebido_em?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          data_referencia?: string
+          descricao?: string
+          dia_id?: string | null
+          documento_id?: string | null
+          id?: string
+          observacao?: string | null
+          recebido_em?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_entradas_dia_id_fkey"
+            columns: ["dia_id"]
+            isOneToOne: false
+            referencedRelation: "dias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_entradas_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financeiro_saidas: {
+        Row: {
+          created_at: string
+          data_referencia: string
+          descricao: string
+          documento_id: string | null
+          id: string
+          observacao: string | null
+          pago_em: string | null
+          status: string
+          tipo: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          data_referencia?: string
+          descricao: string
+          documento_id?: string | null
+          id?: string
+          observacao?: string | null
+          pago_em?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          data_referencia?: string
+          descricao?: string
+          documento_id?: string | null
+          id?: string
+          observacao?: string | null
+          pago_em?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_saidas_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documentos"
             referencedColumns: ["id"]
           },
         ]
