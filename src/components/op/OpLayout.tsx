@@ -3,57 +3,34 @@ import { Link, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard, Route, Package, Users, HelpCircle,
-  Settings, Tv, Menu, X, ChevronLeft, LogOut as LogOutIcon,
-  DollarSign, FileText,
+  LayoutDashboard, Route, HelpCircle,
+  Menu, X, ChevronLeft, LogOut as LogOutIcon,
 } from "lucide-react";
 
-interface NavItem {
-  to: string;
-  label: string;
-  icon: React.ElementType;
-  adminOnly?: boolean;
-}
-
-const navItems: NavItem[] = [
-  { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/rotas", label: "Rotas", icon: Route },
-  { to: "/admin/estoque", label: "Estoque", icon: Package },
-  { to: "/admin/motoristas", label: "Motoristas", icon: Users },
-  { to: "/admin/ocorrencias", label: "Ocorrências", icon: HelpCircle },
-  { to: "/admin/ajuda", label: "Ajuda", icon: HelpCircle },
+const navItems = [
+  { to: "/op/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/op/rotas", label: "Rotas", icon: Route },
+  { to: "/op/ajuda", label: "Ajuda", icon: HelpCircle },
 ];
 
-const adminOnlyItems: NavItem[] = [
-  { to: "/admin/financeiro", label: "Financeiro", icon: DollarSign, adminOnly: true },
-  { to: "/admin/documentos", label: "Documentos", icon: FileText, adminOnly: true },
-  { to: "/admin/tv", label: "Painel TV", icon: Tv, adminOnly: true },
-  { to: "/admin/configuracoes", label: "Configurações", icon: Settings, adminOnly: true },
-];
-
-const AdminLayout = () => {
-  const { user, isAdmin, signOut } = useAuth();
+const OpLayout = () => {
+  const { user, signOut } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const visibleItems = isAdmin ? [...navItems, ...adminOnlyItems] : navItems;
-
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        {/* Logo */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-sidebar-border">
-          <Link to="/admin/dashboard" className="flex items-center gap-2.5">
+          <Link to="/op/dashboard" className="flex items-center gap-2.5">
             <img src="/logo-megapost.jpg" alt="Mega POST" className="h-9 w-9 rounded-lg shadow-sm" />
             <div>
               <span className="font-bold text-sm leading-tight block">MegaPost Ops</span>
-              <span className="text-[10px] text-sidebar-foreground/60 leading-tight">Sistema Interno</span>
+              <span className="text-[10px] text-sidebar-foreground/60 leading-tight">Operacional</span>
             </div>
           </Link>
           <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-sidebar-foreground/60 hover:text-sidebar-foreground">
@@ -61,9 +38,8 @@ const AdminLayout = () => {
           </button>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 py-3 space-y-0.5 overflow-y-auto px-3">
-          {visibleItems.map((item) => {
+          {navItems.map((item) => {
             const isActive = location.pathname === item.to || location.pathname.startsWith(item.to + "/");
             return (
               <Link
@@ -83,7 +59,6 @@ const AdminLayout = () => {
           })}
         </nav>
 
-        {/* Footer */}
         <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
           <Link to="/" className="flex items-center gap-2 text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors">
             <ChevronLeft className="h-3 w-3" />
@@ -92,7 +67,7 @@ const AdminLayout = () => {
           <div className="flex items-center justify-between">
             <div className="min-w-0">
               <p className="text-xs text-sidebar-foreground/50 truncate">{user?.email}</p>
-              <p className="text-[10px] text-sidebar-primary font-medium">{isAdmin ? "Admin" : "Operador"}</p>
+              <p className="text-[10px] text-sidebar-primary font-medium">Operador</p>
             </div>
             <Button
               variant="ghost"
@@ -106,9 +81,7 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen w-0">
-        {/* Mobile header */}
         <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-card border-b border-border shadow-sm">
           <button onClick={() => setSidebarOpen(true)} className="text-foreground">
             <Menu className="h-5 w-5" />
@@ -124,4 +97,4 @@ const AdminLayout = () => {
   );
 };
 
-export default AdminLayout;
+export default OpLayout;
