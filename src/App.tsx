@@ -34,6 +34,10 @@ import AdminAjuda from "@/pages/admin/AdminAjuda";
 import AdminFinanceiro from "@/pages/admin/AdminFinanceiro";
 import AdminDocumentos from "@/pages/admin/AdminDocumentos";
 
+// Operator pages
+import OpLogin from "@/pages/op/OpLogin";
+import OpLayout from "@/components/op/OpLayout";
+
 const queryClient = new QueryClient();
 
 const PublicLayout = ({ children }: { children: React.ReactNode }) => (
@@ -61,6 +65,22 @@ const App = () => (
               <Route path="/seja-parceiro" element={<PublicLayout><SejaParceiro /></PublicLayout>} />
               <Route path="/registrar-ocorrencia" element={<PublicLayout><RegistrarOcorrencia /></PublicLayout>} />
 
+              {/* Operator routes */}
+              <Route path="/op/login" element={<OpLogin />} />
+              <Route
+                path="/op"
+                element={
+                  <ProtectedRoute>
+                    <OpLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<AdminDashboard />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="rotas" element={<AdminRotas />} />
+                <Route path="ajuda" element={<AdminAjuda />} />
+              </Route>
+
               {/* Admin routes */}
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route
@@ -71,7 +91,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               >
-              <Route index element={<AdminDashboard />} />
+                <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
                 <Route path="dia" element={<AdminDia />} />
                 <Route path="rotas" element={<AdminRotas />} />

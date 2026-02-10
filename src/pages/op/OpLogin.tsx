@@ -13,8 +13,8 @@ const loginSchema = z.object({
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres").max(128),
 });
 
-const AdminLogin = () => {
-  const { signIn, user, isAdmin, loading } = useAuth();
+const OpLogin = () => {
+  const { signIn, user, loading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,10 +22,8 @@ const AdminLogin = () => {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Redirect if already logged in
   if (!loading && user) {
-    // Admin users go to /admin, others to /op
-    navigate(isAdmin ? "/admin/dashboard" : "/op/dashboard", { replace: true });
+    navigate("/op/dashboard", { replace: true });
     return null;
   }
 
@@ -45,7 +43,7 @@ const AdminLogin = () => {
       setError(authError);
       setSubmitting(false);
     } else {
-      navigate("/admin/dashboard", { replace: true });
+      navigate("/op/dashboard", { replace: true });
     }
   };
 
@@ -54,8 +52,8 @@ const AdminLogin = () => {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <img src="/logo-megapost.jpg" alt="Mega POST" className="h-16 w-16 rounded-lg mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-foreground">Sistema Interno</h1>
-          <p className="text-sm text-muted-foreground mt-1">Mega POST — Área de Operações</p>
+          <h1 className="text-xl font-bold text-foreground">Área Operacional</h1>
+          <p className="text-sm text-muted-foreground mt-1">Mega POST — Operações do dia</p>
         </div>
 
         <Card>
@@ -73,36 +71,15 @@ const AdminLogin = () => {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                />
+                <Label htmlFor="op-email">E-mail</Label>
+                <Input id="op-email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
+                <Label htmlFor="op-password">Senha</Label>
                 <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    tabIndex={-1}
-                  >
+                  <Input id="op-password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
@@ -124,4 +101,4 @@ const AdminLogin = () => {
   );
 };
 
-export default AdminLogin;
+export default OpLogin;
