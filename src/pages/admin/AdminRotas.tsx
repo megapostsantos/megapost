@@ -14,11 +14,12 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   Plus, Route, AlertCircle, UserPlus, LogIn, LogOut as LogOutIcon,
   ChevronDown, ChevronUp, Clock, User, Package, Camera,
-  AlertTriangle, CalendarPlus, Check, Truck, Loader2,
+  AlertTriangle, CalendarPlus, Check, Truck, Loader2, Flag,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { useNavigate, useLocation } from "react-router-dom";
 
 // ── Status config ──────────────────────────────────────────
 const statusConfig: Record<string, { color: string; label: string }> = {
@@ -32,8 +33,17 @@ const tipoLabels: Record<string, string> = {
   TENTATIVA: "Tentativa", AVARIA: "Avaria", FALTANTE_BAIXADO: "Faltante (Baixa)", REENTREGA: "Reentrega",
 };
 
+const farolColors: Record<string, string> = {
+  VERDE: "text-green-600",
+  AMARELO: "text-yellow-500",
+  VERMELHO: "text-red-600",
+};
+
 const AdminRotas = () => {
   const { user, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isOpArea = location.pathname.startsWith("/op");
 
   // ── Day state ──────────────────────────────────────────
   const [diaId, setDiaId] = useState<string | null>(null);
@@ -62,12 +72,8 @@ const AdminRotas = () => {
   const [assignRota, setAssignRota] = useState<any | null>(null);
   const [assignDriverId, setAssignDriverId] = useState("");
   const [assignSubmitting, setAssignSubmitting] = useState(false);
-  const [showNewDriver, setShowNewDriver] = useState(false);
-  const [newDriverName, setNewDriverName] = useState("");
-  const [newDriverPhone, setNewDriverPhone] = useState("");
-  const [newDriverPlaca, setNewDriverPlaca] = useState("");
 
-  // Saída (Finalizar) dialog
+  // Registrar Saída dialog (Check-in → Carregando, QR + NX obrigatórios)
   const [saidaRota, setSaidaRota] = useState<any | null>(null);
   const [saidaQr, setSaidaQr] = useState("");
   const [saidaNx, setSaidaNx] = useState("");
@@ -116,8 +122,8 @@ const AdminRotas = () => {
   const loadRoutes = useCallback(async (dayId: string) => {
     setLoading(true);
     const [{ data: rotasData }, { data: driversData }] = await Promise.all([
-      supabase.from("rotas").select("*, drivers(id, nome, telefone, placa)").eq("dia_id", dayId).order("rota_codigo"),
-      supabase.from("drivers").select("id, nome, telefone, placa").eq("ativo", true).order("nome"),
+      supabase.from("rotas").select("*, drivers(id, nome, telefone, placa, farol)").eq("dia_id", dayId).order("rota_codigo"),
+      supabase.from("drivers").select("id, nome, telefone, placa, farol").eq("ativo", true).order("nome"),
     ]);
     setRotas(rotasData || []);
     setDrivers(driversData || []);
@@ -148,12 +154,9 @@ const AdminRotas = () => {
         dayId = newDay.id;
       }
 
-      // Create routes automatically
       const am0Count = parseInt(newDayAm0) || 0;
       const am1Count = parseInt(newDayAm1) || 0;
       const inserts: any[] = [];
-
-      // Check existing routes for this day
       const { data: existingRoutes } = await supabase.from("rotas").select("rota_codigo").eq("dia_id", dayId);
       const existingCodes = new Set((existingRoutes || []).map((r: any) => r.rota_codigo));
 
@@ -202,6 +205,17 @@ const AdminRotas = () => {
   // ── Assign driver = CHECK-IN ───────────────────────────
   const handleAssignDriver = async () => {
     if (!assignRota || !assignDriverId) return;
+
+    // Check farol
+    const driver = drivers.find(d => d.id === assignDriverId);
+    if (driver?.farol === "VERMELHO") {
+      toast.error("Motorista BLOQUEADO (farol vermelho). Não é possível atribuir.");
+      return;
+    }
+    if (driver?.farol === "AMARELO") {
+      if (!confirm("⚠️ Este motorista tem farol AMARELO. Deseja continuar?")) return;
+    }
+
     setAssignSubmitting(true);
     try {
       const { error } = await supabase.from("rotas").update({
@@ -215,67 +229,57 @@ const AdminRotas = () => {
         payload_json: { driver_id: assignDriverId },
       } as any);
       toast.success("Motorista atribuído — Check-in registrado!");
-      setAssignRota(null); setAssignDriverId(""); setShowNewDriver(false);
+      setAssignRota(null); setAssignDriverId("");
       await loadRoutes(diaId!);
     } catch (err: any) { toast.error(err.message); }
     finally { setAssignSubmitting(false); }
   };
 
-  // ── Quick create driver ────────────────────────────────
-  const handleQuickCreateDriver = async () => {
-    if (!newDriverName.trim()) { toast.error("Nome obrigatório"); return; }
-    const { data, error } = await supabase.from("drivers").insert({
-      nome: newDriverName.trim(),
-      telefone: newDriverPhone.trim() || null,
-      placa: newDriverPlaca.trim() || null,
-    }).select().single();
-    if (error) { toast.error(error.message); return; }
-    setDrivers((prev) => [...prev, data].sort((a, b) => a.nome.localeCompare(b.nome)));
-    setAssignDriverId(data.id);
-    setShowNewDriver(false); setNewDriverName(""); setNewDriverPhone(""); setNewDriverPlaca("");
-    toast.success("Motorista criado!");
-  };
-
-  // ── Advance to CARREGANDO ──────────────────────────────
-  const handleCarregando = async (rota: any) => {
-    try {
-      const { error } = await supabase.from("rotas").update({ status: "Carregando" }).eq("id", rota.id);
-      if (error) throw error;
-      await supabase.from("route_event_log").insert({
-        route_id: rota.id, actor_role: isAdmin ? "ADMIN" : "OPERADOR", action: "carregando",
-      } as any);
-      toast.success(`${rota.rota_codigo} → Carregando`);
-      await loadRoutes(diaId!);
-    } catch (err: any) { toast.error(err.message); }
-  };
-
-  // ── Finalizar rota (saída) ─────────────────────────────
-  const handleFinalizar = async () => {
+  // ── Registrar Saída (Check-in → Carregando) QR + NX OBRIGATÓRIOS ──
+  const handleRegistrarSaida = async () => {
     if (!saidaRota) return;
     if (!saidaQr.trim()) { toast.error("QR Code da saca é OBRIGATÓRIO"); return; }
+    if (!saidaNx.trim()) { toast.error("Código NX é OBRIGATÓRIO"); return; }
     setSaidaSubmitting(true);
     try {
       const horaSaida = new Date();
-      const horaChegada = saidaRota.hora_chegada ? new Date(saidaRota.hora_chegada) : horaSaida;
-      const tempoMin = Math.round((horaSaida.getTime() - horaChegada.getTime()) / 60000);
       const { error } = await supabase.from("rotas").update({
         qr_codigo: saidaQr.trim(),
-        nx_codigo: saidaNx.trim() || null,
+        nx_codigo: saidaNx.trim(),
         hora_saida: horaSaida.toISOString(),
-        tempo_atendimento_min: tempoMin,
-        status: "Finalizada",
+        status: "Carregando",
       }).eq("id", saidaRota.id);
       if (error) throw error;
       await supabase.from("route_event_log").insert({
-        route_id: saidaRota.id, actor_role: isAdmin ? "ADMIN" : "OPERADOR", action: "finalizada",
-        payload_json: { qr: saidaQr.trim(), nx: saidaNx.trim() || null, tempo_min: tempoMin },
+        route_id: saidaRota.id, actor_role: isAdmin ? "ADMIN" : "OPERADOR", action: "saida_registrada",
+        payload_json: { qr: saidaQr.trim(), nx: saidaNx.trim() },
       } as any);
-      toast.success(`Rota ${saidaRota.rota_codigo} finalizada! Tempo: ${tempoMin} min`);
+      toast.success(`Saída registrada — ${saidaRota.rota_codigo} → Carregando`);
       stopScanning();
       setSaidaRota(null); setSaidaQr(""); setSaidaNx("");
       await loadRoutes(diaId!);
     } catch (err: any) { toast.error(err.message); }
     finally { setSaidaSubmitting(false); }
+  };
+
+  // ── Finalizar rota (Carregando → Finalizada) ───────────
+  const handleFinalizar = async (rota: any) => {
+    try {
+      const horaChegada = rota.hora_chegada ? new Date(rota.hora_chegada) : new Date();
+      const horaSaida = rota.hora_saida ? new Date(rota.hora_saida) : new Date();
+      const tempoMin = Math.round((new Date().getTime() - horaChegada.getTime()) / 60000);
+      const { error } = await supabase.from("rotas").update({
+        tempo_atendimento_min: tempoMin,
+        status: "Finalizada",
+      }).eq("id", rota.id);
+      if (error) throw error;
+      await supabase.from("route_event_log").insert({
+        route_id: rota.id, actor_role: isAdmin ? "ADMIN" : "OPERADOR", action: "finalizada",
+        payload_json: { tempo_min: tempoMin },
+      } as any);
+      toast.success(`Rota ${rota.rota_codigo} finalizada! Tempo total: ${tempoMin} min`);
+      await loadRoutes(diaId!);
+    } catch (err: any) { toast.error(err.message); }
   };
 
   // ── Camera ─────────────────────────────────────────────
@@ -406,6 +410,9 @@ const AdminRotas = () => {
             {driver && (
               <p className="text-xs text-muted-foreground flex items-center gap-1 ml-6">
                 <User className="h-3 w-3" /> {driver.nome} {driver.placa ? `• ${driver.placa}` : ""}
+                {driver.farol && driver.farol !== "VERDE" && (
+                  <Flag className={`h-3 w-3 ml-1 ${farolColors[driver.farol] || ""}`} />
+                )}
               </p>
             )}
             {(rota.hora_chegada || rota.hora_saida) && (
@@ -421,17 +428,17 @@ const AdminRotas = () => {
 
           <div className="flex flex-col gap-1 shrink-0">
             {rota.status === "Em aberto" && (
-              <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => { setAssignRota(rota); setAssignDriverId(""); setShowNewDriver(false); }}>
+              <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => { setAssignRota(rota); setAssignDriverId(""); }}>
                 <UserPlus className="h-3 w-3 mr-1" /> Motorista
               </Button>
             )}
             {rota.status === "Check-in" && (
-              <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => handleCarregando(rota)}>
-                <Truck className="h-3 w-3 mr-1" /> Carregar
+              <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => { setSaidaRota(rota); setSaidaQr(""); setSaidaNx(""); }}>
+                <Truck className="h-3 w-3 mr-1" /> Saída
               </Button>
             )}
             {rota.status === "Carregando" && (
-              <Button size="sm" variant="default" className="text-xs h-7 px-2" onClick={() => { setSaidaRota(rota); setSaidaQr(""); setSaidaNx(""); }}>
+              <Button size="sm" variant="default" className="text-xs h-7 px-2" onClick={() => handleFinalizar(rota)}>
                 <Check className="h-3 w-3 mr-1" /> Finalizar
               </Button>
             )}
@@ -444,8 +451,8 @@ const AdminRotas = () => {
         {/* Expanded detail */}
         {isExpanded && (
           <div className="mt-3 pt-3 border-t border-border space-y-3">
-            {/* Actions — only during Carregando or Check-in */}
-            {(rota.status === "Carregando" || rota.status === "Check-in") && (
+            {/* Actions — available on Carregando AND Finalizada */}
+            {(rota.status === "Carregando" || rota.status === "Finalizada" || rota.status === "Check-in") && (
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { setAddInsRotaId(rota.id); setShowAddInsucesso(true); setAddInsCodigo(""); setAddInsMotivo(""); }}>
                   <Package className="h-3 w-3 mr-1" /> + Avaria/Tentativa
@@ -527,7 +534,7 @@ const AdminRotas = () => {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <CalendarPlus className="h-5 w-5 text-primary" />
-              Abrir Dia de Operação
+              Criar Rotas do Dia
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -623,7 +630,7 @@ const AdminRotas = () => {
       {/* ── DIALOGS ─────────────────────────────────────── */}
 
       {/* Assign Driver = Check-in */}
-      <Dialog open={!!assignRota} onOpenChange={(open) => { if (!open) { setAssignRota(null); setShowNewDriver(false); } }}>
+      <Dialog open={!!assignRota} onOpenChange={(open) => { if (!open) setAssignRota(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Atribuir Motorista (Check-in)</DialogTitle>
@@ -632,23 +639,28 @@ const AdminRotas = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label>Motorista</Label>
-              <button type="button" onClick={() => setShowNewDriver(!showNewDriver)} className="text-xs text-primary hover:underline">
-                {showNewDriver ? "Cancelar" : "+ Novo motorista"}
+              <button type="button" onClick={() => navigate(isOpArea ? "/op/motoristas" : "/admin/motoristas")} className="text-xs text-primary hover:underline">
+                + Cadastrar novo motorista
               </button>
             </div>
-            {showNewDriver ? (
-              <div className="space-y-2 bg-muted p-3 rounded-md">
-                <Input placeholder="Nome *" value={newDriverName} onChange={(e) => setNewDriverName(e.target.value)} />
-                <Input placeholder="Telefone" value={newDriverPhone} onChange={(e) => setNewDriverPhone(e.target.value)} />
-                <Input placeholder="Placa" value={newDriverPlaca} onChange={(e) => setNewDriverPlaca(e.target.value)} />
-                <Button size="sm" onClick={handleQuickCreateDriver}>Criar e selecionar</Button>
-              </div>
-            ) : (
-              <select value={assignDriverId} onChange={(e) => setAssignDriverId(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                <option value="">Selecione...</option>
-                {drivers.map((d) => <option key={d.id} value={d.id}>{d.nome} {d.placa ? `• ${d.placa}` : ""} {d.telefone ? `(${d.telefone})` : ""}</option>)}
-              </select>
-            )}
+            <select value={assignDriverId} onChange={(e) => setAssignDriverId(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <option value="">Selecione...</option>
+              {drivers.filter(d => d.farol !== "VERMELHO").map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.farol === "AMARELO" ? "⚠️ " : ""}{d.nome} {d.placa ? `• ${d.placa}` : ""} {d.telefone ? `(${d.telefone})` : ""}
+                </option>
+              ))}
+            </select>
+            {assignDriverId && (() => {
+              const d = drivers.find(x => x.id === assignDriverId);
+              if (d?.farol === "AMARELO") return (
+                <div className="flex items-center gap-2 text-sm text-yellow-600 bg-yellow-50 p-2 rounded-md">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  Motorista com farol AMARELO — prosseguir com cautela.
+                </div>
+              );
+              return null;
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignRota(null)}>Cancelar</Button>
@@ -659,11 +671,11 @@ const AdminRotas = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Finalizar Rota (QR obrigatório, NX opcional) */}
+      {/* Registrar Saída (Check-in → Carregando, QR + NX OBRIGATÓRIOS) */}
       <Dialog open={!!saidaRota} onOpenChange={(open) => { if (!open) { setSaidaRota(null); stopScanning(); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Finalizar Rota</DialogTitle>
+            <DialogTitle>Registrar Saída</DialogTitle>
             <DialogDescription>
               Rota: <strong>{saidaRota?.rota_codigo}</strong>
               {saidaRota?.drivers && ` — ${saidaRota.drivers.nome}`}
@@ -687,14 +699,14 @@ const AdminRotas = () => {
               )}
             </div>
             <div className="space-y-2">
-              <Label>NX (opcional)</Label>
+              <Label>Código NX *</Label>
               <Input value={saidaNx} onChange={(e) => setSaidaNx(e.target.value)} placeholder="NX..." />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setSaidaRota(null); stopScanning(); }}>Cancelar</Button>
-            <Button onClick={handleFinalizar} disabled={saidaSubmitting || !saidaQr.trim()}>
-              {saidaSubmitting ? "Finalizando..." : "Finalizar Rota"}
+            <Button onClick={handleRegistrarSaida} disabled={saidaSubmitting || !saidaQr.trim() || !saidaNx.trim()}>
+              {saidaSubmitting ? "Registrando..." : "Registrar Saída"}
             </Button>
           </DialogFooter>
         </DialogContent>

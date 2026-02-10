@@ -179,31 +179,43 @@ export type Database = {
         Row: {
           ativo: boolean
           created_at: string
+          farol: string
           foto_url: string | null
           id: string
           nome: string
+          observacao: string | null
           placa: string | null
           telefone: string | null
+          tipo: string
+          transportadora_nome: string | null
           updated_at: string
         }
         Insert: {
           ativo?: boolean
           created_at?: string
+          farol?: string
           foto_url?: string | null
           id?: string
           nome: string
+          observacao?: string | null
           placa?: string | null
           telefone?: string | null
+          tipo?: string
+          transportadora_nome?: string | null
           updated_at?: string
         }
         Update: {
           ativo?: boolean
           created_at?: string
+          farol?: string
           foto_url?: string | null
           id?: string
           nome?: string
+          observacao?: string | null
           placa?: string | null
           telefone?: string | null
+          tipo?: string
+          transportadora_nome?: string | null
           updated_at?: string
         }
         Relationships: []

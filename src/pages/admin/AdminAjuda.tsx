@@ -1,60 +1,87 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  CalendarPlus, UserCheck, LogOut, Package, AlertTriangle, HelpCircle,
+  CalendarPlus, UserCheck, LogOut, Package, AlertTriangle, HelpCircle, Flag, Check,
 } from "lucide-react";
 
 const sections = [
   {
     icon: CalendarPlus,
-    title: "Como iniciar o dia",
+    title: "Fluxo dos 4 Estados da Rota",
     steps: [
-      "Acesse o menu Operação.",
-      "Selecione a data (hoje ou futura).",
-      "Informe a quantidade prevista de rotas AM0 e AM1.",
-      "Clique em Abrir Operação do Dia.",
-      "O sistema criará as rotas automaticamente e redirecionará para a tela de Rotas.",
+      "1️⃣ EM ABERTO — Rota criada, sem motorista atribuído.",
+      "2️⃣ CHECK-IN — Motorista atribuído = presença confirmada. Ao atribuir motorista, o status muda automaticamente.",
+      "3️⃣ CARREGANDO — Saída registrada com QR Code da saca + NX (ambos OBRIGATÓRIOS). O motorista está carregando o veículo.",
+      "4️⃣ FINALIZADA — Rota encerrada. Histórico preservado. Ocorrências podem ser registradas mesmo após finalização.",
+    ],
+  },
+  {
+    icon: CalendarPlus,
+    title: "Como criar rotas do dia",
+    steps: [
+      "Acesse a aba Rotas.",
+      "Se não há dia aberto, o formulário 'Criar Rotas do Dia' aparecerá.",
+      "Informe a data, quantidade AM0 e AM1.",
+      "Clique em 'Abrir Dia e Criar Rotas'.",
+      "Para adicionar mais rotas depois, use o botão '+ Mais Rotas'.",
     ],
   },
   {
     icon: UserCheck,
-    title: "Como alocar motorista (Check-in)",
+    title: "Como atribuir motorista (Check-in)",
     steps: [
-      "Na tela de Rotas, clique em Atribuir na rota desejada.",
-      "Selecione o motorista na lista ou crie um novo rapidamente.",
-      "Após atribuir, clique em Check-in para registrar a chegada.",
-      "O horário de entrada será salvo automaticamente.",
+      "Na rota EM ABERTO, clique no botão 'Motorista'.",
+      "Selecione o motorista na lista — motoristas bloqueados (vermelho) não aparecem.",
+      "Se o motorista não existe, clique em '+ Cadastrar novo motorista' para ir à tela de Motoristas.",
+      "Ao confirmar, o status muda para CHECK-IN automaticamente.",
     ],
   },
   {
     icon: LogOut,
-    title: "Como registrar saída",
+    title: "Como registrar saída (QR + NX obrigatórios)",
     steps: [
-      "Após o check-in, acesse a rota e clique em Saída NX.",
-      "Escaneie o QR Code da rota (ou digite manualmente).",
-      "Informe o código NX obrigatório.",
-      "Se houver pacotes avariados, registre-os — eles irão para o Estoque de Insucessos.",
-      "Clique em Registrar Saída. O tempo de atendimento será calculado automaticamente.",
+      "Na rota em CHECK-IN, clique no botão 'Saída'.",
+      "Escaneie ou digite o QR Code da saca (OBRIGATÓRIO).",
+      "Informe o código NX (OBRIGATÓRIO).",
+      "Clique em 'Registrar Saída'. O status muda para CARREGANDO.",
+      "O QR Code pode se repetir entre rotas, mas o NX diferencia.",
+    ],
+  },
+  {
+    icon: Check,
+    title: "Como finalizar rota",
+    steps: [
+      "Na rota em CARREGANDO, clique no botão 'Finalizar'.",
+      "A rota será finalizada e o tempo total calculado automaticamente.",
     ],
   },
   {
     icon: Package,
-    title: "Como tratar insucessos",
+    title: "Onde registrar insucesso / faltante / avaria",
     steps: [
-      "Acesse o menu Insucessos para ver todos os pacotes em estoque.",
-      "Para adicionar um pacote: clique em Adicionar, informe código, tipo (avaria/tentativa) e rota de origem.",
-      "Para enviar ao galpão: selecione os pacotes desejados e clique em Enviar ao Galpão.",
-      "Um romaneio (lista copiável) será gerado para envio via WhatsApp.",
-      "Pacotes parados há mais de X dias (configurável) aparecerão com alerta vermelho.",
+      "Expanda o detalhe da rota (clique na seta ↓).",
+      "Use '+ Avaria/Tentativa' para registrar insucesso com código do pacote.",
+      "Use '+ Faltante (Baixa)' para registrar faltantes solicitados pelo galpão.",
+      "⚠️ IMPORTANTE: Os botões de ocorrências continuam visíveis MESMO APÓS FINALIZAÇÃO.",
+      "Motivo: motorista pode voltar no fim do dia com insucessos ou avarias.",
+    ],
+  },
+  {
+    icon: Flag,
+    title: "Sistema de Farol dos Motoristas",
+    steps: [
+      "🟢 VERDE — Motorista liberado, sem restrições.",
+      "🟡 AMARELO — Alerta: ao atribuir, o sistema mostrará aviso antes de confirmar.",
+      "🔴 VERMELHO — Bloqueado: não aparece na lista de atribuição de rotas.",
+      "O farol é definido no cadastro de Motoristas e pode ser editado a qualquer momento.",
     ],
   },
   {
     icon: AlertTriangle,
-    title: "Como responder solicitações do galpão",
+    title: "Estoque e Ocorrências (monitoramento)",
     steps: [
-      "Quando o galpão solicitar pacote faltante, acesse a rota correspondente.",
-      "Registre uma ocorrência com os códigos solicitados (modo lote disponível).",
-      "Adicione uma observação e, se necessário, anexe um print da conversa.",
-      "A ocorrência ficará vinculada à rota e poderá ser editada ou removida.",
+      "As abas Estoque e Ocorrências no menu são para MONITORAMENTO (listas e filtros).",
+      "A origem dos registros é sempre dentro da rota (expandir e usar os botões).",
+      "Pacotes parados há mais de X dias aparecerão com alerta no Dashboard.",
     ],
   },
 ];
