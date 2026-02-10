@@ -71,7 +71,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<AdminDashboard />} />
+              <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
                 <Route path="dia" element={<AdminDia />} />
                 <Route path="rotas" element={<AdminRotas />} />
@@ -87,6 +87,7 @@ const App = () => (
                 <Route path="documentos" element={<AdminDocumentos />} />
                 <Route path="tv" element={<AdminTV />} />
                 <Route path="ajuda" element={<AdminAjuda />} />
+                <Route path="historico" element={<AdminDia />} />
               </Route>
 
               <Route

@@ -3,7 +3,7 @@ import { Link, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard, CalendarPlus, Route, Package, Users, HelpCircle,
+  LayoutDashboard, Route, Package, Users, HelpCircle,
   Settings, Tv, Menu, X, ChevronLeft, LogOut as LogOutIcon,
   DollarSign, FileText,
 } from "lucide-react";
@@ -17,11 +17,10 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/dia", label: "Operação", icon: CalendarPlus },
   { to: "/admin/rotas", label: "Rotas", icon: Route },
-  { to: "/admin/estoque", label: "Insucessos (Estoque)", icon: Package },
+  { to: "/admin/estoque", label: "Estoque", icon: Package },
   { to: "/admin/motoristas", label: "Motoristas", icon: Users },
-  { to: "/admin/ajuda", label: "Ajuda", icon: HelpCircle },
+  { to: "/admin/ocorrencias", label: "Ocorrências", icon: HelpCircle },
 ];
 
 const adminOnlyItems: NavItem[] = [
