@@ -37,6 +37,7 @@ import AdminDocumentos from "@/pages/admin/AdminDocumentos";
 // Operator pages
 import OpLogin from "@/pages/op/OpLogin";
 import OpLayout from "@/components/op/OpLayout";
+import OpHistorico from "@/pages/op/OpHistorico";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ const App = () => (
                 <Route path="estoque" element={<AdminEstoque />} />
                 <Route path="ocorrencias" element={<AdminOcorrencias />} />
                 <Route path="motoristas" element={<AdminDrivers />} />
+                <Route path="historico" element={<OpHistorico />} />
                 <Route path="ajuda" element={<AdminAjuda />} />
               </Route>
 

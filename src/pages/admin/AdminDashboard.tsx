@@ -5,12 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import {
   Route, Users, Clock, AlertTriangle, CheckCircle, Package, ArrowRight,
-  UserCheck, RefreshCw, Truck, Archive, Flag,
+  UserCheck, RefreshCw, Truck, Archive, Flag, History,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 
 interface DayMetrics {
   totalAM0: number;
@@ -44,6 +44,7 @@ const AdminDashboard = () => {
   const [diaAtivo, setDiaAtivo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [ultimoDia, setUltimoDia] = useState<string | null>(null);
   const { settings } = useSiteSettings();
   const diasAlerta = parseInt(settings.dias_alerta_estoque || "3") || 3;
 
@@ -65,6 +66,10 @@ const AdminDashboard = () => {
 
       if (!dia) {
         setDiaAtivo(null);
+        // Fetch last operated day
+        const { data: lastDia } = await supabase
+          .from("dias").select("data").order("data", { ascending: false }).limit(1).maybeSingle();
+        setUltimoDia(lastDia?.data || null);
         setMetrics((prev) => ({
           ...prev,
           estoqueAtivo: allEstoque.length, estoqueAvarias: avarias,
@@ -208,10 +213,22 @@ const AdminDashboard = () => {
           <CardContent className="py-12 text-center">
             <CalendarIcon className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
             <h3 className="font-semibold text-lg text-foreground mb-2">Nenhum dia aberto</h3>
-            <p className="text-sm text-muted-foreground mb-4">Abra o dia na tela de Rotas.</p>
-            <a href={`${basePath}/rotas`} className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition">
-              Abrir Rotas <ArrowRight className="h-4 w-4" />
-            </a>
+            <p className="text-sm text-muted-foreground mb-2">Abra o dia na tela de Rotas.</p>
+            {ultimoDia && (
+              <p className="text-xs text-muted-foreground mb-4">
+                Último dia operado: <span className="font-semibold">{format(new Date(ultimoDia + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR })}</span>
+              </p>
+            )}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <a href={`${basePath}/rotas`} className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition">
+                Abrir Rotas <ArrowRight className="h-4 w-4" />
+              </a>
+              {isOpArea && (
+                <Link to="/op/historico" className="inline-flex items-center gap-2 px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-accent transition">
+                  <History className="h-4 w-4" /> Ver Histórico
+                </Link>
+              )}
+            </div>
           </CardContent>
         </Card>
       ) : (
