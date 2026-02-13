@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Users, Plus, Search, Edit2, Check, X, Power, Camera, ChevronDown, ChevronUp, Flag, AlertTriangle } from "lucide-react";
+import { Users, Plus, Search, Edit2, Check, X, Power, Camera, ChevronDown, ChevronUp, Flag, AlertTriangle, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format, endOfMonth } from "date-fns";
 
@@ -384,6 +384,14 @@ const AdminDrivers = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
+                    {d.telefone && (() => {
+                      const clean = (d.telefone || "").replace(/\D/g, "");
+                      return clean ? (
+                        <a href={`https://wa.me/55${clean}`} target="_blank" rel="noopener noreferrer" className="text-green-600 hover:text-green-700 p-1" title="WhatsApp">
+                          <MessageCircle className="h-4 w-4" />
+                        </a>
+                      ) : null;
+                    })()}
                     <button onClick={() => loadDriverMetrics(d.id)} className="text-muted-foreground hover:text-foreground p-1" title="Ver métricas">
                       {expandedDriver === d.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </button>

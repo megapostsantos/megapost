@@ -9,12 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Plus, Route, AlertCircle, UserPlus, LogIn, LogOut as LogOutIcon,
+  Plus, Minus, Route, AlertCircle, UserPlus, LogIn, LogOut as LogOutIcon,
   ChevronDown, ChevronUp, Clock, User, Package, Camera,
   AlertTriangle, CalendarPlus, Check, Truck, Loader2, Flag, Pencil, Shield,
+  Trash2, UserMinus, MessageCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -68,6 +73,12 @@ const AdminRotas = () => {
   const [qty, setQty] = useState("5");
   const [creating, setCreating] = useState(false);
 
+  // Reduce routes
+  const [showReduce, setShowReduce] = useState(false);
+  const [reducePeriodo, setReducePeriodo] = useState("AM0");
+  const [reduceQty, setReduceQty] = useState("1");
+  const [reducing, setReducing] = useState(false);
+
   // Assign driver dialog (= Check-in)
   const [assignRota, setAssignRota] = useState<any | null>(null);
   const [assignDriverId, setAssignDriverId] = useState("");
@@ -117,6 +128,10 @@ const AdminRotas = () => {
   const [editObs, setEditObs] = useState("");
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [adminCorrectionMode, setAdminCorrectionMode] = useState(false);
+
+  // Delete route confirmation
+  const [deleteRotaId, setDeleteRotaId] = useState<string | null>(null);
+  const [deleteRotaCodigo, setDeleteRotaCodigo] = useState("");
 
   // ── Load day ───────────────────────────────────────────
   const loadDay = useCallback(async () => {
@@ -215,6 +230,77 @@ const AdminRotas = () => {
       await loadRoutes(diaId);
     } catch (err: any) { toast.error(err.message); }
     finally { setCreating(false); }
+  };
+
+  // ── Reduce routes (remove blank excedent) ──────────────
+  const handleReduceRotas = async () => {
+    if (!diaId) return;
+    setReducing(true);
+    try {
+      const n = parseInt(reduceQty) || 0;
+      if (n <= 0) { toast.error("Informe a quantidade"); setReducing(false); return; }
+
+      // Get removable routes for this period (no driver, no QR/NX, no occurrences, not finalized)
+      const periodRoutes = rotas
+        .filter(r => r.periodo === reducePeriodo)
+        .sort((a, b) => b.rota_codigo.localeCompare(a.rota_codigo)); // last first
+
+      const removable: string[] = [];
+      for (const r of periodRoutes) {
+        if (removable.length >= n) break;
+        if (r.driver_id || r.qr_codigo || r.nx_codigo || r.status === "Finalizada" || r.status === "Carregando") continue;
+        // Check for occurrences
+        const { count } = await supabase.from("estoque").select("id", { count: "exact", head: true }).eq("rota_id", r.id);
+        if ((count || 0) > 0) continue;
+        removable.push(r.id);
+      }
+
+      if (removable.length === 0) {
+        toast.error("Nenhuma rota pode ser removida. Todas possuem motorista, QR/NX ou ocorrências.");
+        setReducing(false);
+        return;
+      }
+
+      if (removable.length < n) {
+        toast.warning(`Apenas ${removable.length} de ${n} rotas podem ser removidas (as demais possuem atividade).`);
+      }
+
+      const { error } = await supabase.from("rotas").delete().in("id", removable);
+      if (error) throw error;
+      toast.success(`${removable.length} rota(s) removida(s)!`);
+      setShowReduce(false);
+      await loadRoutes(diaId);
+    } catch (err: any) { toast.error(err.message); }
+    finally { setReducing(false); }
+  };
+
+  // ── Delete individual route ────────────────────────────
+  const canDeleteRoute = (rota: any) => {
+    if (rota.status === "Finalizada" || rota.status === "Carregando") return false;
+    if (rota.driver_id) return false;
+    if (rota.qr_codigo || rota.nx_codigo) return false;
+    return true;
+  };
+
+  const handleDeleteRoute = async () => {
+    if (!deleteRotaId) return;
+    try {
+      // Final safety check for occurrences
+      const { count } = await supabase.from("estoque").select("id", { count: "exact", head: true }).eq("rota_id", deleteRotaId);
+      if ((count || 0) > 0) {
+        toast.error("Rota possui ocorrências e não pode ser excluída.");
+        setDeleteRotaId(null);
+        return;
+      }
+      const { error } = await supabase.from("rotas").delete().eq("id", deleteRotaId);
+      if (error) throw error;
+      toast.success(`Rota ${deleteRotaCodigo} excluída.`);
+      setDeleteRotaId(null);
+      setDeleteRotaCodigo("");
+      setEditRota(null);
+      setAdminCorrectionMode(false);
+      await loadRoutes(diaId!);
+    } catch (err: any) { toast.error(err.message); }
   };
 
   // ── Assign driver = CHECK-IN ───────────────────────────
@@ -440,7 +526,6 @@ const AdminRotas = () => {
       // Period change: update periodo and rota_codigo
       if (editPeriodo !== editRota.periodo) {
         updates.periodo = editPeriodo;
-        // Recalculate code: keep same number suffix but change prefix
         const numPart = editRota.rota_codigo.split("-")[1] || "001";
         updates.rota_codigo = `${editPeriodo}-${numPart}`;
       }
@@ -455,7 +540,6 @@ const AdminRotas = () => {
             updates.status = "Em aberto";
           }
         } else {
-          // Check farol
           const driver = drivers.find(d => d.id === editDriverId);
           if (driver?.farol === "VERMELHO") {
             toast.error("Motorista BLOQUEADO (farol vermelho).");
@@ -494,6 +578,31 @@ const AdminRotas = () => {
     finally { setEditSubmitting(false); }
   };
 
+  // ── Clear driver (without deleting route) ──────────────
+  const handleClearDriver = async () => {
+    if (!editRota) return;
+    setEditSubmitting(true);
+    try {
+      const { error } = await supabase.from("rotas").update({
+        driver_id: null,
+        hora_chegada: null,
+        status: "Em aberto",
+      }).eq("id", editRota.id);
+      if (error) throw error;
+      await supabase.from("route_event_log").insert({
+        route_id: editRota.id,
+        actor_role: isAdmin ? "ADMIN" : "OPERADOR",
+        action: "limpar_motorista",
+        payload_json: { previous_driver: editRota.driver_id },
+      } as any);
+      toast.success("Motorista removido — rota voltou para 'Em aberto'");
+      setEditRota(null);
+      setAdminCorrectionMode(false);
+      await loadRoutes(diaId!);
+    } catch (err: any) { toast.error(err.message); }
+    finally { setEditSubmitting(false); }
+  };
+
   // ── Helpers ────────────────────────────────────────────
   const rotasByPeriodo = (p: string) => rotas.filter((r) => r.periodo === p);
   const formatTime = (iso: string | null) => iso ? format(new Date(iso), "HH:mm") : null;
@@ -512,11 +621,28 @@ const AdminRotas = () => {
   // Can op edit this route? Only Em aberto / Check-in
   const canOpEdit = (rota: any) => rota.status === "Em aberto" || rota.status === "Check-in";
 
+  // Can clear driver? Only before saída (no QR/NX)
+  const canClearDriver = (rota: any) => {
+    if (!rota.driver_id) return false;
+    if (rota.qr_codigo || rota.nx_codigo) return false;
+    if (rota.status === "Carregando" || rota.status === "Finalizada") return false;
+    return true;
+  };
+
+  // WhatsApp link helper
+  const getWhatsAppUrl = (phone: string | null) => {
+    if (!phone) return null;
+    const clean = phone.replace(/\D/g, "");
+    if (!clean) return null;
+    return `https://wa.me/55${clean}`;
+  };
+
   // ── Render Route Card ──────────────────────────────────
   const renderRotaCard = (rota: any) => {
     const cfg = statusConfig[rota.status] || statusConfig["Em aberto"];
     const driver = rota.drivers;
     const isExpanded = expandedRota === rota.id;
+    const whatsappUrl = driver ? getWhatsAppUrl(driver.telefone) : null;
 
     return (
       <Card key={rota.id} className="p-3">
@@ -532,6 +658,11 @@ const AdminRotas = () => {
                 <User className="h-3 w-3" /> {driver.nome} {driver.placa ? `• ${driver.placa}` : ""}
                 {driver.farol && driver.farol !== "VERDE" && (
                   <Flag className={`h-3 w-3 ml-1 ${farolColors[driver.farol] || ""}`} />
+                )}
+                {whatsappUrl && (
+                  <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="ml-1 text-green-600 hover:text-green-700" title="WhatsApp">
+                    <MessageCircle className="h-3.5 w-3.5" />
+                  </a>
                 )}
               </p>
             )}
@@ -699,9 +830,14 @@ const AdminRotas = () => {
             {format(new Date(diaData + "T12:00:00"), "dd/MM/yyyy (EEEE)", { locale: ptBR })} — {rotas.length} rotas
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={() => setShowCreate(!showCreate)}>
-          <Plus className="h-4 w-4 mr-1" /> Mais Rotas
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => { setShowReduce(!showReduce); setShowCreate(false); }}>
+            <Minus className="h-4 w-4 mr-1" /> Reduzir
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => { setShowCreate(!showCreate); setShowReduce(false); }}>
+            <Plus className="h-4 w-4 mr-1" /> Mais Rotas
+          </Button>
+        </div>
       </div>
 
       {/* Add more routes inline */}
@@ -722,6 +858,28 @@ const AdminRotas = () => {
               {creating ? "Criando..." : "Criar"}
             </Button>
           </div>
+        </Card>
+      )}
+
+      {/* Reduce routes inline */}
+      {showReduce && (
+        <Card className="p-4">
+          <div className="flex items-end gap-3 flex-wrap">
+            <div className="space-y-1">
+              <Label className="text-xs">Período</Label>
+              <Tabs value={reducePeriodo} onValueChange={setReducePeriodo}>
+                <TabsList className="h-8"><TabsTrigger value="AM0" className="text-xs h-6">AM0</TabsTrigger><TabsTrigger value="AM1" className="text-xs h-6">AM1</TabsTrigger></TabsList>
+              </Tabs>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Quantidade</Label>
+              <Input type="number" min="1" value={reduceQty} onChange={(e) => setReduceQty(e.target.value)} className="w-20 h-8 text-sm" />
+            </div>
+            <Button size="sm" variant="destructive" className="h-8" onClick={handleReduceRotas} disabled={reducing}>
+              {reducing ? "Removendo..." : "Remover"}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2">Remove apenas rotas sem motorista, sem QR/NX e sem ocorrências.</p>
         </Card>
       )}
 
@@ -953,6 +1111,36 @@ const AdminRotas = () => {
               <Label>Observações</Label>
               <Textarea rows={2} value={editObs} onChange={(e) => setEditObs(e.target.value)} placeholder="Observações da rota..." />
             </div>
+
+            {/* Clear driver button */}
+            {editRota && canClearDriver(editRota) && (
+              <Button variant="outline" size="sm" className="w-full text-orange-600 border-orange-200 hover:bg-orange-50" onClick={handleClearDriver} disabled={editSubmitting}>
+                <UserMinus className="h-4 w-4 mr-2" /> Limpar Motorista (volta para Em aberto)
+              </Button>
+            )}
+
+            {/* Delete route button */}
+            {editRota && (() => {
+              const deletable = canDeleteRoute(editRota);
+              return (
+                <div className="pt-2 border-t border-border">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="w-full"
+                    disabled={!deletable}
+                    onClick={() => { setDeleteRotaId(editRota.id); setDeleteRotaCodigo(editRota.rota_codigo); }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Excluir Rota
+                  </Button>
+                  {!deletable && (
+                    <p className="text-[10px] text-muted-foreground mt-1 text-center">
+                      Não é possível excluir: rota possui motorista, QR/NX ou está em andamento/finalizada.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setEditRota(null); setAdminCorrectionMode(false); }}>Cancelar</Button>
@@ -962,6 +1150,24 @@ const AdminRotas = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Route Confirmation */}
+      <AlertDialog open={!!deleteRotaId} onOpenChange={(open) => { if (!open) { setDeleteRotaId(null); setDeleteRotaCodigo(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir rota {deleteRotaCodigo}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação é permanente. A rota será removida e a numeração não será reorganizada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteRoute} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
