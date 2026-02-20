@@ -62,6 +62,16 @@ const AdminRotas = () => {
   const [newDayAm1, setNewDayAm1] = useState("20");
   const [creatingDay, setCreatingDay] = useState(false);
 
+  // ── Cycle tab persistent ───────────────────────────────
+  const CICLO_KEY = isOpArea ? "op_cicloAtual" : "admin_cicloAtual";
+  const [activeCiclo, setActiveCiclo] = useState<string>(() => {
+    return localStorage.getItem(CICLO_KEY) || "AM0";
+  });
+  const handleCicloChange = (val: string) => {
+    setActiveCiclo(val);
+    localStorage.setItem(CICLO_KEY, val);
+  };
+
   // ── Route state ────────────────────────────────────────
   const [rotas, setRotas] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -81,7 +91,9 @@ const AdminRotas = () => {
 
   // Assign driver dialog (= Check-in)
   const [assignRota, setAssignRota] = useState<any | null>(null);
+  const [assignSnapshot, setAssignSnapshot] = useState<any | null>(null);
   const [assignDriverId, setAssignDriverId] = useState("");
+  const [assignDriverSearch, setAssignDriverSearch] = useState("");
   const [assignSubmitting, setAssignSubmitting] = useState(false);
 
   // Registrar Saída dialog (Check-in → Carregando, QR + NX obrigatórios)
@@ -276,25 +288,21 @@ const AdminRotas = () => {
 
   // ── Delete individual route ────────────────────────────
   const canDeleteRoute = (rota: any) => {
-    if (rota.status === "Finalizada" || rota.status === "Carregando") return false;
-    if (rota.driver_id) return false;
-    if (rota.qr_codigo || rota.nx_codigo) return false;
+    // Admins can delete any route; operators cannot delete finalized/carregando
+    if (!isAdmin && (rota.status === "Finalizada" || rota.status === "Carregando")) return false;
     return true;
   };
 
   const handleDeleteRoute = async () => {
     if (!deleteRotaId) return;
     try {
-      // Final safety check for occurrences
-      const { count } = await supabase.from("estoque").select("id", { count: "exact", head: true }).eq("rota_id", deleteRotaId);
-      if ((count || 0) > 0) {
-        toast.error("Rota possui ocorrências e não pode ser excluída.");
-        setDeleteRotaId(null);
-        return;
-      }
+      // Cascade delete: remove dependent records first to avoid FK errors
+      await supabase.from("route_event_log").delete().eq("route_id", deleteRotaId);
+      await supabase.from("ocorrencias").delete().eq("rota_id", deleteRotaId);
+      await supabase.from("estoque").delete().eq("rota_id", deleteRotaId);
       const { error } = await supabase.from("rotas").delete().eq("id", deleteRotaId);
       if (error) throw error;
-      toast.success(`Rota ${deleteRotaCodigo} excluída.`);
+      toast.success(`Rota ${deleteRotaCodigo} e registros vinculados removidos.`);
       setDeleteRotaId(null);
       setDeleteRotaCodigo("");
       setEditRota(null);
@@ -316,6 +324,25 @@ const AdminRotas = () => {
     }
     setAssignSubmitting(true);
     try {
+      // Conflict check: fetch current route state and compare with snapshot
+      if (assignSnapshot) {
+        const { data: current } = await supabase.from("rotas").select("driver_id, status, qr_codigo, nx_codigo, periodo").eq("id", assignRota.id).single();
+        if (current) {
+          const changed =
+            current.driver_id !== assignSnapshot.driver_id ||
+            current.status !== assignSnapshot.status ||
+            current.qr_codigo !== assignSnapshot.qr_codigo ||
+            current.nx_codigo !== assignSnapshot.nx_codigo;
+          if (changed) {
+            toast.error("Esta rota foi alterada por outra pessoa agora. Recarregue e tente novamente.");
+            setAssignRota(null);
+            setAssignDriverId("");
+            setAssignSnapshot(null);
+            await loadRoutes(diaId!);
+            return;
+          }
+        }
+      }
       const { error } = await supabase.from("rotas").update({
         driver_id: assignDriverId,
         hora_chegada: new Date().toISOString(),
@@ -327,7 +354,7 @@ const AdminRotas = () => {
         payload_json: { driver_id: assignDriverId },
       } as any);
       toast.success("Motorista atribuído — Check-in registrado!");
-      setAssignRota(null); setAssignDriverId("");
+      setAssignRota(null); setAssignDriverId(""); setAssignSnapshot(null); setAssignDriverSearch("");
       await loadRoutes(diaId!);
     } catch (err: any) { toast.error(err.message); }
     finally { setAssignSubmitting(false); }
@@ -686,7 +713,12 @@ const AdminRotas = () => {
               </Button>
             )}
             {rota.status === "Em aberto" && (
-              <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => { setAssignRota(rota); setAssignDriverId(""); }}>
+              <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => {
+                setAssignRota(rota);
+                setAssignDriverId("");
+                setAssignDriverSearch("");
+                setAssignSnapshot({ driver_id: rota.driver_id, status: rota.status, qr_codigo: rota.qr_codigo, nx_codigo: rota.nx_codigo });
+              }}>
                 <UserPlus className="h-3 w-3 mr-1" /> Motorista
               </Button>
             )}
@@ -887,7 +919,7 @@ const AdminRotas = () => {
       {loading ? (
         <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>
       ) : (
-        <Tabs defaultValue="AM0">
+        <Tabs value={activeCiclo} onValueChange={handleCicloChange}>
           <TabsList>
             <TabsTrigger value="AM0">AM0 ({rotasByPeriodo("AM0").length})</TabsTrigger>
             <TabsTrigger value="AM1">AM1 ({rotasByPeriodo("AM1").length})</TabsTrigger>
@@ -915,27 +947,82 @@ const AdminRotas = () => {
       {/* ── DIALOGS ─────────────────────────────────────── */}
 
       {/* Assign Driver = Check-in */}
-      <Dialog open={!!assignRota} onOpenChange={(open) => { if (!open) setAssignRota(null); }}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={!!assignRota} onOpenChange={(open) => { if (!open) { setAssignRota(null); setAssignDriverSearch(""); setAssignSnapshot(null); } }}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Atribuir Motorista (Check-in)</DialogTitle>
             <DialogDescription>Rota: <strong>{assignRota?.rota_codigo}</strong> — Atribuir = registrar presença</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-3 flex-1 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between">
               <Label>Motorista</Label>
               <button type="button" onClick={() => navigate(isOpArea ? "/op/motoristas" : "/admin/motoristas")} className="text-xs text-primary hover:underline">
                 + Cadastrar novo motorista
               </button>
             </div>
-            <select value={assignDriverId} onChange={(e) => setAssignDriverId(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-              <option value="">Selecione...</option>
-              {drivers.filter(d => d.farol !== "VERMELHO").map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.farol === "AMARELO" ? "⚠️ " : ""}{d.nome} {d.placa ? `• ${d.placa}` : ""} {d.telefone ? `(${d.telefone})` : ""}
-                </option>
-              ))}
-            </select>
+            {/* Search input */}
+            <Input
+              placeholder="Digite o nome do motorista…"
+              value={assignDriverSearch}
+              onChange={(e) => { setAssignDriverSearch(e.target.value); setAssignDriverId(""); }}
+              autoFocus
+            />
+            {/* A–Z quick scroll */}
+            {(() => {
+              const availableLetters = new Set(
+                drivers.filter(d => d.farol !== "VERMELHO").map(d => d.nome.charAt(0).toUpperCase())
+              );
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ").map(letter => (
+                    availableLetters.has(letter) ? (
+                      <button
+                        key={letter}
+                        type="button"
+                        className="text-[10px] font-bold w-5 h-5 rounded bg-muted hover:bg-primary hover:text-primary-foreground transition-colors"
+                        onClick={() => setAssignDriverSearch(letter)}
+                      >
+                        {letter}
+                      </button>
+                    ) : (
+                      <span key={letter} className="text-[10px] w-5 h-5 flex items-center justify-center text-muted-foreground/30">{letter}</span>
+                    )
+                  ))}
+                </div>
+              );
+            })()}
+            {/* Driver list */}
+            <div className="overflow-y-auto flex-1 space-y-1 min-h-0 max-h-64 border border-border rounded-md p-1">
+              {(() => {
+                const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                const search = norm(assignDriverSearch.trim());
+                const filtered = drivers
+                  .filter(d => d.farol !== "VERMELHO")
+                  .filter(d => !search || norm(d.nome).includes(search))
+                  .sort((a, b) => {
+                    // Prioritize names that start with the search
+                    if (search) {
+                      const aStarts = norm(a.nome).startsWith(search);
+                      const bStarts = norm(b.nome).startsWith(search);
+                      if (aStarts && !bStarts) return -1;
+                      if (!aStarts && bStarts) return 1;
+                    }
+                    return a.nome.localeCompare(b.nome);
+                  });
+                if (filtered.length === 0) return <p className="text-sm text-muted-foreground text-center py-4">Nenhum motorista encontrado.</p>;
+                return filtered.map(d => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${assignDriverId === d.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+                    onClick={() => setAssignDriverId(d.id)}
+                  >
+                    {d.farol === "AMARELO" && <span className="mr-1">⚠️</span>}
+                    {d.nome}
+                  </button>
+                ));
+              })()}
+            </div>
             {assignDriverId && (() => {
               const d = drivers.find(x => x.id === assignDriverId);
               if (d?.farol === "AMARELO") return (
@@ -948,7 +1035,7 @@ const AdminRotas = () => {
             })()}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignRota(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setAssignRota(null); setAssignDriverSearch(""); setAssignSnapshot(null); }}>Cancelar</Button>
             <Button onClick={handleAssignDriver} disabled={!assignDriverId || assignSubmitting}>
               {assignSubmitting ? "Registrando..." : "Atribuir e Check-in"}
             </Button>
