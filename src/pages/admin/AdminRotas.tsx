@@ -364,7 +364,7 @@ const AdminRotas = () => {
     finally { setAssignSubmitting(false); }
   };
 
-  // ── Registrar Saída (Check-in → Carregando) QR + NX OBRIGATÓRIOS ──
+  // ── Registrar Saída (Check-in → Finalizada) QR + NX OBRIGATÓRIOS ──
   const handleRegistrarSaida = async () => {
     if (!saidaRota) return;
     if (!saidaQr.trim()) { toast.error("QR Code da saca é OBRIGATÓRIO"); return; }
@@ -372,18 +372,21 @@ const AdminRotas = () => {
     setSaidaSubmitting(true);
     try {
       const horaSaida = new Date();
+      const horaChegada = saidaRota.hora_chegada ? new Date(saidaRota.hora_chegada) : horaSaida;
+      const tempoMin = Math.round((horaSaida.getTime() - horaChegada.getTime()) / 60000);
       const { error } = await supabase.from("rotas").update({
         qr_codigo: saidaQr.trim(),
         nx_codigo: saidaNx.trim(),
         hora_saida: horaSaida.toISOString(),
-        status: "Carregando",
+        tempo_atendimento_min: tempoMin,
+        status: "Finalizada",
       }).eq("id", saidaRota.id);
       if (error) throw error;
       await supabase.from("route_event_log").insert({
-        route_id: saidaRota.id, actor_role: isAdmin ? "ADMIN" : "OPERADOR", action: "saida_registrada",
-        payload_json: { qr: saidaQr.trim(), nx: saidaNx.trim() },
+        route_id: saidaRota.id, actor_role: isAdmin ? "ADMIN" : "OPERADOR", action: "saida_finalizada",
+        payload_json: { qr: saidaQr.trim(), nx: saidaNx.trim(), tempo_min: tempoMin },
       } as any);
-      toast.success(`Saída registrada — ${saidaRota.rota_codigo} → Carregando`);
+      toast.success(`Saída registrada e rota finalizada — ${saidaRota.rota_codigo} (${tempoMin} min)`);
       stopScanning();
       setSaidaRota(null); setSaidaQr(""); setSaidaNx("");
       await loadRoutes(diaId!, true);
@@ -748,11 +751,7 @@ const AdminRotas = () => {
                 <Truck className="h-3 w-3 mr-1" /> Saída
               </Button>
             )}
-            {rota.status === "Carregando" && (
-              <Button size="sm" variant="default" className="text-xs h-7 px-2" onClick={() => handleFinalizar(rota)}>
-                <Check className="h-3 w-3 mr-1" /> Finalizar
-              </Button>
-            )}
+            {/* Carregando status no longer exists — saída already finalizes */}
             <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => loadRotaDetail(rota.id)}>
               {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </Button>
