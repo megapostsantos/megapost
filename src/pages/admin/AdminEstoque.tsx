@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import {
   Package, Plus, Camera, Copy, Send, AlertTriangle, Search, Archive,
-  RefreshCw, Truck, Edit2, Undo2, X, Filter,
+  RefreshCw, Truck, Edit2, Undo2, X, Filter, Loader2,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { toast } from "sonner";
@@ -65,6 +65,8 @@ const AdminEstoque = () => {
   const [addRotaId, setAddRotaId] = useState<string | null>(null);
   const [rotasBusca, setRotasBusca] = useState<any[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit dialog
   const [editPacote, setEditPacote] = useState<any | null>(null);
@@ -402,7 +404,62 @@ const AdminEstoque = () => {
               <Label>Código (11 dígitos) *</Label>
               <div className="flex gap-2">
                 <Input value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="Digitar código..." className="flex-1 font-mono" />
-                <Button variant="outline" size="icon" title="Câmera (em breve)"><Camera className="h-4 w-4" /></Button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setOcrLoading(true);
+                    try {
+                      const reader = new FileReader();
+                      const base64 = await new Promise<string>((resolve, reject) => {
+                        reader.onload = () => {
+                          const result = reader.result as string;
+                          resolve(result.split(",")[1]);
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                      });
+                      const { data, error } = await supabase.functions.invoke("ocr-extract-code", {
+                        body: { imageBase64: base64 },
+                      });
+                      if (error) throw error;
+                      const codes = data?.codes || [];
+                      if (codes.length > 0) {
+                        // Clean: keep only digits
+                        const cleaned = codes[0].replace(/\D/g, "");
+                        setCodigo(cleaned.slice(0, 11));
+                        if (codes.length > 1) {
+                          toast.info(`${codes.length} códigos encontrados. Primeiro preenchido.`);
+                        } else {
+                          toast.success("Código extraído!");
+                        }
+                      } else {
+                        toast.warning("Nenhum código encontrado na imagem. Digite manualmente.");
+                      }
+                    } catch (err: any) {
+                      console.error("OCR error:", err);
+                      toast.error("Falha ao ler código da imagem. Digite manualmente.");
+                    } finally {
+                      setOcrLoading(false);
+                      // Reset input so same file can be selected again
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title="Capturar código com câmera"
+                  disabled={ocrLoading}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {ocrLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                </Button>
               </div>
             </div>
             <div className="space-y-2">
