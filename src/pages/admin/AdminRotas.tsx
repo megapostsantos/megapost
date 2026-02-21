@@ -19,7 +19,7 @@ import {
   Plus, Minus, Route, AlertCircle, UserPlus, LogIn, LogOut as LogOutIcon,
   ChevronDown, ChevronUp, Clock, User, Package, Camera,
   AlertTriangle, CalendarPlus, Check, Truck, Loader2, Flag, Pencil, Shield,
-  Trash2, UserMinus, MessageCircle,
+  Trash2, UserMinus, MessageCircle, Share2, Copy,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -111,6 +111,10 @@ const AdminRotas = () => {
   const [rotaFaltantes, setRotaFaltantes] = useState<any[]>([]);
   const [rotaReentregas, setRotaReentregas] = useState<any[]>([]);
 
+  // Export queue modal
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportText, setExportText] = useState("");
+
   // Add insucesso from route
   const [showAddInsucesso, setShowAddInsucesso] = useState(false);
   const [addInsRotaId, setAddInsRotaId] = useState<string | null>(null);
@@ -160,16 +164,16 @@ const AdminRotas = () => {
     setLoadingDia(false);
   }, []);
 
-  // ── Load routes + drivers ──────────────────────────────
-  const loadRoutes = useCallback(async (dayId: string) => {
-    setLoading(true);
+  // ── Load routes + drivers (silent = no loading spinner) ──
+  const loadRoutes = useCallback(async (dayId: string, silent = false) => {
+    if (!silent) setLoading(true);
     const [{ data: rotasData }, { data: driversData }] = await Promise.all([
       supabase.from("rotas").select("*, drivers(id, nome, telefone, placa, farol)").eq("dia_id", dayId).order("rota_codigo"),
       supabase.from("drivers").select("id, nome, telefone, placa, farol").eq("ativo", true).order("nome"),
     ]);
     setRotas(rotasData || []);
     setDrivers(driversData || []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => { loadDay(); }, [loadDay]);
@@ -307,7 +311,7 @@ const AdminRotas = () => {
       setDeleteRotaCodigo("");
       setEditRota(null);
       setAdminCorrectionMode(false);
-      await loadRoutes(diaId!);
+      await loadRoutes(diaId!, true);
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -355,7 +359,7 @@ const AdminRotas = () => {
       } as any);
       toast.success("Motorista atribuído — Check-in registrado!");
       setAssignRota(null); setAssignDriverId(""); setAssignSnapshot(null); setAssignDriverSearch("");
-      await loadRoutes(diaId!);
+      await loadRoutes(diaId!, true);
     } catch (err: any) { toast.error(err.message); }
     finally { setAssignSubmitting(false); }
   };
@@ -382,7 +386,7 @@ const AdminRotas = () => {
       toast.success(`Saída registrada — ${saidaRota.rota_codigo} → Carregando`);
       stopScanning();
       setSaidaRota(null); setSaidaQr(""); setSaidaNx("");
-      await loadRoutes(diaId!);
+      await loadRoutes(diaId!, true);
     } catch (err: any) { toast.error(err.message); }
     finally { setSaidaSubmitting(false); }
   };
@@ -402,7 +406,8 @@ const AdminRotas = () => {
         payload_json: { tempo_min: tempoMin },
       } as any);
       toast.success(`Rota ${rota.rota_codigo} finalizada! Tempo total: ${tempoMin} min`);
-      await loadRoutes(diaId!);
+      // Update local state silently — no loading spinner, no scroll reset
+      setRotas(prev => prev.map(r => r.id === rota.id ? { ...r, status: "Finalizada", tempo_atendimento_min: tempoMin } : r));
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -600,7 +605,7 @@ const AdminRotas = () => {
       toast.success("Rota atualizada!");
       setEditRota(null);
       setAdminCorrectionMode(false);
-      await loadRoutes(diaId!);
+      await loadRoutes(diaId!, true);
     } catch (err: any) { toast.error(err.message); }
     finally { setEditSubmitting(false); }
   };
@@ -625,9 +630,25 @@ const AdminRotas = () => {
       toast.success("Motorista removido — rota voltou para 'Em aberto'");
       setEditRota(null);
       setAdminCorrectionMode(false);
-      await loadRoutes(diaId!);
+      await loadRoutes(diaId!, true);
     } catch (err: any) { toast.error(err.message); }
     finally { setEditSubmitting(false); }
+  };
+
+  // ── Export queue ───────────────────────────────────────
+  const handleExportQueue = () => {
+    const checkinRoutes = rotasByPeriodo(activeCiclo)
+      .filter(r => r.status === "Check-in")
+      .sort((a, b) => {
+        const ta = a.hora_chegada ? new Date(a.hora_chegada).getTime() : Infinity;
+        const tb = b.hora_chegada ? new Date(b.hora_chegada).getTime() : Infinity;
+        return ta - tb;
+      });
+    const text = checkinRoutes
+      .map((r, i) => `${i + 1}. ${r.drivers?.nome || "Sem motorista"}`)
+      .join("\n");
+    setExportText(text);
+    setShowExportModal(true);
   };
 
   // ── Helpers ────────────────────────────────────────────
@@ -862,12 +883,15 @@ const AdminRotas = () => {
             {format(new Date(diaData + "T12:00:00"), "dd/MM/yyyy (EEEE)", { locale: ptBR })} — {rotas.length} rotas
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={() => { setShowReduce(!showReduce); setShowCreate(false); }}>
             <Minus className="h-4 w-4 mr-1" /> Reduzir
           </Button>
           <Button size="sm" variant="outline" onClick={() => { setShowCreate(!showCreate); setShowReduce(false); }}>
             <Plus className="h-4 w-4 mr-1" /> Mais Rotas
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleExportQueue}>
+            <Share2 className="h-4 w-4 mr-1" /> Exportar Fila
           </Button>
         </div>
       </div>
@@ -1255,6 +1279,33 @@ const AdminRotas = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Export Queue Modal */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fila de Check-in — {activeCiclo}</DialogTitle>
+            <DialogDescription>Motoristas aguardando, ordenados por chegada.</DialogDescription>
+          </DialogHeader>
+          <pre className="bg-muted rounded-md p-3 text-sm whitespace-pre-wrap min-h-[60px] max-h-[300px] overflow-y-auto">
+            {exportText || "Nenhum motorista em check-in."}
+          </pre>
+          <DialogFooter className="flex-row gap-2 sm:justify-end">
+            <Button variant="outline" onClick={() => { navigator.clipboard.writeText(exportText); toast.success("Copiado!"); }}>
+              <Copy className="h-4 w-4 mr-1" /> Copiar
+            </Button>
+            <Button
+              onClick={() => {
+                const encoded = encodeURIComponent(exportText);
+                window.open(`https://wa.me/?text=${encoded}`, "_blank");
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
