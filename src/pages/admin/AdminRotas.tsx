@@ -19,7 +19,7 @@ import {
   Plus, Minus, Route, AlertCircle, UserPlus, LogIn, LogOut as LogOutIcon,
   ChevronDown, ChevronUp, Clock, User, Package, Camera,
   AlertTriangle, CalendarPlus, Check, Truck, Loader2, Flag, Pencil, Shield,
-  Trash2, UserMinus, MessageCircle, Share2, Copy,
+  Trash2, UserMinus, MessageCircle, Share2, Copy, Search,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -148,6 +148,15 @@ const AdminRotas = () => {
   // Delete route confirmation
   const [deleteRotaId, setDeleteRotaId] = useState<string | null>(null);
   const [deleteRotaCodigo, setDeleteRotaCodigo] = useState("");
+
+  // Edit QR/NX dialog
+  const [editQrNxRota, setEditQrNxRota] = useState<any | null>(null);
+  const [editQrNxQr, setEditQrNxQr] = useState("");
+  const [editQrNxNx, setEditQrNxNx] = useState("");
+  const [editQrNxSubmitting, setEditQrNxSubmitting] = useState(false);
+
+  // QR search filter
+  const [qrSearch, setQrSearch] = useState("");
 
   // ── Load day ───────────────────────────────────────────
   const loadDay = useCallback(async () => {
@@ -313,6 +322,36 @@ const AdminRotas = () => {
       setAdminCorrectionMode(false);
       await loadRoutes(diaId!, true);
     } catch (err: any) { toast.error(err.message); }
+  };
+
+  // ── Edit QR/NX ────────────────────────────────────────
+  const handleSaveQrNx = async () => {
+    if (!editQrNxRota) return;
+    if (!editQrNxQr.trim()) { toast.error("QR é obrigatório"); return; }
+    if (!editQrNxNx.trim()) { toast.error("NX é obrigatório"); return; }
+    setEditQrNxSubmitting(true);
+    try {
+      const { error } = await supabase.from("rotas").update({
+        qr_codigo: editQrNxQr.trim(),
+        nx_codigo: editQrNxNx.trim(),
+      }).eq("id", editQrNxRota.id);
+      if (error) throw error;
+      await supabase.from("route_event_log").insert({
+        route_id: editQrNxRota.id,
+        actor_role: isAdmin ? "ADMIN" : "OPERADOR",
+        action: "correcao_qr_nx",
+        payload_json: {
+          qr_anterior: editQrNxRota.qr_codigo,
+          nx_anterior: editQrNxRota.nx_codigo,
+          qr_novo: editQrNxQr.trim(),
+          nx_novo: editQrNxNx.trim(),
+        },
+      } as any);
+      toast.success("QR/NX atualizados!");
+      setEditQrNxRota(null);
+      await loadRoutes(diaId!, true);
+    } catch (err: any) { toast.error(err.message); }
+    finally { setEditQrNxSubmitting(false); }
   };
 
   // ── Assign driver = CHECK-IN ───────────────────────────
@@ -655,7 +694,14 @@ const AdminRotas = () => {
   };
 
   // ── Helpers ────────────────────────────────────────────
-  const rotasByPeriodo = (p: string) => rotas.filter((r) => r.periodo === p);
+  const rotasByPeriodo = (p: string) => {
+    let list = rotas.filter((r) => r.periodo === p);
+    if (qrSearch.trim()) {
+      const s = qrSearch.trim().toLowerCase();
+      list = list.filter(r => r.qr_codigo && r.qr_codigo.toLowerCase().includes(s));
+    }
+    return list;
+  };
   const formatTime = (iso: string | null) => iso ? format(new Date(iso), "HH:mm") : null;
 
   const getStatusSummary = (p: string) => {
@@ -724,7 +770,14 @@ const AdminRotas = () => {
                 {rota.tempo_atendimento_min != null && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {rota.tempo_atendimento_min} min</span>}
               </div>
             )}
-            {rota.qr_codigo && <p className="text-xs text-muted-foreground ml-6 mt-0.5">QR: {rota.qr_codigo}</p>}
+            {rota.qr_codigo && (
+              <p className="text-xs text-muted-foreground ml-6 mt-0.5 flex items-center gap-1">
+                QR: {rota.qr_codigo}
+                <button onClick={(e) => { e.stopPropagation(); setEditQrNxRota(rota); setEditQrNxQr(rota.qr_codigo || ""); setEditQrNxNx(rota.nx_codigo || ""); }} className="text-primary hover:text-primary/80" title="Editar QR/NX">
+                  <Pencil className="h-3 w-3" />
+                </button>
+              </p>
+            )}
             {rota.nx_codigo && <p className="text-xs text-muted-foreground ml-6 mt-0.5">NX: {rota.nx_codigo}</p>}
           </div>
 
@@ -937,6 +990,11 @@ const AdminRotas = () => {
           <p className="text-[10px] text-muted-foreground mt-2">Remove apenas rotas sem motorista, sem QR/NX e sem ocorrências.</p>
         </Card>
       )}
+      {/* QR search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input className="pl-9" placeholder="Buscar por QR da saca…" value={qrSearch} onChange={(e) => setQrSearch(e.target.value)} />
+      </div>
 
       {/* Status summary tabs */}
       {loading ? (
@@ -1301,6 +1359,31 @@ const AdminRotas = () => {
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Edit QR/NX Dialog */}
+      <Dialog open={!!editQrNxRota} onOpenChange={(open) => { if (!open) setEditQrNxRota(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar QR / NX</DialogTitle>
+            <DialogDescription>Rota: <strong>{editQrNxRota?.rota_codigo}</strong></DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>QR Code da Saca *</Label>
+              <Input value={editQrNxQr} onChange={(e) => setEditQrNxQr(e.target.value)} className="font-mono" />
+            </div>
+            <div className="space-y-2">
+              <Label>Código NX *</Label>
+              <Input value={editQrNxNx} onChange={(e) => setEditQrNxNx(e.target.value)} className="font-mono" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditQrNxRota(null)}>Cancelar</Button>
+            <Button onClick={handleSaveQrNx} disabled={editQrNxSubmitting}>
+              {editQrNxSubmitting ? "Salvando..." : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>

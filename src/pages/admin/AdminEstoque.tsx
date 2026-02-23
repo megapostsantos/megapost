@@ -18,8 +18,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import {
   Package, Plus, Camera, Copy, Send, AlertTriangle, Search, Archive,
-  RefreshCw, Truck, Edit2, Undo2, X, Filter, Loader2,
+  RefreshCw, Truck, Edit2, Undo2, X, Filter, Loader2, ScanLine,
 } from "lucide-react";
+import { Html5Qrcode } from "html5-qrcode";
 import { format, differenceInDays } from "date-fns";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -67,6 +68,50 @@ const AdminEstoque = () => {
   const [submitting, setSubmitting] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [qrScanning, setQrScanning] = useState(false);
+  const qrScannerRef = useRef<Html5Qrcode | null>(null);
+  const qrContainerRef = useRef<HTMLDivElement>(null);
+
+  const startQrScanner = useCallback(async () => {
+    if (qrScannerRef.current) return;
+    setQrScanning(true);
+    // Wait for DOM element
+    await new Promise(r => setTimeout(r, 100));
+    try {
+      const scanner = new Html5Qrcode("estoque-qr-reader");
+      qrScannerRef.current = scanner;
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          // Extract digits only, take first 11
+          const digits = decodedText.replace(/\D/g, "");
+          if (digits.length >= 11) {
+            setCodigo(digits.slice(0, 11));
+          } else {
+            setCodigo(digits);
+          }
+          toast.success("Código lido!");
+          stopQrScanner();
+        },
+        () => {} // ignore errors (no code found yet)
+      );
+    } catch (err: any) {
+      console.error("Scanner error:", err);
+      toast.error("Não foi possível acessar a câmera");
+      setQrScanning(false);
+      qrScannerRef.current = null;
+    }
+  }, []);
+
+  const stopQrScanner = useCallback(() => {
+    if (qrScannerRef.current) {
+      qrScannerRef.current.stop().catch(() => {});
+      try { qrScannerRef.current.clear(); } catch {}
+      qrScannerRef.current = null;
+    }
+    setQrScanning(false);
+  }, []);
 
   // Edit dialog
   const [editPacote, setEditPacote] = useState<any | null>(null);
@@ -404,63 +449,21 @@ const AdminEstoque = () => {
               <Label>Código (11 dígitos) *</Label>
               <div className="flex gap-2">
                 <Input value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="Digitar código..." className="flex-1 font-mono" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  ref={fileInputRef}
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setOcrLoading(true);
-                    try {
-                      const reader = new FileReader();
-                      const base64 = await new Promise<string>((resolve, reject) => {
-                        reader.onload = () => {
-                          const result = reader.result as string;
-                          resolve(result.split(",")[1]);
-                        };
-                        reader.onerror = reject;
-                        reader.readAsDataURL(file);
-                      });
-                      const { data, error } = await supabase.functions.invoke("ocr-extract-code", {
-                        body: { imageBase64: base64 },
-                      });
-                      if (error) throw error;
-                      const codes = data?.codes || [];
-                      if (codes.length > 0) {
-                        // Clean: keep only digits
-                        const cleaned = codes[0].replace(/\D/g, "");
-                        setCodigo(cleaned.slice(0, 11));
-                        if (codes.length > 1) {
-                          toast.info(`${codes.length} códigos encontrados. Primeiro preenchido.`);
-                        } else {
-                          toast.success("Código extraído!");
-                        }
-                      } else {
-                        toast.warning("Nenhum código encontrado na imagem. Digite manualmente.");
-                      }
-                    } catch (err: any) {
-                      console.error("OCR error:", err);
-                      toast.error("Falha ao ler código da imagem. Digite manualmente.");
-                    } finally {
-                      setOcrLoading(false);
-                      // Reset input so same file can be selected again
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }
-                  }}
-                />
                 <Button
                   variant="outline"
                   size="icon"
-                  title="Capturar código com câmera"
-                  disabled={ocrLoading}
-                  onClick={() => fileInputRef.current?.click()}
+                  title="Escanear QR/Barcode"
+                  onClick={qrScanning ? stopQrScanner : startQrScanner}
                 >
-                  {ocrLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  {qrScanning ? <X className="h-4 w-4" /> : <ScanLine className="h-4 w-4" />}
                 </Button>
               </div>
+              {qrScanning && (
+                <div className="rounded-lg overflow-hidden border border-border">
+                  <div id="estoque-qr-reader" style={{ width: "100%" }} />
+                  <p className="text-xs text-center text-muted-foreground py-1">Aponte para QR/Barcode. O código será preenchido automaticamente.</p>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Tipo *</Label>
