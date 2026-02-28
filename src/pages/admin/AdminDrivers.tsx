@@ -173,29 +173,32 @@ const AdminDrivers = () => {
     }
   };
 
-  const loadDriverMetrics = useCallback(async (driverId: string) => {
-    if (expandedDriver === driverId) { setExpandedDriver(null); setDriverMetrics(null); return; }
+  const loadDriverMetrics = useCallback(async (driverId: string, forceOpen = false) => {
+    if (!forceOpen && expandedDriver === driverId) { setExpandedDriver(null); setDriverMetrics(null); return; }
     setExpandedDriver(driverId);
     setDriverMetrics(null);
     const monthStart = `${metricsMonth}-01`;
     const monthEnd = format(endOfMonth(new Date(metricsMonth + "-01")), "yyyy-MM-dd");
 
     const [{ data: allRotas }, { data: monthRotas }, { data: allEstoque }, { data: monthEstoque }] = await Promise.all([
-      supabase.from("rotas").select("id, status").eq("driver_id", driverId),
-      supabase.from("rotas").select("id, status, periodo").eq("driver_id", driverId)
+      supabase.from("rotas").select("id, status, hora_saida").eq("driver_id", driverId),
+      supabase.from("rotas").select("id, status, hora_saida, periodo").eq("driver_id", driverId)
         .gte("created_at", monthStart + "T00:00:00").lte("created_at", monthEnd + "T23:59:59"),
       supabase.from("estoque").select("id, tipo_insucesso").eq("origem_driver_id", driverId),
       supabase.from("estoque").select("id, tipo_insucesso").eq("origem_driver_id", driverId)
         .gte("data_entrada", monthStart).lte("data_entrada", monthEnd),
     ]);
 
+    const countByStatus = (arr: any[] | null, status: string) => arr?.filter((r: any) => r.status === status).length || 0;
+    const countWithSaida = (arr: any[] | null) => arr?.filter((r: any) => r.hora_saida).length || 0;
+
     setDriverMetrics({
       totalRotas: allRotas?.length || 0, mesRotas: monthRotas?.length || 0,
+      totalComSaida: countWithSaida(allRotas), mesComSaida: countWithSaida(monthRotas),
+      totalFinalizadas: countByStatus(allRotas, "Finalizada"), mesFinalizadas: countByStatus(monthRotas, "Finalizada"),
       totalInsucessos: allEstoque?.length || 0, mesInsucessos: monthEstoque?.length || 0,
       totalAvarias: allEstoque?.filter((e: any) => e.tipo_insucesso === "AVARIA").length || 0,
       mesAvarias: monthEstoque?.filter((e: any) => e.tipo_insucesso === "AVARIA").length || 0,
-      totalTentativas: allEstoque?.filter((e: any) => e.tipo_insucesso === "TENTATIVA").length || 0,
-      mesTentativas: monthEstoque?.filter((e: any) => e.tipo_insucesso === "TENTATIVA").length || 0,
       totalFaltantes: allEstoque?.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length || 0,
       mesFaltantes: monthEstoque?.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length || 0,
     });
@@ -416,24 +419,34 @@ const AdminDrivers = () => {
               <div className="mt-3 pt-3 border-t border-border">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs text-muted-foreground">Mês:</span>
-                  <Input type="month" value={metricsMonth} onChange={(e) => { setMetricsMonth(e.target.value); setExpandedDriver(null); }} className="h-7 text-xs w-36" />
+                  <Input type="month" value={metricsMonth} onChange={(e) => { setMetricsMonth(e.target.value); setTimeout(() => loadDriverMetrics(d.id, true), 50); }} className="h-7 text-xs w-36" />
                 </div>
                 {driverMetrics ? (
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center">
-                    <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesRotas}</p><p className="text-[10px] text-muted-foreground">Rotas (mês)</p></div>
-                    <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesInsucessos}</p><p className="text-[10px] text-muted-foreground">Insucessos (mês)</p></div>
-                    <div><p className="text-sm font-bold text-red-500">{driverMetrics.mesAvarias}</p><p className="text-[10px] text-muted-foreground">Avarias (mês)</p></div>
-                    <div><p className="text-sm font-bold text-orange-500">{driverMetrics.mesTentativas}</p><p className="text-[10px] text-muted-foreground">Tentativas (mês)</p></div>
-                    <div><p className="text-sm font-bold text-blue-500">{driverMetrics.mesFaltantes}</p><p className="text-[10px] text-muted-foreground">Faltantes (mês)</p></div>
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mês selecionado</p>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+                      <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesRotas}</p><p className="text-[10px] text-muted-foreground">Atribuídas</p></div>
+                      <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesComSaida}</p><p className="text-[10px] text-muted-foreground">Com saída</p></div>
+                      <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesFinalizadas}</p><p className="text-[10px] text-muted-foreground">Finalizadas</p></div>
+                      <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesInsucessos}</p><p className="text-[10px] text-muted-foreground">Insucessos</p></div>
+                      <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesFaltantes}</p><p className="text-[10px] text-muted-foreground">Faltantes</p></div>
+                      <div><p className="text-sm font-bold text-red-500">{driverMetrics.mesAvarias}</p><p className="text-[10px] text-muted-foreground">Avarias</p></div>
+                    </div>
+                    <div className="pt-2 border-t border-border/50">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Histórico total</p>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+                        <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalRotas}</p><p className="text-[10px] text-muted-foreground">Atribuídas</p></div>
+                        <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalComSaida}</p><p className="text-[10px] text-muted-foreground">Com saída</p></div>
+                        <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalFinalizadas}</p><p className="text-[10px] text-muted-foreground">Finalizadas</p></div>
+                        <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalInsucessos}</p><p className="text-[10px] text-muted-foreground">Insucessos</p></div>
+                        <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalFaltantes}</p><p className="text-[10px] text-muted-foreground">Faltantes</p></div>
+                        <div><p className="text-sm font-bold text-red-500">{driverMetrics.totalAvarias}</p><p className="text-[10px] text-muted-foreground">Avarias</p></div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex justify-center py-2"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" /></div>
                 )}
-                <div className="mt-2 pt-2 border-t border-border/50">
-                  <p className="text-[10px] text-muted-foreground text-center">
-                    Histórico total: {driverMetrics?.totalRotas || 0} rotas • {driverMetrics?.totalInsucessos || 0} insucessos • {driverMetrics?.totalAvarias || 0} avarias
-                  </p>
-                </div>
               </div>
             )}
           </Card>
