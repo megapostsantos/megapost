@@ -74,19 +74,29 @@ const AdminFinanceiro = () => {
 
   const loadRotasCount = useCallback(async () => {
     setLoadingRotas(true);
-    // Get all dias in this month
-    const { data: dias } = await supabase.from("dias").select("id")
-      .gte("data", mesInicio).lte("data", mesFim);
+    try {
+      // Get all dias in this month
+      const { data: dias } = await supabase.from("dias").select("id")
+        .gte("data", mesInicio).lte("data", mesFim);
 
-    if (!dias || dias.length === 0) { setRotasFinalizadas(0); setLoadingRotas(false); return; }
+      if (!dias || dias.length === 0) { setRotasFinalizadas(0); setLoadingRotas(false); return; }
 
-    const diaIds = dias.map(d => d.id);
-    const { count } = await supabase.from("rotas")
-      .select("id", { count: "exact", head: true })
-      .in("dia_id", diaIds)
-      .eq("status", "Finalizada");
+      // Query in batches to avoid .in() limit issues
+      let total = 0;
+      const batchSize = 50;
+      for (let i = 0; i < dias.length; i += batchSize) {
+        const batch = dias.slice(i, i + batchSize).map(d => d.id);
+        const { count } = await supabase.from("rotas")
+          .select("id", { count: "exact", head: true })
+          .in("dia_id", batch)
+          .eq("status", "Finalizada");
+        total += count || 0;
+      }
 
-    setRotasFinalizadas(count || 0);
+      setRotasFinalizadas(total);
+    } catch (err) {
+      console.error("Erro ao contar rotas:", err);
+    }
     setLoadingRotas(false);
   }, [mesInicio, mesFim]);
 
