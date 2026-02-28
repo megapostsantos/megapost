@@ -601,6 +601,42 @@ export type Database = {
           },
         ]
       }
+      sellers: {
+        Row: {
+          ativo: boolean
+          cidade: string | null
+          cnpj: string | null
+          created_at: string
+          id: string
+          nome: string
+          observacao: string | null
+          telefone: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          cidade?: string | null
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          observacao?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          cidade?: string | null
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          observacao?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       site_settings: {
         Row: {
           id: string

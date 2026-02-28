@@ -180,27 +180,37 @@ const AdminDrivers = () => {
     const monthStart = `${metricsMonth}-01`;
     const monthEnd = format(endOfMonth(new Date(metricsMonth + "-01")), "yyyy-MM-dd");
 
-    const [{ data: allRotas }, { data: monthRotas }, { data: allEstoque }, { data: monthEstoque }] = await Promise.all([
-      supabase.from("rotas").select("id, status, hora_saida").eq("driver_id", driverId),
-      supabase.from("rotas").select("id, status, hora_saida, periodo").eq("driver_id", driverId)
-        .gte("created_at", monthStart + "T00:00:00").lte("created_at", monthEnd + "T23:59:59"),
+    // Get dia_ids for this month to properly filter routes by operation date
+    const { data: diasDoMes } = await supabase.from("dias").select("id")
+      .gte("data", monthStart).lte("data", monthEnd);
+    const diaIds = diasDoMes?.map(d => d.id) || [];
+
+    // Fetch all routes for this driver (for total) and month routes (by dia_id)
+    const [{ data: allRotas }, { data: allEstoque }, { data: monthEstoque }] = await Promise.all([
+      supabase.from("rotas").select("id, status, hora_saida, dia_id").eq("driver_id", driverId),
       supabase.from("estoque").select("id, tipo_insucesso").eq("origem_driver_id", driverId),
       supabase.from("estoque").select("id, tipo_insucesso").eq("origem_driver_id", driverId)
         .gte("data_entrada", monthStart).lte("data_entrada", monthEnd),
     ]);
 
-    const countByStatus = (arr: any[] | null, status: string) => arr?.filter((r: any) => r.status === status).length || 0;
-    const countWithSaida = (arr: any[] | null) => arr?.filter((r: any) => r.hora_saida).length || 0;
+    // Filter month routes from allRotas using dia_ids (most accurate)
+    const monthRotas = diaIds.length > 0
+      ? (allRotas || []).filter((r: any) => diaIds.includes(r.dia_id))
+      : [];
+
+    const countByStatus = (arr: any[], status: string) => arr.filter((r: any) => r.status === status).length;
+    const countWithSaida = (arr: any[]) => arr.filter((r: any) => r.hora_saida).length;
 
     setDriverMetrics({
-      totalRotas: allRotas?.length || 0, mesRotas: monthRotas?.length || 0,
-      totalComSaida: countWithSaida(allRotas), mesComSaida: countWithSaida(monthRotas),
-      totalFinalizadas: countByStatus(allRotas, "Finalizada"), mesFinalizadas: countByStatus(monthRotas, "Finalizada"),
+      totalRotas: allRotas?.length || 0, mesRotas: monthRotas.length,
+      totalComSaida: countWithSaida(allRotas || []), mesComSaida: countWithSaida(monthRotas),
+      totalFinalizadas: countByStatus(allRotas || [], "Finalizada"), mesFinalizadas: countByStatus(monthRotas, "Finalizada"),
       totalInsucessos: allEstoque?.length || 0, mesInsucessos: monthEstoque?.length || 0,
       totalAvarias: allEstoque?.filter((e: any) => e.tipo_insucesso === "AVARIA").length || 0,
       mesAvarias: monthEstoque?.filter((e: any) => e.tipo_insucesso === "AVARIA").length || 0,
       totalFaltantes: allEstoque?.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length || 0,
       mesFaltantes: monthEstoque?.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length || 0,
+      dateMethod: "dia_id (data operacional)",
     });
   }, [expandedDriver, metricsMonth]);
 
@@ -430,8 +440,9 @@ const AdminDrivers = () => {
                       <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesFinalizadas}</p><p className="text-[10px] text-muted-foreground">Finalizadas</p></div>
                       <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesInsucessos}</p><p className="text-[10px] text-muted-foreground">Insucessos</p></div>
                       <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesFaltantes}</p><p className="text-[10px] text-muted-foreground">Faltantes</p></div>
-                      <div><p className="text-sm font-bold text-red-500">{driverMetrics.mesAvarias}</p><p className="text-[10px] text-muted-foreground">Avarias</p></div>
+                     <div><p className="text-sm font-bold text-red-500">{driverMetrics.mesAvarias}</p><p className="text-[10px] text-muted-foreground">Avarias</p></div>
                     </div>
+                    {driverMetrics.dateMethod && <p className="text-[9px] text-muted-foreground/50 mt-1">Filtro mensal usando: {driverMetrics.dateMethod}</p>}
                     <div className="pt-2 border-t border-border/50">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Histórico total</p>
                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">

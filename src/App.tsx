@@ -33,6 +33,7 @@ import AdminTV from "@/pages/admin/AdminTV";
 import AdminAjuda from "@/pages/admin/AdminAjuda";
 import AdminFinanceiro from "@/pages/admin/AdminFinanceiro";
 import AdminDocumentos from "@/pages/admin/AdminDocumentos";
+import AdminSellers from "@/pages/admin/AdminSellers";
 
 // Operator pages
 import OpLogin from "@/pages/op/OpLogin";
@@ -83,6 +84,7 @@ const App = () => (
                 <Route path="ocorrencias" element={<AdminOcorrencias />} />
                 <Route path="motoristas" element={<AdminDrivers />} />
                 <Route path="historico" element={<OpHistorico />} />
+                <Route path="sellers" element={<AdminSellers />} />
                 <Route path="ajuda" element={<AdminAjuda />} />
               </Route>
 
@@ -111,6 +113,7 @@ const App = () => (
                 <Route path="financeiro" element={<AdminFinanceiro />} />
                 <Route path="documentos" element={<AdminDocumentos />} />
                 <Route path="tv" element={<AdminTV />} />
+                <Route path="sellers" element={<AdminSellers />} />
                 <Route path="ajuda" element={<AdminAjuda />} />
                 <Route path="historico" element={<OpHistorico />} />
               </Route>

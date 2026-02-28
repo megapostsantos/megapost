@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Route, Package, Users, HelpCircle,
   Settings, Tv, Menu, X, ChevronLeft, LogOut as LogOutIcon,
-  DollarSign, FileText, History,
+  DollarSign, FileText, History, Store,
 } from "lucide-react";
 
 interface NavItem {
@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { to: "/admin/estoque", label: "Estoque", icon: Package },
   { to: "/admin/motoristas", label: "Motoristas", icon: Users },
   { to: "/admin/ocorrencias", label: "Ocorrências", icon: HelpCircle },
+  { to: "/admin/sellers", label: "Sellers", icon: Store },
   { to: "/admin/historico", label: "Histórico", icon: History },
   { to: "/admin/ajuda", label: "Ajuda", icon: HelpCircle },
 ];
