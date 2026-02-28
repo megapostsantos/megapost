@@ -112,7 +112,7 @@ const App = () => (
                 <Route path="documentos" element={<AdminDocumentos />} />
                 <Route path="tv" element={<AdminTV />} />
                 <Route path="ajuda" element={<AdminAjuda />} />
-                <Route path="historico" element={<AdminDia />} />
+                <Route path="historico" element={<OpHistorico />} />
               </Route>
 
               <Route
