@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Route, Package, Users, HelpCircle, AlertTriangle,
-  Menu, X, ChevronLeft, LogOut as LogOutIcon, History, Store,
+  Menu, X, ChevronLeft, LogOut as LogOutIcon, History, Store, DollarSign,
 } from "lucide-react";
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { to: "/op/ocorrencias", label: "Ocorrências", icon: AlertTriangle },
   { to: "/op/motoristas", label: "Motoristas", icon: Users },
   { to: "/op/sellers", label: "Sellers", icon: Store },
+  { to: "/op/financeiro", label: "Financeiro", icon: DollarSign },
   { to: "/op/historico", label: "Histórico", icon: History },
   { to: "/op/ajuda", label: "Ajuda", icon: HelpCircle },
 ];

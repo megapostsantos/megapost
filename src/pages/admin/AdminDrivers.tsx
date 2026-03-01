@@ -177,40 +177,47 @@ const AdminDrivers = () => {
     if (!forceOpen && expandedDriver === driverId) { setExpandedDriver(null); setDriverMetrics(null); return; }
     setExpandedDriver(driverId);
     setDriverMetrics(null);
-    const monthStart = `${metricsMonth}-01`;
-    const monthEnd = format(endOfMonth(new Date(metricsMonth + "-01")), "yyyy-MM-dd");
 
-    // Get dia_ids for this month to properly filter routes by operation date
-    const { data: diasDoMes } = await supabase.from("dias").select("id")
-      .gte("data", monthStart).lte("data", monthEnd);
-    const diaIds = diasDoMes?.map(d => d.id) || [];
-
-    // Fetch all routes for this driver (for total) and month routes (by dia_id)
-    const [{ data: allRotas }, { data: allEstoque }, { data: monthEstoque }] = await Promise.all([
+    // Use v_driver_monthly view for month metrics
+    const [{ data: monthData }, { data: allRotas }, { data: allEstoque }] = await Promise.all([
+      supabase.from("v_driver_monthly" as any).select("*")
+        .eq("driver_id", driverId).eq("month_id", metricsMonth).maybeSingle(),
       supabase.from("rotas").select("id, status, hora_saida, dia_id").eq("driver_id", driverId),
-      supabase.from("estoque").select("id, tipo_insucesso").eq("origem_driver_id", driverId),
-      supabase.from("estoque").select("id, tipo_insucesso").eq("origem_driver_id", driverId)
-        .gte("data_entrada", monthStart).lte("data_entrada", monthEnd),
+      supabase.from("estoque").select("id, tipo_insucesso, rota_id").eq("origem_driver_id", driverId),
     ]);
 
-    // Filter month routes from allRotas using dia_ids (most accurate)
-    const monthRotas = diaIds.length > 0
-      ? (allRotas || []).filter((r: any) => diaIds.includes(r.dia_id))
-      : [];
+    // Get month estoque using dia_ids from dias table
+    const monthStart = `${metricsMonth}-01`;
+    const monthEnd = format(endOfMonth(new Date(metricsMonth + "-01")), "yyyy-MM-dd");
+    const { data: diasDoMes } = await supabase.from("dias").select("id")
+      .gte("data", monthStart).lte("data", monthEnd);
+    const diaIds = new Set((diasDoMes || []).map(d => d.id));
+
+    // Filter estoque by rota's dia_id (through allRotas)
+    const rotaIdToDia = new Map((allRotas || []).map((r: any) => [r.id, r.dia_id]));
+    const monthEstoque = (allEstoque || []).filter((e: any) => {
+      const rotaDia = rotaIdToDia.get(e.rota_id);
+      return rotaDia && diaIds.has(rotaDia);
+    });
 
     const countByStatus = (arr: any[], status: string) => arr.filter((r: any) => r.status === status).length;
     const countWithSaida = (arr: any[]) => arr.filter((r: any) => r.hora_saida).length;
 
+    const md = monthData as any;
     setDriverMetrics({
-      totalRotas: allRotas?.length || 0, mesRotas: monthRotas.length,
-      totalComSaida: countWithSaida(allRotas || []), mesComSaida: countWithSaida(monthRotas),
-      totalFinalizadas: countByStatus(allRotas || [], "Finalizada"), mesFinalizadas: countByStatus(monthRotas, "Finalizada"),
-      totalInsucessos: allEstoque?.length || 0, mesInsucessos: monthEstoque?.length || 0,
+      mesRotas: md?.atribuidas || 0,
+      mesComSaida: md?.com_saida || 0,
+      mesFinalizadas: md?.finalizadas || 0,
+      mesInsucessos: monthEstoque.length,
+      mesAvarias: monthEstoque.filter((e: any) => e.tipo_insucesso === "AVARIA").length,
+      mesFaltantes: monthEstoque.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length,
+      totalRotas: allRotas?.length || 0,
+      totalComSaida: countWithSaida(allRotas || []),
+      totalFinalizadas: countByStatus(allRotas || [], "Finalizada"),
+      totalInsucessos: allEstoque?.length || 0,
       totalAvarias: allEstoque?.filter((e: any) => e.tipo_insucesso === "AVARIA").length || 0,
-      mesAvarias: monthEstoque?.filter((e: any) => e.tipo_insucesso === "AVARIA").length || 0,
       totalFaltantes: allEstoque?.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length || 0,
-      mesFaltantes: monthEstoque?.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length || 0,
-      dateMethod: "dia_id (data operacional)",
+      dateMethod: "v_driver_monthly (dia_id)",
     });
   }, [expandedDriver, metricsMonth]);
 

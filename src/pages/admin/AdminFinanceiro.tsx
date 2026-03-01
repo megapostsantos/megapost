@@ -7,100 +7,120 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  DollarSign, TrendingUp, TrendingDown, Plus, Edit2, Check, X, Trash2,
-  ArrowUpCircle, ArrowDownCircle, Calendar, Route,
+  DollarSign, Plus, Edit2, Trash2, ArrowUpCircle, ArrowDownCircle, Route,
 } from "lucide-react";
-import { format, endOfMonth, getDaysInMonth, getDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { format, endOfMonth } from "date-fns";
 import { toast } from "sonner";
 
-const TIPOS_ENTRADA = [
-  { value: "ROTA_AUTOMATICA", label: "Rotas (R$10)" },
+const CATEGORIAS_ENTRADA = [
+  { value: "ROTAS", label: "Rotas (automático)" },
   { value: "FIXO_ML", label: "Fixo Mercado Livre" },
   { value: "MANUAL", label: "Outros" },
 ];
 
-const TIPOS_SAIDA = [
-  { value: "FUNCIONARIO_DIARIA", label: "Funcionários" },
-  { value: "IMPOSTO_MEI", label: "MEI / Impostos" },
+const CATEGORIAS_SAIDA = [
+  { value: "FUNCIONARIO", label: "Funcionários" },
+  { value: "MEI", label: "MEI / Impostos" },
   { value: "ALUGUEL", label: "Aluguel" },
   { value: "LUZ", label: "Luz" },
-  { value: "FIXA", label: "Despesa fixa" },
-  { value: "MANUAL", label: "Outros" },
+  { value: "OUTROS", label: "Outros" },
 ];
+
+const VALOR_POR_ROTA = 10;
+const FIXO_ML = 3500;
 
 const AdminFinanceiro = () => {
   const [tab, setTab] = useState<"resumo" | "entradas" | "saidas">("resumo");
   const [mesRef, setMesRef] = useState(format(new Date(), "yyyy-MM"));
-  const [entradas, setEntradas] = useState<any[]>([]);
-  const [saidas, setSaidas] = useState<any[]>([]);
+  const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showFormEntrada, setShowFormEntrada] = useState(false);
-  const [showFormSaida, setShowFormSaida] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-
-  // Auto-calculated
   const [rotasFinalizadas, setRotasFinalizadas] = useState(0);
   const [loadingRotas, setLoadingRotas] = useState(false);
 
-  // Form state
+  // Form
+  const [showForm, setShowForm] = useState(false);
+  const [formKind, setFormKind] = useState<"entrada" | "saida">("saida");
   const [formDescricao, setFormDescricao] = useState("");
   const [formValor, setFormValor] = useState("");
-  const [formTipo, setFormTipo] = useState("MANUAL");
+  const [formCategoria, setFormCategoria] = useState("OUTROS");
   const [formData, setFormData] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [formStatus, setFormStatus] = useState("pendente");
   const [formObs, setFormObs] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const mesInicio = `${mesRef}-01`;
   const mesFim = format(endOfMonth(new Date(mesRef + "-01")), "yyyy-MM-dd");
 
-  const VALOR_POR_ROTA = 10;
-  const FIXO_ML = 3500;
-
+  // Load entries from finance_entries
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [{ data: ent }, { data: sai }] = await Promise.all([
-      supabase.from("financeiro_entradas").select("*")
-        .gte("data_referencia", mesInicio).lte("data_referencia", mesFim)
-        .order("data_referencia", { ascending: false }),
-      supabase.from("financeiro_saidas").select("*")
-        .gte("data_referencia", mesInicio).lte("data_referencia", mesFim)
-        .order("data_referencia", { ascending: false }),
-    ]);
-    setEntradas(ent || []);
-    setSaidas(sai || []);
+    const { data, error } = await supabase
+      .from("finance_entries")
+      .select("*")
+      .gte("data", mesInicio)
+      .lte("data", mesFim)
+      .order("data", { ascending: false });
+    if (error) console.error("loadData error:", error);
+    setEntries(data || []);
     setLoading(false);
   }, [mesInicio, mesFim]);
 
+  // Load finalized routes count from v_routes_monthly
   const loadRotasCount = useCallback(async () => {
     setLoadingRotas(true);
-    try {
-      // Get all dias in this month
-      const { data: dias } = await supabase.from("dias").select("id")
-        .gte("data", mesInicio).lte("data", mesFim);
-
-      if (!dias || dias.length === 0) { setRotasFinalizadas(0); setLoadingRotas(false); return; }
-
-      // Query in batches to avoid .in() limit issues
-      let total = 0;
-      const batchSize = 50;
-      for (let i = 0; i < dias.length; i += batchSize) {
-        const batch = dias.slice(i, i + batchSize).map(d => d.id);
-        const { count } = await supabase.from("rotas")
-          .select("id", { count: "exact", head: true })
-          .in("dia_id", batch)
-          .eq("status", "Finalizada");
-        total += count || 0;
-      }
-
-      setRotasFinalizadas(total);
-    } catch (err) {
-      console.error("Erro ao contar rotas:", err);
+    const { data, error } = await supabase
+      .from("v_routes_monthly" as any)
+      .select("route_id", { count: "exact", head: true })
+      .eq("month_id", mesRef)
+      .eq("status", "Finalizada");
+    if (error) {
+      console.error("loadRotasCount error:", error);
+      setRotasFinalizadas(0);
+    } else {
+      setRotasFinalizadas((data as any) ?? 0);
     }
     setLoadingRotas(false);
-  }, [mesInicio, mesFim]);
+  }, [mesRef]);
 
-  useEffect(() => { loadData(); loadRotasCount(); }, [loadData, loadRotasCount]);
+  // The .select with head:true returns count in the response
+  const loadRotasCountDirect = useCallback(async () => {
+    setLoadingRotas(true);
+    try {
+      // Use RPC-style count via the view
+      const { count, error } = await supabase
+        .from("v_routes_monthly" as any)
+        .select("route_id", { count: "exact", head: true })
+        .eq("month_id", mesRef)
+        .eq("status", "Finalizada");
+      if (error) throw error;
+      setRotasFinalizadas(count || 0);
+    } catch (err) {
+      console.error("loadRotasCount error:", err);
+      // Fallback: query dias + rotas directly
+      try {
+        const { data: dias } = await supabase.from("dias").select("id")
+          .gte("data", mesInicio).lte("data", mesFim);
+        if (!dias || dias.length === 0) { setRotasFinalizadas(0); setLoadingRotas(false); return; }
+        let total = 0;
+        const batchSize = 50;
+        for (let i = 0; i < dias.length; i += batchSize) {
+          const batch = dias.slice(i, i + batchSize).map(d => d.id);
+          const { count } = await supabase.from("rotas")
+            .select("id", { count: "exact", head: true })
+            .in("dia_id", batch).eq("status", "Finalizada");
+          total += count || 0;
+        }
+        setRotasFinalizadas(total);
+      } catch { setRotasFinalizadas(0); }
+    }
+    setLoadingRotas(false);
+  }, [mesRef, mesInicio, mesFim]);
+
+  useEffect(() => { loadData(); loadRotasCountDirect(); }, [loadData, loadRotasCountDirect]);
+
+  const entradas = entries.filter(e => e.kind === "entrada");
+  const saidas = entries.filter(e => e.kind === "saida");
 
   const receitaRotas = rotasFinalizadas * VALOR_POR_ROTA;
   const totalEntradasManuais = entradas.reduce((s, e) => s + Number(e.valor), 0);
@@ -109,89 +129,163 @@ const AdminFinanceiro = () => {
   const resultado = totalEntradas - totalSaidas;
 
   const resetForm = () => {
-    setFormDescricao(""); setFormValor(""); setFormTipo("MANUAL");
-    setFormData(format(new Date(), "yyyy-MM-dd")); setFormObs(""); setEditingId(null);
+    setFormDescricao(""); setFormValor(""); setFormCategoria("OUTROS");
+    setFormData(format(new Date(), "yyyy-MM-dd")); setFormStatus("pendente");
+    setFormObs(""); setEditingId(null);
   };
 
-  const handleAddEntrada = async () => {
+  const openNewForm = (kind: "entrada" | "saida") => {
+    resetForm();
+    setFormKind(kind);
+    setFormCategoria(kind === "entrada" ? "MANUAL" : "OUTROS");
+    setShowForm(true);
+    setTab(kind === "entrada" ? "entradas" : "saidas");
+  };
+
+  const handleSave = async () => {
     if (!formDescricao.trim() || !formValor) { toast.error("Preencha descrição e valor."); return; }
     setSubmitting(true);
     const payload = {
-      descricao: formDescricao.trim(), valor: parseFloat(formValor), tipo: formTipo,
-      data_referencia: formData, observacao: formObs.trim() || null,
+      kind: formKind,
+      descricao: formDescricao.trim(),
+      valor: parseFloat(formValor),
+      categoria: formCategoria,
+      data: formData,
+      status: formStatus,
+      observacao: formObs.trim() || null,
     };
     if (editingId) {
-      const { error } = await supabase.from("financeiro_entradas").update(payload).eq("id", editingId);
-      if (error) toast.error(error.message); else toast.success("Entrada atualizada!");
+      const { error } = await supabase.from("finance_entries").update(payload as any).eq("id", editingId);
+      if (error) toast.error(error.message); else toast.success("Lançamento atualizado!");
     } else {
-      const { error } = await supabase.from("financeiro_entradas").insert(payload);
-      if (error) toast.error(error.message); else toast.success("Entrada registrada!");
+      const { error } = await supabase.from("finance_entries").insert(payload as any);
+      if (error) toast.error(error.message); else toast.success("Lançamento registrado!");
     }
-    resetForm(); setShowFormEntrada(false); setSubmitting(false); await loadData();
-  };
-
-  const handleAddSaida = async () => {
-    if (!formDescricao.trim() || !formValor) { toast.error("Preencha descrição e valor."); return; }
-    setSubmitting(true);
-    const payload = {
-      descricao: formDescricao.trim(), valor: parseFloat(formValor), tipo: formTipo,
-      data_referencia: formData, observacao: formObs.trim() || null,
-    };
-    if (editingId) {
-      const { error } = await supabase.from("financeiro_saidas").update(payload).eq("id", editingId);
-      if (error) toast.error(error.message); else toast.success("Saída atualizada!");
-    } else {
-      const { error } = await supabase.from("financeiro_saidas").insert(payload);
-      if (error) toast.error(error.message); else toast.success("Saída registrada!");
-    }
-    resetForm(); setShowFormSaida(false); setSubmitting(false); await loadData();
-  };
-
-  const handleDeleteEntrada = async (id: string) => {
-    if (!confirm("Remover esta entrada?")) return;
-    await supabase.from("financeiro_entradas").delete().eq("id", id);
-    toast.success("Entrada removida."); await loadData();
-  };
-
-  const handleDeleteSaida = async (id: string) => {
-    if (!confirm("Remover esta saída?")) return;
-    await supabase.from("financeiro_saidas").delete().eq("id", id);
-    toast.success("Saída removida."); await loadData();
-  };
-
-  const toggleStatusEntrada = async (item: any) => {
-    const newStatus = item.status === "recebido" ? "aguardando" : "recebido";
-    await supabase.from("financeiro_entradas").update({
-      status: newStatus, recebido_em: newStatus === "recebido" ? new Date().toISOString() : null,
-    }).eq("id", item.id);
-    toast.success(newStatus === "recebido" ? "Marcado como recebido" : "Voltou para aguardando");
+    resetForm(); setShowForm(false); setSubmitting(false);
     await loadData();
   };
 
-  const toggleStatusSaida = async (item: any) => {
-    const newStatus = item.status === "pago" ? "pendente" : "pago";
-    await supabase.from("financeiro_saidas").update({
-      status: newStatus, pago_em: newStatus === "pago" ? new Date().toISOString() : null,
-    }).eq("id", item.id);
-    toast.success(newStatus === "pago" ? "Marcado como pago" : "Voltou para pendente");
-    await loadData();
+  const handleDelete = async (id: string) => {
+    if (!confirm("Remover este lançamento?")) return;
+    await supabase.from("finance_entries").delete().eq("id", id);
+    toast.success("Removido."); await loadData();
   };
 
-  const startEditEntrada = (item: any) => {
-    setFormDescricao(item.descricao); setFormValor(String(item.valor)); setFormTipo(item.tipo);
-    setFormData(item.data_referencia); setFormObs(item.observacao || ""); setEditingId(item.id);
-    setShowFormEntrada(true); setShowFormSaida(false); setTab("entradas");
+  const toggleStatus = async (item: any) => {
+    const newStatus = item.kind === "entrada"
+      ? (item.status === "recebido" ? "aguardando" : "recebido")
+      : (item.status === "pago" ? "pendente" : "pago");
+    await supabase.from("finance_entries").update({ status: newStatus } as any).eq("id", item.id);
+    toast.success("Status atualizado"); await loadData();
   };
 
-  const startEditSaida = (item: any) => {
-    setFormDescricao(item.descricao); setFormValor(String(item.valor)); setFormTipo(item.tipo);
-    setFormData(item.data_referencia); setFormObs(item.observacao || ""); setEditingId(item.id);
-    setShowFormSaida(true); setShowFormEntrada(false); setTab("saidas");
+  const startEdit = (item: any) => {
+    setFormKind(item.kind);
+    setFormDescricao(item.descricao);
+    setFormValor(String(item.valor));
+    setFormCategoria(item.categoria || "OUTROS");
+    setFormData(item.data);
+    setFormStatus(item.status);
+    setFormObs(item.observacao || "");
+    setEditingId(item.id);
+    setShowForm(true);
+    setTab(item.kind === "entrada" ? "entradas" : "saidas");
   };
+
+  const categorias = formKind === "entrada" ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA;
+  const statusOptions = formKind === "entrada"
+    ? [{ v: "aguardando", l: "A receber" }, { v: "recebido", l: "Recebido" }]
+    : [{ v: "pendente", l: "A pagar" }, { v: "pago", l: "Pago" }];
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
   }
+
+  const renderList = (items: any[], kind: "entrada" | "saida") => {
+    const cats = kind === "entrada" ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA;
+    const isPaid = (i: any) => kind === "entrada" ? i.status === "recebido" : i.status === "pago";
+    const paidLabel = (i: any) => kind === "entrada" ? (isPaid(i) ? "Recebido" : "A receber") : (isPaid(i) ? "Pago" : "A pagar");
+    const color = kind === "entrada" ? "text-green-600" : "text-red-500";
+
+    return (
+      <div className="space-y-3">
+        {kind === "entrada" && (
+          <Card className="bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900">
+            <CardContent className="py-3 text-sm space-y-1">
+              <p className="font-medium text-green-800 dark:text-green-300">Entradas automáticas (calculadas):</p>
+              <div className="flex justify-between text-green-700 dark:text-green-400">
+                <span>Rotas finalizadas ({loadingRotas ? "..." : rotasFinalizadas} × R$10)</span>
+                <span className="font-bold">R${receitaRotas.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-green-700 dark:text-green-400">
+                <span>Fixo Mercado Livre</span>
+                <span className="font-bold">R${FIXO_ML.toFixed(2)}</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground font-medium">
+            {kind === "entrada" ? "Entradas manuais" : "Saídas"} ({items.length})
+          </p>
+          <Button size="sm" onClick={() => openNewForm(kind)}>
+            <Plus className="h-4 w-4 mr-1" /> {kind === "entrada" ? "Nova Entrada" : "Nova Saída"}
+          </Button>
+        </div>
+
+        {showForm && formKind === kind && (
+          <Card><CardContent className="pt-4 space-y-3">
+            <div className="space-y-1"><Label>Descrição *</Label><Input value={formDescricao} onChange={(e) => setFormDescricao(e.target.value)} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Valor (R$) *</Label><Input type="number" step="0.01" value={formValor} onChange={(e) => setFormValor(e.target.value)} /></div>
+              <div className="space-y-1"><Label>Categoria</Label>
+                <select value={formCategoria} onChange={(e) => setFormCategoria(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                  {categorias.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Data</Label><Input type="date" value={formData} onChange={(e) => setFormData(e.target.value)} /></div>
+              <div className="space-y-1"><Label>Status</Label>
+                <select value={formStatus} onChange={(e) => setFormStatus(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                  {statusOptions.map((s) => <option key={s.v} value={s.v}>{s.l}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="space-y-1"><Label>Observação</Label><Textarea rows={2} value={formObs} onChange={(e) => setFormObs(e.target.value)} /></div>
+            <div className="flex gap-2">
+              <Button onClick={handleSave} disabled={submitting}>{editingId ? "Atualizar" : "Salvar"}</Button>
+              <Button variant="ghost" onClick={() => { resetForm(); setShowForm(false); }}>Cancelar</Button>
+            </div>
+          </CardContent></Card>
+        )}
+
+        {items.map((item) => (
+          <Card key={item.id} className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{item.descricao}</p>
+                <p className="text-xs text-muted-foreground">
+                  {format(new Date(item.data + "T12:00:00"), "dd/MM/yyyy")} • {cats.find(c => c.value === item.categoria)?.label || item.categoria}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-sm font-bold ${color}`}>R${Number(item.valor).toFixed(2)}</span>
+                <Badge variant="outline" className={`text-[10px] cursor-pointer ${isPaid(item) ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"}`}
+                  onClick={() => toggleStatus(item)}>
+                  {paidLabel(item)}
+                </Badge>
+                <button onClick={() => startEdit(item)} className="text-muted-foreground hover:text-foreground p-1"><Edit2 className="h-3.5 w-3.5" /></button>
+                <button onClick={() => handleDelete(item.id)} className="text-muted-foreground hover:text-destructive p-1"><Trash2 className="h-3.5 w-3.5" /></button>
+              </div>
+            </div>
+          </Card>
+        ))}
+        {items.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhum lançamento neste mês.</p>}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
@@ -200,7 +294,6 @@ const AdminFinanceiro = () => {
         <Input type="month" value={mesRef} onChange={(e) => setMesRef(e.target.value)} className="w-40" />
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 bg-muted p-1 rounded-lg">
         {(["resumo", "entradas", "saidas"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
@@ -210,10 +303,8 @@ const AdminFinanceiro = () => {
         ))}
       </div>
 
-      {/* Resumo */}
       {tab === "resumo" && (
         <div className="space-y-4">
-          {/* Result cards */}
           <div className="grid grid-cols-3 gap-3">
             <Card><CardContent className="pt-4 text-center">
               <ArrowUpCircle className="h-5 w-5 mx-auto text-green-600 mb-1" />
@@ -232,7 +323,6 @@ const AdminFinanceiro = () => {
             </CardContent></Card>
           </div>
 
-          {/* Breakdown */}
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-sm">Detalhamento do Mês</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
@@ -275,143 +365,8 @@ const AdminFinanceiro = () => {
         </div>
       )}
 
-      {/* Entradas */}
-      {tab === "entradas" && (
-        <div className="space-y-3">
-          {/* Auto entries info */}
-          <Card className="bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900">
-            <CardContent className="py-3 text-sm space-y-1">
-              <p className="font-medium text-green-800 dark:text-green-300">Entradas automáticas (calculadas):</p>
-              <div className="flex justify-between text-green-700 dark:text-green-400">
-                <span>Rotas finalizadas ({rotasFinalizadas} × R$10)</span>
-                <span className="font-bold">R${receitaRotas.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-green-700 dark:text-green-400">
-                <span>Fixo Mercado Livre</span>
-                <span className="font-bold">R${FIXO_ML.toFixed(2)}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground font-medium">Entradas manuais</p>
-            <Button size="sm" onClick={() => { resetForm(); setShowFormEntrada(!showFormEntrada); }}>
-              <Plus className="h-4 w-4 mr-1" /> Nova Entrada
-            </Button>
-          </div>
-
-          {showFormEntrada && (
-            <Card><CardContent className="pt-4 space-y-3">
-              <div className="space-y-1"><Label>Descrição *</Label><Input value={formDescricao} onChange={(e) => setFormDescricao(e.target.value)} /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label>Valor (R$) *</Label><Input type="number" step="0.01" value={formValor} onChange={(e) => setFormValor(e.target.value)} /></div>
-                <div className="space-y-1"><Label>Categoria</Label>
-                  <select value={formTipo} onChange={(e) => setFormTipo(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
-                    {TIPOS_ENTRADA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label>Data</Label><Input type="date" value={formData} onChange={(e) => setFormData(e.target.value)} /></div>
-                <div className="space-y-1"><Label>Status</Label>
-                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" defaultValue="aguardando">
-                    <option value="aguardando">A receber</option>
-                    <option value="recebido">Recebido</option>
-                  </select>
-                </div>
-              </div>
-              <div className="space-y-1"><Label>Observação</Label><Textarea rows={2} value={formObs} onChange={(e) => setFormObs(e.target.value)} /></div>
-              <div className="flex gap-2">
-                <Button onClick={handleAddEntrada} disabled={submitting}>{editingId ? "Atualizar" : "Salvar"}</Button>
-                <Button variant="ghost" onClick={() => { resetForm(); setShowFormEntrada(false); }}>Cancelar</Button>
-              </div>
-            </CardContent></Card>
-          )}
-
-          {entradas.map((item) => (
-            <Card key={item.id} className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{item.descricao}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(item.data_referencia + "T12:00:00"), "dd/MM/yyyy")} • {TIPOS_ENTRADA.find(t => t.value === item.tipo)?.label || item.tipo}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-bold text-green-600">R${Number(item.valor).toFixed(2)}</span>
-                  <Badge variant="outline" className={`text-[10px] cursor-pointer ${item.status === "recebido" ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"}`}
-                    onClick={() => toggleStatusEntrada(item)}>
-                    {item.status === "recebido" ? "Recebido" : "A receber"}
-                  </Badge>
-                  <button onClick={() => startEditEntrada(item)} className="text-muted-foreground hover:text-foreground p-1"><Edit2 className="h-3.5 w-3.5" /></button>
-                  <button onClick={() => handleDeleteEntrada(item.id)} className="text-muted-foreground hover:text-destructive p-1"><Trash2 className="h-3.5 w-3.5" /></button>
-                </div>
-              </div>
-            </Card>
-          ))}
-          {entradas.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhuma entrada manual neste mês.</p>}
-        </div>
-      )}
-
-      {/* Saídas */}
-      {tab === "saidas" && (
-        <div className="space-y-3">
-          <Button size="sm" onClick={() => { resetForm(); setFormTipo("FUNCIONARIO_DIARIA"); setShowFormSaida(!showFormSaida); }}>
-            <Plus className="h-4 w-4 mr-1" /> Nova Saída
-          </Button>
-
-          {showFormSaida && (
-            <Card><CardContent className="pt-4 space-y-3">
-              <div className="space-y-1"><Label>Descrição *</Label><Input value={formDescricao} onChange={(e) => setFormDescricao(e.target.value)} /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label>Valor (R$) *</Label><Input type="number" step="0.01" value={formValor} onChange={(e) => setFormValor(e.target.value)} /></div>
-                <div className="space-y-1"><Label>Categoria</Label>
-                  <select value={formTipo} onChange={(e) => setFormTipo(e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
-                    {TIPOS_SAIDA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label>Data</Label><Input type="date" value={formData} onChange={(e) => setFormData(e.target.value)} /></div>
-                <div className="space-y-1"><Label>Status</Label>
-                  <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" defaultValue="pendente">
-                    <option value="pendente">A pagar</option>
-                    <option value="pago">Pago</option>
-                  </select>
-                </div>
-              </div>
-              <div className="space-y-1"><Label>Observação</Label><Textarea rows={2} value={formObs} onChange={(e) => setFormObs(e.target.value)} /></div>
-              <div className="flex gap-2">
-                <Button onClick={handleAddSaida} disabled={submitting}>{editingId ? "Atualizar" : "Salvar"}</Button>
-                <Button variant="ghost" onClick={() => { resetForm(); setShowFormSaida(false); }}>Cancelar</Button>
-              </div>
-            </CardContent></Card>
-          )}
-
-          {saidas.map((item) => (
-            <Card key={item.id} className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{item.descricao}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(item.data_referencia + "T12:00:00"), "dd/MM/yyyy")} • {TIPOS_SAIDA.find(t => t.value === item.tipo)?.label || item.tipo}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-bold text-red-500">R${Number(item.valor).toFixed(2)}</span>
-                  <Badge variant="outline" className={`text-[10px] cursor-pointer ${item.status === "pago" ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"}`}
-                    onClick={() => toggleStatusSaida(item)}>
-                    {item.status === "pago" ? "Pago" : "A pagar"}
-                  </Badge>
-                  <button onClick={() => startEditSaida(item)} className="text-muted-foreground hover:text-foreground p-1"><Edit2 className="h-3.5 w-3.5" /></button>
-                  <button onClick={() => handleDeleteSaida(item.id)} className="text-muted-foreground hover:text-destructive p-1"><Trash2 className="h-3.5 w-3.5" /></button>
-                </div>
-              </div>
-            </Card>
-          ))}
-          {saidas.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Nenhuma saída neste mês.</p>}
-        </div>
-      )}
+      {tab === "entradas" && renderList(entradas, "entrada")}
+      {tab === "saidas" && renderList(saidas, "saida")}
     </div>
   );
 };
