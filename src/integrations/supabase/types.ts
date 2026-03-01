@@ -80,6 +80,13 @@ export type Database = {
             referencedRelation: "rotas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "conferencias_rota_id_fkey"
+            columns: ["rota_id"]
+            isOneToOne: false
+            referencedRelation: "v_routes_monthly"
+            referencedColumns: ["route_id"]
+          },
         ]
       }
       dias: {
@@ -284,6 +291,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "estoque_dia_id_fkey"
+            columns: ["dia_id"]
+            isOneToOne: false
+            referencedRelation: "v_routes_monthly"
+            referencedColumns: ["dia_id"]
+          },
+          {
             foreignKeyName: "estoque_origem_driver_id_fkey"
             columns: ["origem_driver_id"]
             isOneToOne: false
@@ -305,13 +319,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "estoque_rota_id_fkey"
+            columns: ["rota_id"]
+            isOneToOne: false
+            referencedRelation: "v_routes_monthly"
+            referencedColumns: ["route_id"]
+          },
+          {
             foreignKeyName: "estoque_saida_route_id_fkey"
             columns: ["saida_route_id"]
             isOneToOne: false
             referencedRelation: "rotas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "estoque_saida_route_id_fkey"
+            columns: ["saida_route_id"]
+            isOneToOne: false
+            referencedRelation: "v_routes_monthly"
+            referencedColumns: ["route_id"]
+          },
         ]
+      }
+      finance_entries: {
+        Row: {
+          categoria: string | null
+          created_at: string
+          data: string
+          descricao: string
+          id: string
+          kind: string
+          observacao: string | null
+          status: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          categoria?: string | null
+          created_at?: string
+          data?: string
+          descricao: string
+          id?: string
+          kind?: string
+          observacao?: string | null
+          status?: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          categoria?: string | null
+          created_at?: string
+          data?: string
+          descricao?: string
+          id?: string
+          kind?: string
+          observacao?: string | null
+          status?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: []
       }
       financeiro_entradas: {
         Row: {
@@ -363,6 +430,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "dias"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financeiro_entradas_dia_id_fkey"
+            columns: ["dia_id"]
+            isOneToOne: false
+            referencedRelation: "v_routes_monthly"
+            referencedColumns: ["dia_id"]
           },
           {
             foreignKeyName: "financeiro_entradas_documento_id_fkey"
@@ -474,6 +548,13 @@ export type Database = {
             referencedRelation: "rotas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ocorrencias_rota_id_fkey"
+            columns: ["rota_id"]
+            isOneToOne: false
+            referencedRelation: "v_routes_monthly"
+            referencedColumns: ["route_id"]
+          },
         ]
       }
       profiles: {
@@ -558,6 +639,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "rotas_dia_id_fkey"
+            columns: ["dia_id"]
+            isOneToOne: false
+            referencedRelation: "v_routes_monthly"
+            referencedColumns: ["dia_id"]
+          },
+          {
             foreignKeyName: "rotas_driver_id_fkey"
             columns: ["driver_id"]
             isOneToOne: false
@@ -598,6 +686,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rotas"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_event_log_route_id_fkey"
+            columns: ["route_id"]
+            isOneToOne: false
+            referencedRelation: "v_routes_monthly"
+            referencedColumns: ["route_id"]
           },
         ]
       }
@@ -706,6 +801,13 @@ export type Database = {
             referencedRelation: "dias"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "stock_pickups_dia_id_fkey"
+            columns: ["dia_id"]
+            isOneToOne: false
+            referencedRelation: "v_routes_monthly"
+            referencedColumns: ["dia_id"]
+          },
         ]
       }
       user_roles: {
@@ -728,7 +830,49 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_driver_monthly: {
+        Row: {
+          atribuidas: number | null
+          com_saida: number | null
+          driver_id: string | null
+          finalizadas: number | null
+          month_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rotas_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_routes_monthly: {
+        Row: {
+          dia_data: string | null
+          dia_id: string | null
+          driver_id: string | null
+          hora_chegada: string | null
+          hora_saida: string | null
+          month_id: string | null
+          nx_codigo: string | null
+          periodo: string | null
+          qr_codigo: string | null
+          rota_codigo: string | null
+          route_id: string | null
+          status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rotas_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       has_role: {
