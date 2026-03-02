@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   DollarSign, Plus, Edit2, Trash2, ArrowUpCircle, ArrowDownCircle, Route,
 } from "lucide-react";
-import { format, endOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { toast } from "sonner";
 
 const CATEGORIAS_ENTRADA = [
@@ -50,7 +50,9 @@ const AdminFinanceiro = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const mesInicio = `${mesRef}-01`;
-  const mesFim = format(endOfMonth(new Date(mesRef + "-01")), "yyyy-MM-dd");
+  // Use first day of NEXT month for lt (exclusive upper bound)
+  const [y, m] = mesRef.split("-").map(Number);
+  const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
 
   // Load entries from finance_entries
   const loadData = useCallback(async () => {
@@ -59,12 +61,12 @@ const AdminFinanceiro = () => {
       .from("finance_entries")
       .select("*")
       .gte("data", mesInicio)
-      .lte("data", mesFim)
-      .order("data", { ascending: false });
+      .lt("data", nextMonth)
+      .order("created_at", { ascending: false });
     if (error) console.error("loadData error:", error);
     setEntries(data || []);
     setLoading(false);
-  }, [mesInicio, mesFim]);
+  }, [mesInicio, nextMonth]);
 
   // Load finalized routes count from v_routes_monthly
   const loadRotasCount = useCallback(async () => {
@@ -100,7 +102,7 @@ const AdminFinanceiro = () => {
       // Fallback: query dias + rotas directly
       try {
         const { data: dias } = await supabase.from("dias").select("id")
-          .gte("data", mesInicio).lte("data", mesFim);
+          .gte("data", mesInicio).lt("data", nextMonth);
         if (!dias || dias.length === 0) { setRotasFinalizadas(0); setLoadingRotas(false); return; }
         let total = 0;
         const batchSize = 50;
@@ -115,7 +117,7 @@ const AdminFinanceiro = () => {
       } catch { setRotasFinalizadas(0); }
     }
     setLoadingRotas(false);
-  }, [mesRef, mesInicio, mesFim]);
+  }, [mesRef, mesInicio, nextMonth]);
 
   useEffect(() => { loadData(); loadRotasCountDirect(); }, [loadData, loadRotasCountDirect]);
 
