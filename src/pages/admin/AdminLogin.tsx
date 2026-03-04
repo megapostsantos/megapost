@@ -24,7 +24,7 @@ const AdminLogin = () => {
 
   // Redirect if already logged in with a role
   if (!loading && user && role) {
-    navigate(role === "admin" ? "/admin/dashboard" : "/op/dashboard", { replace: true });
+    navigate("/admin/dashboard", { replace: true });
     return null;
   }
 
@@ -52,7 +52,7 @@ const AdminLogin = () => {
       return;
     }
 
-    navigate(userRole === "admin" ? "/admin/dashboard" : "/op/dashboard", { replace: true });
+    navigate("/admin/dashboard", { replace: true });
   };
 
   return (
