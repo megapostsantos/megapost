@@ -14,7 +14,7 @@ const loginSchema = z.object({
 });
 
 const OpLogin = () => {
-  const { signIn, user, loading } = useAuth();
+  const { signIn, user, role, loading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,7 +22,7 @@ const OpLogin = () => {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  if (!loading && user) {
+  if (!loading && user && role) {
     navigate("/op/dashboard", { replace: true });
     return null;
   }

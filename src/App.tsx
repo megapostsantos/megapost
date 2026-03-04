@@ -36,7 +36,7 @@ import AdminDocumentos from "@/pages/admin/AdminDocumentos";
 import AdminSellers from "@/pages/admin/AdminSellers";
 
 // Operator pages
-// OpLogin removed — unified login via AdminLogin
+import OpLogin from "@/pages/op/OpLogin";
 import OpLayout from "@/components/op/OpLayout";
 import OpHistorico from "@/pages/op/OpHistorico";
 
@@ -68,7 +68,7 @@ const App = () => (
               <Route path="/registrar-ocorrencia" element={<PublicLayout><RegistrarOcorrencia /></PublicLayout>} />
 
               {/* Operator routes */}
-              <Route path="/op/login" element={<AdminLogin />} />
+              <Route path="/op/login" element={<OpLogin />} />
               <Route
                 path="/op"
                 element={
