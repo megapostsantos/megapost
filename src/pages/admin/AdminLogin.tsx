@@ -14,7 +14,7 @@ const loginSchema = z.object({
 });
 
 const AdminLogin = () => {
-  const { signIn, user, isAdmin, loading } = useAuth();
+  const { user, role, loading, signIn } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,10 +22,9 @@ const AdminLogin = () => {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Redirect if already logged in
-  if (!loading && user) {
-    // Admin users go to /admin, others to /op
-    navigate(isAdmin ? "/admin/dashboard" : "/op/dashboard", { replace: true });
+  // Redirect if already logged in with a role
+  if (!loading && user && role) {
+    navigate(role === "admin" ? "/admin/dashboard" : "/op/dashboard", { replace: true });
     return null;
   }
 
@@ -40,13 +39,20 @@ const AdminLogin = () => {
     }
 
     setSubmitting(true);
-    const { error: authError } = await signIn(email, password);
+    const { error: authError, role: userRole } = await signIn(email, password);
     if (authError) {
       setError(authError);
       setSubmitting(false);
-    } else {
-      navigate("/admin/dashboard", { replace: true });
+      return;
     }
+
+    if (!userRole) {
+      setError("Usuário sem permissão. Contate o administrador.");
+      setSubmitting(false);
+      return;
+    }
+
+    navigate(userRole === "admin" ? "/admin/dashboard" : "/op/dashboard", { replace: true });
   };
 
   return (
@@ -74,35 +80,14 @@ const AdminLogin = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                />
+                <Input id="email" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password">Senha</Label>
                 <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    tabIndex={-1}
-                  >
+                  <Input id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
