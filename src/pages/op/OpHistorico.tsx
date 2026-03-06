@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/customSupabase";
 import {
   ChevronDown, ChevronUp, Route, User, Clock, LogIn, LogOut as LogOutIcon,
   Package, AlertTriangle, Flag, Calendar,

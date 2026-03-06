@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/customSupabase";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Maximize, RefreshCw } from "lucide-react";

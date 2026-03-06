@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/customSupabase";
 import {
   FileText, Plus, Upload, Search, Edit2, Trash2, Download, Eye,
 } from "lucide-react";

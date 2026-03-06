@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/customSupabase";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Save, Upload, Image, Settings, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
