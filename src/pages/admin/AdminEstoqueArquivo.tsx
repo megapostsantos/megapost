@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/customSupabase";
 import { Package, Search, ArrowLeft, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";

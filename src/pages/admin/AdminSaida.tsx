@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/customSupabase";
 import { useAuth } from "@/hooks/useAuth";
 import {
   LogOut, AlertCircle, Clock, User, Camera, Edit2, Undo2, QrCode, Check,

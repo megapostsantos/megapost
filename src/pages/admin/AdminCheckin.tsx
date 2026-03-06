@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/customSupabase";
 import { UserCheck, AlertCircle, LogIn, LogOut, Clock, User, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
