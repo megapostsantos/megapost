@@ -33,6 +33,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
     return <Navigate to={loginPath} replace />;
   }
 
+  console.log("[ProtectedRoute] role value used by route decision", {
+    path: location.pathname,
+    userId: user.id,
+    role,
+    requiredRole,
+  });
+
   // User logged in but no role assigned
   if (!role) {
     console.warn("[ProtectedRoute] rendering 'Sem permissão' due to missing role", {
