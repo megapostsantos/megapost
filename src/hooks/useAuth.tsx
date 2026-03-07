@@ -89,14 +89,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchRole]);
 
   const signIn = async (email: string, password: string) => {
+    console.log("[useAuth] signInWithPassword attempt:", { email });
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
     if (error) {
+      console.error("[useAuth] signInWithPassword error:", error);
       if (error.message.includes("Invalid login")) {
         return { error: "E-mail ou senha incorretos.", role: null as AppRole };
       }
       return { error: error.message, role: null as AppRole };
     }
-    console.log("[useAuth] signIn success, user.id:", data.user.id);
+
+    console.log("[useAuth] signInWithPassword success:", { userId: data.user.id });
+    console.log("[useAuth] session.user.id after login:", data.user.id);
     const userRole = await fetchRole(data.user.id);
     return { error: null, role: userRole };
   };

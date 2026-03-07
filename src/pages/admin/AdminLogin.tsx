@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -22,8 +22,22 @@ const AdminLogin = () => {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (error) {
+      console.warn("[AdminLogin] rendering error message", {
+        component: "AdminLogin",
+        error,
+      });
+    }
+  }, [error]);
+
   // Redirect if already logged in with a role
   if (!loading && user && role) {
+    console.log("[AdminLogin] redirecting already-authenticated user", {
+      userId: user.id,
+      role,
+      to: "/admin/dashboard",
+    });
     navigate("/admin/dashboard", { replace: true });
     return null;
   }
@@ -31,6 +45,8 @@ const AdminLogin = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    console.log("[AdminLogin] submit start", { email });
 
     const validation = loginSchema.safeParse({ email, password });
     if (!validation.success) {
@@ -40,6 +56,12 @@ const AdminLogin = () => {
 
     setSubmitting(true);
     const { error: authError, role: userRole } = await signIn(email, password);
+
+    console.log("[AdminLogin] signIn returned", {
+      authError,
+      userRole,
+    });
+
     if (authError) {
       setError(authError);
       setSubmitting(false);
@@ -47,11 +69,19 @@ const AdminLogin = () => {
     }
 
     if (!userRole) {
+      console.warn("[AdminLogin] final decision -> show no-permission", {
+        component: "AdminLogin",
+        decision: "Usuário sem permissão. Contate o administrador.",
+      });
       setError("Usuário sem permissão. Contate o administrador.");
       setSubmitting(false);
       return;
     }
 
+    console.log("[AdminLogin] final decision -> navigate admin dashboard", {
+      role: userRole,
+      to: "/admin/dashboard",
+    });
     navigate("/admin/dashboard", { replace: true });
   };
 
