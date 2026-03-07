@@ -17,6 +17,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const ts = () => new Date().toISOString();
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -24,8 +26,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [roleLoading, setRoleLoading] = useState(false);
 
-  const fetchRole = useCallback(async (userId: string): Promise<AppRole> => {
-    console.log("[useAuth] fetchRole start, user_id:", userId);
+  const fetchRole = useCallback(async (userId: string, caller: string): Promise<AppRole> => {
+    console.log(`[useAuth][${ts()}] fetchRole START (caller: ${caller}) user_id:`, userId);
     setRoleLoading(true);
     try {
       const { data, error } = await supabase
@@ -35,58 +37,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (error) {
-        console.error("[useAuth] fetchRole error:", error);
+        console.error(`[useAuth][${ts()}] fetchRole ERROR (caller: ${caller}):`, error.message, error.code);
         setRole(null);
         return null;
       }
 
       const r = data?.role as AppRole;
-      console.log("[useAuth] fetchRole result:", r);
+      console.log(`[useAuth][${ts()}] fetchRole RESULT (caller: ${caller}):`, r);
       setRole(r);
       return r;
-    } catch (err) {
-      console.error("[useAuth] fetchRole exception:", err);
+    } catch (err: any) {
+      console.error(`[useAuth][${ts()}] fetchRole EXCEPTION (caller: ${caller}):`, err?.message);
       setRole(null);
       return null;
     } finally {
       setRoleLoading(false);
-      console.log("[useAuth] roleLoading false");
+      console.log(`[useAuth][${ts()}] roleLoading=false (caller: ${caller})`);
     }
   }, []);
 
   useEffect(() => {
     let mounted = true;
 
+    console.log(`[useAuth][${ts()}] getSession START`);
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log(`[useAuth][${ts()}] getSession RESULT: user=${session?.user?.id ?? "null"}`);
       if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        console.log("[useAuth] initial session user.id:", session.user.id);
-        await fetchRole(session.user.id);
+        await fetchRole(session.user.id, "getSession");
       }
     }).catch((err) => {
-      console.error("[useAuth] getSession error:", err);
+      console.error(`[useAuth][${ts()}] getSession ERROR:`, err);
     }).finally(() => {
       if (mounted) {
         setLoading(false);
-        console.log("[useAuth] loading false (initial)");
+        console.log(`[useAuth][${ts()}] loading=false (getSession finally)`);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        console.log(`[useAuth][${ts()}] onAuthStateChange event=${_event} user=${session?.user?.id ?? "null"}`);
         if (!mounted) return;
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          console.log("[useAuth] onAuthStateChange user.id:", session.user.id);
-          await fetchRole(session.user.id);
+          await fetchRole(session.user.id, "onAuthStateChange");
         } else {
           setRole(null);
         }
         setLoading(false);
-        console.log("[useAuth] loading false (authStateChange)");
+        console.log(`[useAuth][${ts()}] loading=false (onAuthStateChange)`);
       }
     );
 
@@ -97,24 +100,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchRole]);
 
   const signIn = async (email: string, password: string) => {
-    console.log("[useAuth] signIn start:", email);
+    console.log(`[useAuth][${ts()}] signInWithPassword START email=${email}`);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        console.error("[useAuth] signIn error:", error.message);
+        console.error(`[useAuth][${ts()}] signInWithPassword ERROR: ${error.message}`);
         if (error.message.includes("Invalid login")) {
           return { error: "E-mail ou senha incorretos.", role: null as AppRole };
         }
         return { error: error.message, role: null as AppRole };
       }
 
-      console.log("[useAuth] signIn success, session user.id:", data.user.id);
-      const userRole = await fetchRole(data.user.id);
-      console.log("[useAuth] signIn fetchRole returned:", userRole);
+      console.log(`[useAuth][${ts()}] signInWithPassword SUCCESS user.id=${data.user.id}`);
+      console.log(`[useAuth][${ts()}] about to fetchRole from signIn...`);
+      const userRole = await fetchRole(data.user.id, "signIn");
+      console.log(`[useAuth][${ts()}] signIn fetchRole returned: ${userRole}`);
       return { error: null, role: userRole };
     } catch (err: any) {
-      console.error("[useAuth] signIn exception:", err);
+      console.error(`[useAuth][${ts()}] signIn EXCEPTION:`, err?.message);
       return { error: err?.message || "Erro inesperado no login.", role: null as AppRole };
     }
   };
