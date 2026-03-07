@@ -10,6 +10,7 @@ interface AuthContextType {
   role: AppRole;
   isAdmin: boolean;
   loading: boolean;
+  roleLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null; role: AppRole }>;
   signOut: () => Promise<void>;
 }
@@ -21,30 +22,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole>(null);
   const [loading, setLoading] = useState(true);
+  const [roleLoading, setRoleLoading] = useState(false);
 
   const fetchRole = useCallback(async (userId: string): Promise<AppRole> => {
+    setRoleLoading(true);
     try {
-      const { data } = await supabase
+      console.log("[useAuth] fetchRole called for user_id:", userId);
+      const { data, error } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", userId)
-        .maybeSingle();
+        .single();
+
+      if (error) {
+        console.error("[useAuth] role query error:", error);
+        setRole(null);
+        return null;
+      }
+
       const r = data?.role as AppRole;
+      console.log("[useAuth] role query result:", data, "→ role:", r);
       setRole(r);
       return r;
-    } catch {
+    } catch (err) {
+      console.error("[useAuth] fetchRole exception:", err);
       setRole(null);
       return null;
+    } finally {
+      setRoleLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        console.log("[useAuth] initial session user.id:", session.user.id);
+        await fetchRole(session.user.id);
+      }
+      setLoading(false);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
+        if (!mounted) return;
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          setTimeout(() => fetchRole(session.user.id), 0);
+          console.log("[useAuth] onAuthStateChange user.id:", session.user.id);
+          await fetchRole(session.user.id);
         } else {
           setRole(null);
         }
@@ -52,16 +82,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchRole(session.user.id);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchRole]);
 
   const signIn = async (email: string, password: string) => {
@@ -72,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return { error: error.message, role: null as AppRole };
     }
+    console.log("[useAuth] signIn success, user.id:", data.user.id);
     const userRole = await fetchRole(data.user.id);
     return { error: null, role: userRole };
   };
@@ -84,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, isAdmin: role === "admin", loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, isAdmin: role === "admin", loading, roleLoading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
