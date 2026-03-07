@@ -147,8 +147,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: error.message, role: null as AppRole };
       }
 
-      const signedUserId = data.user?.id ?? data.session?.user?.id ?? "null";
-      console.log(`[useAuth][${ts()}] signInWithPassword SUCCESS session.user.id=${signedUserId}`);
+      const signedUserId = data.user?.id ?? data.session?.user?.id ?? null;
+      console.log(`[useAuth][${ts()}] signInWithPassword SUCCESS session.user.id=${signedUserId ?? "null"}`);
+      if (!signedUserId) {
+        return { error: "Sessão inválida após login. Tente novamente.", role: null as AppRole };
+      }
       console.log(`[useAuth][${ts()}] about to fetchRole from signIn...`);
       const userRole = await fetchRole(signedUserId, "signIn");
       console.log(`[useAuth][${ts()}] signIn fetchRole returned: ${userRole}`);
