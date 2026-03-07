@@ -399,10 +399,35 @@ CREATE POLICY "Staff insert audit_log" ON public.audit_log FOR INSERT WITH CHECK
 CREATE POLICY "Admins manage site_settings" ON public.site_settings FOR ALL USING (has_role(auth.uid(), 'admin')) WITH CHECK (has_role(auth.uid(), 'admin'));
 CREATE POLICY "Public read site_settings" ON public.site_settings FOR SELECT USING (true);
 
--- 8. STORAGE BUCKETS (run these separately if needed)
--- INSERT INTO storage.buckets (id, name, public) VALUES ('driver-photos', 'driver-photos', true) ON CONFLICT DO NOTHING;
--- INSERT INTO storage.buckets (id, name, public) VALUES ('site-assets', 'site-assets', true) ON CONFLICT DO NOTHING;
--- INSERT INTO storage.buckets (id, name, public) VALUES ('documentos', 'documentos', false) ON CONFLICT DO NOTHING;
+-- 8. STORAGE BUCKETS
+INSERT INTO storage.buckets (id, name, public) VALUES ('driver-photos', 'driver-photos', true) ON CONFLICT DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('site-assets', 'site-assets', true) ON CONFLICT DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('documentos', 'documentos', false) ON CONFLICT DO NOTHING;
 
--- 9. REALTIME (if needed)
+-- 9. STORAGE POLICIES
+-- driver-photos: public read, staff upload
+CREATE POLICY "Public read driver-photos" ON storage.objects FOR SELECT USING (bucket_id = 'driver-photos');
+CREATE POLICY "Staff upload driver-photos" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'driver-photos' AND (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'operador'))
+);
+CREATE POLICY "Staff update driver-photos" ON storage.objects FOR UPDATE USING (
+  bucket_id = 'driver-photos' AND (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'operador'))
+);
+CREATE POLICY "Staff delete driver-photos" ON storage.objects FOR DELETE USING (
+  bucket_id = 'driver-photos' AND (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'operador'))
+);
+
+-- site-assets: public read, admin upload
+CREATE POLICY "Public read site-assets" ON storage.objects FOR SELECT USING (bucket_id = 'site-assets');
+CREATE POLICY "Admin upload site-assets" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'site-assets' AND public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Admin update site-assets" ON storage.objects FOR UPDATE USING (bucket_id = 'site-assets' AND public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Admin delete site-assets" ON storage.objects FOR DELETE USING (bucket_id = 'site-assets' AND public.has_role(auth.uid(), 'admin'));
+
+-- documentos: admin only
+CREATE POLICY "Admin read documentos" ON storage.objects FOR SELECT USING (bucket_id = 'documentos' AND public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Admin upload documentos" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'documentos' AND public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Admin update documentos" ON storage.objects FOR UPDATE USING (bucket_id = 'documentos' AND public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Admin delete documentos" ON storage.objects FOR DELETE USING (bucket_id = 'documentos' AND public.has_role(auth.uid(), 'admin'));
+
+-- 10. REALTIME (opcional)
 -- ALTER PUBLICATION supabase_realtime ADD TABLE public.rotas;
