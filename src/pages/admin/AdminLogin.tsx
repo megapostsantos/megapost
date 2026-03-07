@@ -13,7 +13,7 @@ const loginSchema = z.object({
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres").max(128),
 });
 
-const LOGIN_TIMEOUT_MS = 15000;
+const ts = () => new Date().toISOString();
 
 const AdminLogin = () => {
   const { user, role, loading, signIn } = useAuth();
@@ -23,19 +23,11 @@ const AdminLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Clear timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
 
   // Redirect if already logged in with a role
   useEffect(() => {
     if (!loading && user && role) {
-      console.log("[AdminLogin] already authenticated, redirecting", { role });
+      console.log(`[AdminLogin][${ts()}] already authenticated, redirecting role=${role}`);
       if (role === "operador") {
         navigate("/op", { replace: true });
       } else {
@@ -48,8 +40,6 @@ const AdminLogin = () => {
     e.preventDefault();
     setError("");
 
-    console.log("[AdminLogin] submit start", { email });
-
     const validation = loginSchema.safeParse({ email, password });
     if (!validation.success) {
       setError(validation.error.errors[0].message);
@@ -57,18 +47,12 @@ const AdminLogin = () => {
     }
 
     setSubmitting(true);
-
-    // Safety timeout so it never stays on "Entrando..." forever
-    timeoutRef.current = setTimeout(() => {
-      console.warn("[AdminLogin] login timeout reached");
-      setSubmitting(false);
-      setError("Tempo limite excedido. Tente novamente.");
-    }, LOGIN_TIMEOUT_MS);
+    console.log(`[AdminLogin][${ts()}] handleSubmit START`);
 
     try {
+      console.log(`[AdminLogin][${ts()}] calling signIn...`);
       const { error: authError, role: userRole } = await signIn(email, password);
-
-      console.log("[AdminLogin] signIn returned", { authError, userRole });
+      console.log(`[AdminLogin][${ts()}] signIn RETURNED authError=${authError} role=${userRole}`);
 
       if (authError) {
         setError(authError);
@@ -76,24 +60,23 @@ const AdminLogin = () => {
       }
 
       if (!userRole) {
-        console.warn("[AdminLogin] login succeeded but no role found");
+        console.warn(`[AdminLogin][${ts()}] no role -> showing permission error`);
         setError("Usuário sem permissão. Contate o administrador.");
         return;
       }
 
-      console.log("[AdminLogin] redirecting", { userRole });
+      console.log(`[AdminLogin][${ts()}] navigating role=${userRole}`);
       if (userRole === "operador") {
         navigate("/op", { replace: true });
       } else {
         navigate("/admin", { replace: true });
       }
     } catch (err: any) {
-      console.error("[AdminLogin] handleSubmit exception:", err);
+      console.error(`[AdminLogin][${ts()}] handleSubmit EXCEPTION:`, err?.message);
       setError(err?.message || "Erro inesperado. Tente novamente.");
     } finally {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setSubmitting(false);
-      console.log("[AdminLogin] isSubmitting false");
+      console.log(`[AdminLogin][${ts()}] submitting=false`);
     }
   };
 
