@@ -6,10 +6,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const EXTERNAL_URL = "https://tcajkhmwmmnltzfshugh.supabase.co";
+const EXTERNAL_URL = "https://tqajkhmvmwnltzfshugh.supabase.co";
 const EXTERNAL_SERVICE_KEY = Deno.env.get("EXTERNAL_SUPABASE_SERVICE_ROLE_KEY")!;
-const EXTERNAL_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxYWpraG12bXdubHR6ZnNodWdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzODM0NjQsImV4cCI6MjA4Nzk1OTQ2NH0.9dGKsgwI43Ip8tg3JjvEc9pK-1QqBBTYGaMQPR_fYnk";
+const EXTERNAL_ANON_KEY = "sb_publishable_j47OP1q5aKd7ARzsj3Ea1Q_jXIANWMx";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
