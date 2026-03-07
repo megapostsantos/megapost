@@ -78,18 +78,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         console.log(`[useAuth][${ts()}] onAuthStateChange event=${_event} user=${session?.user?.id ?? "null"}`);
         if (!mounted) return;
+        // Synchronous state updates only — no await inside this callback
         setSession(session);
         setUser(session?.user ?? null);
+
         if (session?.user) {
-          await fetchRole(session.user.id, "onAuthStateChange");
+          // Dispatch async work OUTSIDE the callback to avoid Supabase deadlock
+          setTimeout(async () => {
+            if (!mounted) return;
+            await fetchRole(session.user.id, "onAuthStateChange");
+            if (mounted) {
+              setLoading(false);
+              console.log(`[useAuth][${ts()}] loading=false (onAuthStateChange/setTimeout)`);
+            }
+          }, 0);
         } else {
           setRole(null);
+          setLoading(false);
+          console.log(`[useAuth][${ts()}] loading=false (onAuthStateChange no user)`);
         }
-        setLoading(false);
-        console.log(`[useAuth][${ts()}] loading=false (onAuthStateChange)`);
       }
     );
 
