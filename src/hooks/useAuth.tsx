@@ -150,6 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const signedUserId = data.user?.id ?? data.session?.user?.id ?? "null";
       console.log(`[useAuth][${ts()}] signInWithPassword SUCCESS session.user.id=${signedUserId}`);
       console.log(`[useAuth][${ts()}] about to fetchRole from signIn...`);
+      const userRole = await fetchRole(signedUserId, "signIn");
       console.log(`[useAuth][${ts()}] signIn fetchRole returned: ${userRole}`);
       return { error: null, role: userRole };
     } catch (err: any) {
