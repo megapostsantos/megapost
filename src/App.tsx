@@ -34,6 +34,7 @@ import AdminAjuda from "@/pages/admin/AdminAjuda";
 import AdminFinanceiro from "@/pages/admin/AdminFinanceiro";
 import AdminDocumentos from "@/pages/admin/AdminDocumentos";
 import AdminSellers from "@/pages/admin/AdminSellers";
+import AdminUsers from "@/pages/admin/AdminUsers";
 
 // Operator pages
 import OpLogin from "@/pages/op/OpLogin";
@@ -117,6 +118,7 @@ const App = () => (
                 <Route path="sellers" element={<AdminSellers />} />
                 <Route path="ajuda" element={<AdminAjuda />} />
                 <Route path="historico" element={<OpHistorico />} />
+                <Route path="users" element={<AdminUsers />} />
               </Route>
 
               <Route

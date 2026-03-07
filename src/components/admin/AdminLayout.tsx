@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Route, Package, Users, HelpCircle,
   Settings, Tv, Menu, X, ChevronLeft, LogOut as LogOutIcon,
-  DollarSign, FileText, History, Store,
+  DollarSign, FileText, History, Store, UserCog,
 } from "lucide-react";
 
 interface NavItem {
@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
 const adminOnlyItems: NavItem[] = [
   { to: "/admin/financeiro", label: "Financeiro", icon: DollarSign, adminOnly: true },
   { to: "/admin/documentos", label: "Documentos", icon: FileText, adminOnly: true },
+  { to: "/admin/users", label: "Usuários", icon: UserCog, adminOnly: true },
   { to: "/admin/tv", label: "Painel TV", icon: Tv, adminOnly: true },
   { to: "/admin/configuracoes", label: "Configurações", icon: Settings, adminOnly: true },
 ];
