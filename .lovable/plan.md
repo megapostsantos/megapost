@@ -1,78 +1,63 @@
 
 
-## Analysis
+## Diagnose: Root Cause Found
 
-The current auth system uses the Lovable Cloud Supabase client (`src/integrations/supabase/client.ts`) for everything: authentication AND data queries. The user wants to split this so that **auth goes through their own Supabase** (`tcajkhmwmmnltzfshugh.supabase.co`) while **data queries continue using the Cloud client**.
+The app hangs because `onAuthStateChange` uses an **async callback that `await`s a Supabase query** (`fetchRole`). This causes a **deadlock** -- a well-documented Supabase issue where calling another Supabase method inside an async `onAuthStateChange` callback blocks the auth state machine.
 
-### Critical blocker
+From the console logs, we can see:
+```
+fetchRole START (caller: onAuthStateChange) user_id: 25faeb41-...
+```
+...and then **nothing else**. The `fetchRole` query to `user_roles` never completes because the auth state change processing is blocked waiting for it.
 
-The user has not provided the **anon key** for their Supabase project. The URL alone is not sufficient to create a client. We need:
-- `SUPABASE_URL`: `https://tcajkhmwmmnltzfshugh.supabase.co` (provided)
-- `SUPABASE_ANON_KEY`: **missing**
-
-Additionally, their Supabase project must have:
-- Users created in `auth.users`
-- A `public.user_roles` table with `user_id` and `role` columns
-- RLS policies that allow authenticated users to read their own role
-
-### Important architectural consideration
-
-Even after creating a separate auth client, the **data client** (Cloud) will still use its own JWT for RLS. Since all tables have RLS policies using `has_role(auth.uid(), ...)`, and `auth.uid()` comes from the Cloud Supabase session, **data access will break** if users are only authenticated against the external Supabase.
-
-This means either:
-1. The same user must exist in **both** Supabase instances (Cloud + external), OR
-2. All RLS policies on the Cloud database must be rewritten to not depend on `auth.uid()`, OR
-3. All data must also move to the external Supabase (defeating the purpose of Cloud)
-
-This is a fundamental constraint, not a code limitation.
+The same deadlock also blocks `getSession().then(...)` from resolving its `.finally()`, so `loading` stays `true` forever.
 
 ---
 
-## Proposed plan (contingent on resolving the above)
+## Fix Plan
 
-### Step 1 — Get the anon key
-Ask the user for their Supabase anon key.
+### File: `src/hooks/useAuth.tsx`
 
-### Step 2 — Create `src/lib/customSupabase.ts`
-A second Supabase client pointing to `tcajkhmwmmnltzfshugh.supabase.co` with the provided anon key, used exclusively for auth operations.
+**Change the `onAuthStateChange` callback** to use `setTimeout(..., 0)` to dispatch the role fetch *after* the callback completes, breaking the deadlock:
 
-### Step 3 — Update `useAuth.tsx`
-Replace all `supabase.auth.*` calls with `customSupabase.auth.*`. The `user_roles` query must also go through `customSupabase` (since the roles table lives on the external Supabase).
+```typescript
+const { data: { subscription } } = supabase.auth.onAuthStateChange(
+  (_event, session) => {
+    // Synchronous state updates only -- no await
+    setSession(session);
+    setUser(session?.user ?? null);
 
-### Step 4 — Update login pages
-No changes needed — they already use `useAuth` which will be rewired internally.
+    if (session?.user) {
+      // Dispatch async work OUTSIDE the callback to avoid deadlock
+      setTimeout(async () => {
+        await fetchRole(session.user.id, "onAuthStateChange");
+        setLoading(false);
+      }, 0);
+    } else {
+      setRole(null);
+      setLoading(false);
+    }
+  }
+);
+```
 
-### Step 5 — ProtectedRoute
-No changes needed — it already uses `useAuth`.
+Also update `getSession()` to use the same pattern -- wrap the `fetchRole` call in `setTimeout` to be safe, or keep it as `await` since `getSession` itself is not inside the auth state machine. The `getSession` path is fine as-is since it runs in a `.then()`.
 
-### Step 6 — Admin user management page
-Create `/admin/usuarios` page allowing admins to:
-- List users (via edge function on external Supabase using service role key)
-- Create operator accounts
-- Assign/change roles
-- Enable/disable access
+Keep all existing console logs.
 
-### Step 7 — Logout in sidebar components
-Update `AdminLayout` and `OpLayout` signOut calls (already go through `useAuth`, so no change needed).
+### File: `src/pages/admin/AdminLogin.tsx`
 
----
+The `signIn` method in `useAuth` also calls `fetchRole` directly after `signInWithPassword`. This is safe because `signIn` is a standalone async function, not inside `onAuthStateChange`. However, after `signIn` succeeds, `onAuthStateChange` will also fire `SIGNED_IN`, which used to deadlock. With the fix above, both paths will work correctly.
 
-## What blocks this migration
+No changes needed to AdminLogin -- the existing code with `finally { setSubmitting(false) }` already handles state reset.
 
-**RLS on the Cloud database**: Every table (`drivers`, `rotas`, `dias`, `estoque`, `finance_entries`, etc.) uses `has_role(auth.uid(), ...)` which requires the user to be authenticated against the **Cloud** Supabase. If auth moves to an external instance, `auth.uid()` on the Cloud instance will be `null` and all data queries will return empty or fail with permission errors.
+### Files unchanged
+- `src/components/admin/ProtectedRoute.tsx` -- already correct
+- `src/pages/op/OpLogin.tsx` -- already correct
+- No database or SQL changes
 
-**Options to resolve:**
-- A) Create matching users in both instances (complex, fragile)
-- B) Disable RLS on all Cloud tables (insecure)
-- C) Migrate all data to the external Supabase (large effort, loses Cloud benefits)
-- D) Keep auth on Cloud and create users there via admin tooling (simplest)
-
-I recommend **option D**: keep using Cloud auth but build an admin page to manage users (create operators, assign roles) directly in the Cloud Supabase. This gives you full control over who can log in without needing an external instance.
-
----
-
-## Before proceeding, I need:
-
-1. Your **anon key** for `tcajkhmwmmnltzfshugh.supabase.co`
-2. Your decision on the RLS problem described above — which option (A/B/C/D) do you prefer?
+### Summary
+- 1 file changed: `src/hooks/useAuth.tsx`
+- Root cause: async `await` inside `onAuthStateChange` callback causes Supabase deadlock
+- Fix: use `setTimeout(..., 0)` to dispatch `fetchRole` after the callback completes
 
