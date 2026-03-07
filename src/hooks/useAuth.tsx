@@ -25,9 +25,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [roleLoading, setRoleLoading] = useState(false);
 
   const fetchRole = useCallback(async (userId: string): Promise<AppRole> => {
+    console.log("[useAuth] fetchRole start, user_id:", userId);
     setRoleLoading(true);
     try {
-      console.log("[useAuth] fetchRole called for user_id:", userId);
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
@@ -35,13 +35,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
 
       if (error) {
-        console.error("[useAuth] role query error:", error);
+        console.error("[useAuth] fetchRole error:", error);
         setRole(null);
         return null;
       }
 
       const r = data?.role as AppRole;
-      console.log("[useAuth] role query result:", data, "→ role:", r);
+      console.log("[useAuth] fetchRole result:", r);
       setRole(r);
       return r;
     } catch (err) {
@@ -50,6 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null;
     } finally {
       setRoleLoading(false);
+      console.log("[useAuth] roleLoading false");
     }
   }, []);
 
@@ -64,7 +65,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log("[useAuth] initial session user.id:", session.user.id);
         await fetchRole(session.user.id);
       }
-      setLoading(false);
+    }).catch((err) => {
+      console.error("[useAuth] getSession error:", err);
+    }).finally(() => {
+      if (mounted) {
+        setLoading(false);
+        console.log("[useAuth] loading false (initial)");
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -79,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setRole(null);
         }
         setLoading(false);
+        console.log("[useAuth] loading false (authStateChange)");
       }
     );
 
@@ -89,21 +97,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [fetchRole]);
 
   const signIn = async (email: string, password: string) => {
-    console.log("[useAuth] signInWithPassword attempt:", { email });
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    console.log("[useAuth] signIn start:", email);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (error) {
-      console.error("[useAuth] signInWithPassword error:", error);
-      if (error.message.includes("Invalid login")) {
-        return { error: "E-mail ou senha incorretos.", role: null as AppRole };
+      if (error) {
+        console.error("[useAuth] signIn error:", error.message);
+        if (error.message.includes("Invalid login")) {
+          return { error: "E-mail ou senha incorretos.", role: null as AppRole };
+        }
+        return { error: error.message, role: null as AppRole };
       }
-      return { error: error.message, role: null as AppRole };
-    }
 
-    console.log("[useAuth] signInWithPassword success:", { userId: data.user.id });
-    console.log("[useAuth] session.user.id after login:", data.user.id);
-    const userRole = await fetchRole(data.user.id);
-    return { error: null, role: userRole };
+      console.log("[useAuth] signIn success, session user.id:", data.user.id);
+      const userRole = await fetchRole(data.user.id);
+      console.log("[useAuth] signIn fetchRole returned:", userRole);
+      return { error: null, role: userRole };
+    } catch (err: any) {
+      console.error("[useAuth] signIn exception:", err);
+      return { error: err?.message || "Erro inesperado no login.", role: null as AppRole };
+    }
   };
 
   const signOut = async () => {

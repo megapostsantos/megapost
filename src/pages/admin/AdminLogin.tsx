@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ const loginSchema = z.object({
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres").max(128),
 });
 
+const LOGIN_TIMEOUT_MS = 15000;
+
 const AdminLogin = () => {
   const { user, role, loading, signIn } = useAuth();
   const navigate = useNavigate();
@@ -21,26 +23,26 @@ const AdminLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Clear timeout on unmount
   useEffect(() => {
-    if (error) {
-      console.warn("[AdminLogin] rendering error message", {
-        component: "AdminLogin",
-        error,
-      });
-    }
-  }, [error]);
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   // Redirect if already logged in with a role
-  if (!loading && user && role) {
-    console.log("[AdminLogin] redirecting already-authenticated user", {
-      userId: user.id,
-      role,
-      to: "/admin/dashboard",
-    });
-    navigate("/admin/dashboard", { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (!loading && user && role) {
+      console.log("[AdminLogin] already authenticated, redirecting", { role });
+      if (role === "operador") {
+        navigate("/op", { replace: true });
+      } else {
+        navigate("/admin", { replace: true });
+      }
+    }
+  }, [loading, user, role, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,34 +57,44 @@ const AdminLogin = () => {
     }
 
     setSubmitting(true);
-    const { error: authError, role: userRole } = await signIn(email, password);
 
-    console.log("[AdminLogin] signIn returned", {
-      authError,
-      userRole,
-    });
-
-    if (authError) {
-      setError(authError);
+    // Safety timeout so it never stays on "Entrando..." forever
+    timeoutRef.current = setTimeout(() => {
+      console.warn("[AdminLogin] login timeout reached");
       setSubmitting(false);
-      return;
-    }
+      setError("Tempo limite excedido. Tente novamente.");
+    }, LOGIN_TIMEOUT_MS);
 
-    if (!userRole) {
-      console.warn("[AdminLogin] final decision -> show no-permission", {
-        component: "AdminLogin",
-        decision: "Usuário sem permissão. Contate o administrador.",
-      });
-      setError("Usuário sem permissão. Contate o administrador.");
+    try {
+      const { error: authError, role: userRole } = await signIn(email, password);
+
+      console.log("[AdminLogin] signIn returned", { authError, userRole });
+
+      if (authError) {
+        setError(authError);
+        return;
+      }
+
+      if (!userRole) {
+        console.warn("[AdminLogin] login succeeded but no role found");
+        setError("Usuário sem permissão. Contate o administrador.");
+        return;
+      }
+
+      console.log("[AdminLogin] redirecting", { userRole });
+      if (userRole === "operador") {
+        navigate("/op", { replace: true });
+      } else {
+        navigate("/admin", { replace: true });
+      }
+    } catch (err: any) {
+      console.error("[AdminLogin] handleSubmit exception:", err);
+      setError(err?.message || "Erro inesperado. Tente novamente.");
+    } finally {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setSubmitting(false);
-      return;
+      console.log("[AdminLogin] isSubmitting false");
     }
-
-    console.log("[AdminLogin] final decision -> navigate admin dashboard", {
-      role: userRole,
-      to: "/admin/dashboard",
-    });
-    navigate("/admin/dashboard", { replace: true });
   };
 
   return (
