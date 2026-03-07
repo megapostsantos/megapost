@@ -30,11 +30,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log(`[useAuth][${ts()}] fetchRole START (caller: ${caller}) user_id:`, userId);
     setRoleLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error, status, statusText } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("*")
         .eq("user_id", userId)
         .single();
+
+      console.log(`[useAuth][${ts()}] fetchRole RAW RESPONSE (caller: ${caller}):`, JSON.stringify({ data, error, status, statusText }));
 
       if (error) {
         console.error(`[useAuth][${ts()}] fetchRole ERROR (caller: ${caller}):`, error.message, error.code);
