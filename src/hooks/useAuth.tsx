@@ -33,18 +33,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error, status, statusText } = await supabase
         .from("user_roles")
         .select("*")
-        .eq("user_id", userId)
-        .single();
+        .eq("user_id", userId);
 
       console.log(`[useAuth][${ts()}] fetchRole RAW RESPONSE (caller: ${caller}):`, JSON.stringify({ data, error, status, statusText }));
 
       if (error) {
         console.error(`[useAuth][${ts()}] fetchRole ERROR (caller: ${caller}):`, error.message, error.code);
+        console.warn(`[useAuth][${ts()}] fetchRole FALLBACK -> rpc has_role (caller: ${caller})`);
+
+        const [adminCheck, operadorCheck] = await Promise.all([
+          supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
+          supabase.rpc("has_role", { _user_id: userId, _role: "operador" }),
+        ]);
+
+        console.log(`[useAuth][${ts()}] fetchRole FALLBACK RESPONSE (caller: ${caller}):`, JSON.stringify({
+          admin: { data: adminCheck.data, error: adminCheck.error },
+          operador: { data: operadorCheck.data, error: operadorCheck.error },
+        }));
+
+        if (adminCheck.data === true) {
+          setRole("admin");
+          return "admin";
+        }
+
+        if (operadorCheck.data === true) {
+          setRole("operador");
+          return "operador";
+        }
+
         setRole(null);
         return null;
       }
 
-      const r = data?.role as AppRole;
+      const roles = (data ?? []).map((row) => row.role as AppRole);
+      const r: AppRole = roles.includes("admin") ? "admin" : roles.includes("operador") ? "operador" : null;
+
       console.log(`[useAuth][${ts()}] fetchRole RESULT (caller: ${caller}):`, r);
       setRole(r);
       return r;
@@ -124,9 +147,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: error.message, role: null as AppRole };
       }
 
-      console.log(`[useAuth][${ts()}] signInWithPassword SUCCESS user.id=${data.user.id}`);
+      const signedUserId = data.user?.id ?? data.session?.user?.id ?? "null";
+      console.log(`[useAuth][${ts()}] signInWithPassword SUCCESS session.user.id=${signedUserId}`);
       console.log(`[useAuth][${ts()}] about to fetchRole from signIn...`);
-      const userRole = await fetchRole(data.user.id, "signIn");
       console.log(`[useAuth][${ts()}] signIn fetchRole returned: ${userRole}`);
       return { error: null, role: userRole };
     } catch (err: any) {
