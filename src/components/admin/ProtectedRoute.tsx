@@ -7,10 +7,11 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, roleLoading } = useAuth();
   const location = useLocation();
 
-  if (loading) {
+  // Wait for BOTH session and role to finish loading
+  if (loading || roleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -47,9 +48,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
   if (requiredRole === "admin" && role !== "admin") {
     return <Navigate to="/op/dashboard" replace />;
   }
-
-  // Op route: allow admin or operador
-  // (no extra check needed since both roles are allowed)
 
   return <>{children}</>;
 };
