@@ -10,7 +10,7 @@ import { AlertTriangle, Plus, Camera, Send, X, QrCode, Check } from "lucide-reac
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 const tiposOcorrencia = [
   "Avaria",
