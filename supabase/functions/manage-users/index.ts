@@ -143,6 +143,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    // RESET PASSWORD
+    if (action === "reset_password") {
+      const { user_id, new_password } = payload;
+      if (!new_password || new_password.length < 6) {
+        return new Response(
+          JSON.stringify({ error: "A senha deve ter no mínimo 6 caracteres." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const { error } = await adminClient.auth.admin.updateUserById(user_id, {
+        password: new_password,
+      });
+      if (error) throw error;
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

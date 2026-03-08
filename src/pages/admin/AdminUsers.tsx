@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { UserPlus, Search, Shield, ShieldCheck, Ban, CheckCircle } from "lucide-react";
+import { UserPlus, Search, Shield, ShieldCheck, Ban, CheckCircle, KeyRound } from "lucide-react";
 
 const FUNCTION_URL = `https://otfjcpajobmjlwitgnqi.supabase.co/functions/v1/manage-users`;
 
