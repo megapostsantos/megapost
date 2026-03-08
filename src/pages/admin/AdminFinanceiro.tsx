@@ -636,14 +636,14 @@ const PayrollSection = () => {
                   </div>
                   <div className="text-right space-y-1">
                     <p className="text-lg font-bold text-foreground">R${op.total.toFixed(2)}</p>
-                    {op.allPaid ? (
+                     {op.allPaid ? (
                       <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px] cursor-pointer"
-                        onClick={() => markPending(op.ids)}>
+                        onClick={() => markPending(op.ids, op.userId, op.name, op.total)}>
                         Pago ✓
                       </Badge>
                     ) : (
                       <Button size="sm" variant="outline" className="text-xs h-6 px-2"
-                        onClick={() => markPaid(op.ids)}>
+                        onClick={() => markPaid(op.ids, op.userId, op.name, op.total)}>
                         Marcar Pago
                       </Button>
                     )}
