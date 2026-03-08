@@ -38,6 +38,10 @@ const AdminUsers = () => {
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"admin" | "operador">("operador");
   const [submitting, setSubmitting] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetUserId, setResetUserId] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
 
   const callFn = useCallback(
     async (body: Record<string, unknown>) => {
