@@ -478,6 +478,7 @@ const AdminDrivers = () => {
                         </AlertDialogContent>
                       </AlertDialog>
                     )}
+                  </div>
                 </div>
 
                 {d.farol === "VERMELHO" && (
