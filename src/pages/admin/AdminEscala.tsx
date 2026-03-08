@@ -77,7 +77,7 @@ const AdminEscala = () => {
   const { data: allUsers = [], isLoading: loadingUsers } = useQuery({
     queryKey: ["escala-users"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("manage-users", {
+      const { data, error } = await cloudSupabase.functions.invoke("manage-users", {
         body: { action: "list" },
       });
       if (error) throw error;
