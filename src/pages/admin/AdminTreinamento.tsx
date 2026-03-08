@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { BookOpen, Plus, ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import {
@@ -53,9 +52,7 @@ const AdminTreinamento = () => {
     }
   }, []);
 
-  useEffect(() => {
-    loadItems();
-  }, [loadItems]);
+  useEffect(() => { loadItems(); }, [loadItems]);
 
   const openCreate = () => {
     setEditingItem(null);
@@ -72,10 +69,7 @@ const AdminTreinamento = () => {
   };
 
   const handleSave = async () => {
-    if (!formTitle.trim()) {
-      toast.error("Título é obrigatório.");
-      return;
-    }
+    if (!formTitle.trim()) { toast.error("Título é obrigatório."); return; }
     try {
       setSubmitting(true);
       if (editingItem) {
@@ -117,8 +111,8 @@ const AdminTreinamento = () => {
   // Detail view
   if (selectedItem) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
+      <div className="space-y-4 max-w-2xl mx-auto">
+        <div className="flex items-center gap-2 sticky top-0 z-10 bg-background py-3 border-b border-border -mx-4 px-4 sm:mx-0 sm:px-0 sm:border-0 sm:static">
           <Button variant="ghost" size="sm" onClick={() => setSelectedItem(null)}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
           </Button>
@@ -128,12 +122,45 @@ const AdminTreinamento = () => {
             </Button>
           )}
         </div>
-        <h1 className="text-2xl font-bold text-foreground">{selectedItem.title}</h1>
-        <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap leading-relaxed">
+
+        <div className="flex items-center gap-3 pb-2">
+          <div className="flex items-center justify-center h-9 w-9 rounded-full bg-primary/10 text-primary text-sm font-bold shrink-0">
+            {selectedItem.sort_order}
+          </div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground leading-tight">
+            {selectedItem.title}
+          </h1>
+        </div>
+
+        <div className="text-sm sm:text-base text-foreground whitespace-pre-wrap leading-relaxed pb-8">
           {selectedItem.content}
         </div>
 
-        {/* Edit dialog rendered here too so it works from detail view */}
+        {/* Nav between modules */}
+        <div className="flex justify-between border-t border-border pt-4 pb-6">
+          {(() => {
+            const idx = items.findIndex(i => i.id === selectedItem.id);
+            const prev = idx > 0 ? items[idx - 1] : null;
+            const next = idx < items.length - 1 ? items[idx + 1] : null;
+            return (
+              <>
+                {prev ? (
+                  <Button variant="outline" size="sm" onClick={() => setSelectedItem(prev)} className="max-w-[45%]">
+                    <ArrowLeft className="h-3 w-3 mr-1 shrink-0" />
+                    <span className="truncate">{prev.title}</span>
+                  </Button>
+                ) : <div />}
+                {next ? (
+                  <Button variant="outline" size="sm" onClick={() => setSelectedItem(next)} className="max-w-[45%]">
+                    <span className="truncate">{next.title}</span>
+                    <ArrowLeft className="h-3 w-3 ml-1 shrink-0 rotate-180" />
+                  </Button>
+                ) : <div />}
+              </>
+            );
+          })()}
+        </div>
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
@@ -151,9 +178,7 @@ const AdminTreinamento = () => {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSave} disabled={submitting}>
-                {submitting ? "Salvando..." : "Salvar"}
-              </Button>
+              <Button onClick={handleSave} disabled={submitting}>{submitting ? "Salvando..." : "Salvar"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -163,15 +188,15 @@ const AdminTreinamento = () => {
 
   // List view
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Treinamento</h1>
-          <p className="text-sm text-muted-foreground">Manuais e materiais de treinamento</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Treinamento</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Módulos de treinamento operacional</p>
         </div>
         {isAdmin && (
-          <Button onClick={openCreate} className="gap-2">
-            <Plus className="h-4 w-4" /> Novo Material
+          <Button onClick={openCreate} size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" /> Novo Módulo
           </Button>
         )}
       </div>
@@ -186,58 +211,53 @@ const AdminTreinamento = () => {
           <p className="text-muted-foreground">Nenhum material de treinamento cadastrado.</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="flex flex-col gap-2">
           {items.map((item) => (
-            <Card
+            <div
               key={item.id}
-              className="cursor-pointer hover:shadow-md transition-shadow"
+              className="flex items-center gap-3 p-3 sm:p-4 rounded-lg border border-border bg-card hover:bg-accent/50 cursor-pointer transition-colors group"
               onClick={() => setSelectedItem(item)}
             >
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base truncate">{item.title}</CardTitle>
-                    <CardDescription className="line-clamp-2 mt-1">
-                      {item.content.substring(0, 120)}...
-                    </CardDescription>
-                  </div>
-                  {isAdmin && (
-                    <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Excluir material?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta ação não pode ser desfeita.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(item.id)}>Excluir</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Atualizado em {new Date(item.updated_at).toLocaleDateString("pt-BR")}
+              <div className="flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-primary/10 text-primary text-sm font-bold shrink-0">
+                {item.sort_order}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm sm:text-base font-semibold text-foreground truncate">
+                  {item.title}
+                </h3>
+                <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5 hidden sm:block">
+                  {item.content.substring(0, 100)}
                 </p>
-              </CardHeader>
-            </Card>
+              </div>
+              {isAdmin && (
+                <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(item)}>
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive">
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir módulo?</AlertDialogTitle>
+                        <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(item.id)}>Excluir</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
 
-      {/* Create/Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -255,9 +275,7 @@ const AdminTreinamento = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={submitting}>
-              {submitting ? "Salvando..." : "Salvar"}
-            </Button>
+            <Button onClick={handleSave} disabled={submitting}>{submitting ? "Salvando..." : "Salvar"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
