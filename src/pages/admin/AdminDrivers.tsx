@@ -6,7 +6,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/customSupabase";
-import { Users, Plus, Search, Edit2, Check, X, Power, Camera, ChevronDown, ChevronUp, Flag, AlertTriangle, MessageCircle } from "lucide-react";
+import { Users, Plus, Search, Edit2, Check, X, Power, Camera, ChevronDown, ChevronUp, Flag, AlertTriangle, MessageCircle, Trash2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format, endOfMonth } from "date-fns";
 
