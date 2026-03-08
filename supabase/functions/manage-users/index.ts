@@ -89,14 +89,25 @@ Deno.serve(async (req) => {
       const { data: roles } = await adminClient.from("user_roles").select("*");
       const rolesMap = Object.fromEntries((roles || []).map((r: any) => [r.user_id, r.role]));
 
-      const users = (data?.users || []).map((u: any) => ({
-        id: u.id,
-        email: u.email,
-        role: rolesMap[u.id] || null,
-        created_at: u.created_at,
-        banned: u.banned_until ? new Date(u.banned_until) > new Date() : false,
-        last_sign_in_at: u.last_sign_in_at,
-      }));
+      const { data: profiles } = await adminClient.from("profiles").select("*");
+      const profilesMap = Object.fromEntries((profiles || []).map((p: any) => [p.user_id, p]));
+
+      const users = (data?.users || []).map((u: any) => {
+        const profile = profilesMap[u.id] || {};
+        return {
+          id: u.id,
+          email: u.email,
+          role: rolesMap[u.id] || null,
+          created_at: u.created_at,
+          banned: u.banned_until ? new Date(u.banned_until) > new Date() : false,
+          last_sign_in_at: u.last_sign_in_at,
+          nome: profile.nome || null,
+          telefone: profile.telefone || null,
+          endereco: profile.endereco || null,
+          documento_foto_url: profile.documento_foto_url || null,
+          display_name: profile.display_name || null,
+        };
+      });
 
       return new Response(JSON.stringify({ users }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
