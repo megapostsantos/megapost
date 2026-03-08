@@ -34,6 +34,7 @@ const adminOnlyItems: NavItem[] = [
   { to: "/admin/financeiro", label: "Financeiro", icon: DollarSign },
   { to: "/admin/historico", label: "Histórico", icon: History },
   { to: "/admin/documentos", label: "Documentos", icon: FileText },
+  { to: "/admin/escala", label: "Escala", icon: CalendarDays },
   { to: "/admin/users", label: "Usuários", icon: UserCog },
   { to: "/admin/configuracoes", label: "Configurações", icon: Settings },
 ];
