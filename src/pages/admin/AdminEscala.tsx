@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/customSupabase";
+import { supabase as cloudSupabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +77,7 @@ const AdminEscala = () => {
   const { data: allUsers = [], isLoading: loadingUsers } = useQuery({
     queryKey: ["escala-users"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("manage-users", {
+      const { data, error } = await cloudSupabase.functions.invoke("manage-users", {
         body: { action: "list" },
       });
       if (error) throw error;
