@@ -117,6 +117,26 @@ const AdminUsers = () => {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!resetUserId || !resetPassword || resetPassword.length < 6) {
+      toast.error("A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await callFn({ action: "reset_password", user_id: resetUserId, new_password: resetPassword });
+      toast.success("Senha redefinida com sucesso!");
+      setResetDialogOpen(false);
+      setResetPassword("");
+      setResetUserId(null);
+      setResetEmail("");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const filtered = users.filter((u) => {
     const matchSearch = u.email?.toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter === "all" || u.role === roleFilter;
