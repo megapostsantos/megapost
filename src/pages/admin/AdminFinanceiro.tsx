@@ -301,10 +301,10 @@ const AdminFinanceiro = () => {
       </div>
 
       <div className="flex gap-1 bg-muted p-1 rounded-lg">
-        {(["resumo", "entradas", "saidas"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${tab === t ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
-            {t === "resumo" ? "Resumo" : t === "entradas" ? "Entradas" : "Saídas"}
+        {(["resumo", "entradas", "saidas", ...(isAdmin ? ["pagamento" as const] : [])] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t as any)}
+            className={`flex-1 py-2 text-xs font-medium rounded-md transition-colors ${tab === t ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+            {t === "resumo" ? "Resumo" : t === "entradas" ? "Entradas" : t === "saidas" ? "Saídas" : "Pagamento Op."}
           </button>
         ))}
       </div>
