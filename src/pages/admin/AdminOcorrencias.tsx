@@ -10,7 +10,7 @@ import { AlertTriangle, Plus, Camera, Send, X, QrCode, Check } from "lucide-reac
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 const tiposOcorrencia = [
   "Avaria",
@@ -70,28 +70,52 @@ const AdminOcorrencias = () => {
     setLoading(false);
   };
 
-  const startScanner = async () => {
+  const startScanner = () => {
+    // Show the div first, then init scanner after DOM renders
     setScanning(true);
-    try {
-      const html5QrCode = new Html5Qrcode("qr-reader-ocorrencia");
-      scannerRef.current = html5QrCode;
-
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText) => {
-          setForm((prev) => ({ ...prev, codigoPacote: decodedText }));
-          stopScanner();
-          toast.success("Código lido: " + decodedText);
-        },
-        () => {}
-      );
-    } catch (err) {
-      console.error("Scanner error:", err);
-      toast.error("Não foi possível iniciar a câmera");
-      setScanning(false);
-    }
   };
+
+  useEffect(() => {
+    if (!scanning) return;
+    const el = document.getElementById("qr-reader-ocorrencia");
+    if (!el) return;
+
+    const initScanner = async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("qr-reader-ocorrencia", {
+          verbose: false,
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.UPC_A,
+          ],
+        });
+        scannerRef.current = html5QrCode;
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            setForm((prev) => ({ ...prev, codigoPacote: decodedText }));
+            stopScanner();
+            toast.success("Código lido: " + decodedText);
+          },
+          () => {}
+        );
+      } catch (err) {
+        console.error("Scanner error:", err);
+        toast.error("Não foi possível iniciar a câmera. Verifique as permissões.");
+        setScanning(false);
+      }
+    };
+
+    initScanner();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanning]);
 
   const stopScanner = async () => {
     if (scannerRef.current) {
