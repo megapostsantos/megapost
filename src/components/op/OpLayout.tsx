@@ -17,6 +17,7 @@ const navItems = [
   { to: "/op/ajuda", label: "Ajuda", icon: HelpCircle },
   { to: "/op/treinamento", label: "Treinamento", icon: BookOpen },
   { to: "/op/ponto", label: "Ponto", icon: Clock },
+  { to: "/op/escala", label: "Minha Escala", icon: CalendarDays },
   { to: "/op/tv", label: "Painel TV", icon: Tv },
 ];
 

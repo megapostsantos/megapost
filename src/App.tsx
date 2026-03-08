@@ -92,6 +92,7 @@ const App = () => (
                 <Route path="ajuda" element={<AdminAjuda />} />
                 <Route path="treinamento" element={<AdminTreinamento />} />
                 <Route path="ponto" element={<AdminPonto />} />
+                <Route path="escala" element={<OpEscala />} />
                 <Route path="tv" element={<AdminTV />} />
               </Route>
 
