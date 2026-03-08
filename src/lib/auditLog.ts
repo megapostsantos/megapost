@@ -14,13 +14,13 @@ export async function logAudit(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await supabase.from("audit_log").insert({
+    await supabase.from("audit_log").insert([{
       user_id: user.id,
       acao: action,
       tabela: module,
       registro_id: targetId || user.id,
       dados_novos: metadata || null,
-    });
+    }]);
   } catch (e) {
     console.error("Audit log error:", e);
   }
