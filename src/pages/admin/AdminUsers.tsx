@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/customSupabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "@/components/ui/table";
@@ -14,7 +16,10 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { UserPlus, Search, Shield, ShieldCheck, Ban, CheckCircle, KeyRound } from "lucide-react";
+import {
+  UserPlus, Search, Shield, ShieldCheck, Ban, CheckCircle, KeyRound,
+  Eye, Upload, Camera, X,
+} from "lucide-react";
 
 const FUNCTION_URL = `https://otfjcpajobmjlwitgnqi.supabase.co/functions/v1/manage-users`;
 
@@ -25,6 +30,11 @@ interface UserRow {
   created_at: string;
   banned: boolean;
   last_sign_in_at: string | null;
+  nome: string | null;
+  telefone: string | null;
+  endereco: string | null;
+  documento_foto_url: string | null;
+  display_name: string | null;
 }
 
 const AdminUsers = () => {
@@ -33,15 +43,27 @@ const AdminUsers = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+
+  // Create dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"admin" | "operador">("operador");
   const [submitting, setSubmitting] = useState(false);
+
+  // Reset password dialog
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetUserId, setResetUserId] = useState<string | null>(null);
   const [resetEmail, setResetEmail] = useState("");
   const [resetPassword, setResetPassword] = useState("");
+
+  // Profile detail dialog
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [editNome, setEditNome] = useState("");
+  const [editTelefone, setEditTelefone] = useState("");
+  const [editEndereco, setEditEndereco] = useState("");
+  const [uploadingDoc, setUploadingDoc] = useState(false);
 
   const callFn = useCallback(
     async (body: Record<string, unknown>) => {
@@ -137,8 +159,98 @@ const AdminUsers = () => {
     }
   };
 
+  const openProfile = (u: UserRow) => {
+    setSelectedUser(u);
+    setEditNome(u.nome || "");
+    setEditTelefone(u.telefone || "");
+    setEditEndereco(u.endereco || "");
+    setProfileDialogOpen(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!selectedUser) return;
+    try {
+      setSubmitting(true);
+      await callFn({
+        action: "update_profile",
+        user_id: selectedUser.id,
+        nome: editNome,
+        telefone: editTelefone,
+        endereco: editEndereco,
+      });
+      toast.success("Dados salvos com sucesso!");
+      setProfileDialogOpen(false);
+      loadUsers();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedUser || !e.target.files?.[0]) return;
+    const file = e.target.files[0];
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Arquivo muito grande (máx 5MB).");
+      return;
+    }
+
+    try {
+      setUploadingDoc(true);
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `documentos-rg/${selectedUser.id}.${ext}`;
+
+      const { error: upErr } = await supabase.storage
+        .from("documentos")
+        .upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage
+        .from("documentos")
+        .getPublicUrl(path);
+
+      await callFn({
+        action: "update_profile",
+        user_id: selectedUser.id,
+        documento_foto_url: urlData.publicUrl,
+      });
+
+      toast.success("Documento enviado!");
+      setSelectedUser({ ...selectedUser, documento_foto_url: urlData.publicUrl });
+      loadUsers();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao enviar documento.");
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleRemoveDoc = async () => {
+    if (!selectedUser) return;
+    try {
+      setSubmitting(true);
+      await callFn({
+        action: "update_profile",
+        user_id: selectedUser.id,
+        documento_foto_url: "",
+      });
+      setSelectedUser({ ...selectedUser, documento_foto_url: null });
+      toast.success("Documento removido.");
+      loadUsers();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const filtered = users.filter((u) => {
-    const matchSearch = u.email?.toLowerCase().includes(search.toLowerCase());
+    const term = search.toLowerCase();
+    const matchSearch =
+      u.email?.toLowerCase().includes(term) ||
+      u.nome?.toLowerCase().includes(term) ||
+      u.telefone?.toLowerCase().includes(term);
     const matchRole = roleFilter === "all" || u.role === roleFilter;
     return matchSearch && matchRole;
   });
@@ -148,7 +260,7 @@ const AdminUsers = () => {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Gestão de Usuários</h1>
-          <p className="text-sm text-muted-foreground">Crie, edite e gerencie permissões</p>
+          <p className="text-sm text-muted-foreground">Crie, edite e gerencie permissões e dados pessoais</p>
         </div>
         <Button onClick={() => setDialogOpen(true)} className="gap-2">
           <UserPlus className="h-4 w-4" />
@@ -161,7 +273,7 @@ const AdminUsers = () => {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por e-mail..."
+            placeholder="Buscar por nome, e-mail ou telefone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -194,17 +306,23 @@ const AdminUsers = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>E-mail</TableHead>
+                  <TableHead>Nome / E-mail</TableHead>
+                  <TableHead>Telefone</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Criado em</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((u) => (
                   <TableRow key={u.id}>
-                    <TableCell className="font-medium">{u.email}</TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-sm">{u.nome || "—"}</p>
+                        <p className="text-xs text-muted-foreground">{u.email}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{u.telefone || "—"}</TableCell>
                     <TableCell>
                       <Select
                         value={u.role || "operador"}
@@ -234,10 +352,10 @@ const AdminUsers = () => {
                         <Badge variant="secondary" className="text-xs">Ativo</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(u.created_at).toLocaleDateString("pt-BR")}
-                    </TableCell>
                     <TableCell className="text-right space-x-1">
+                      <Button variant="ghost" size="sm" onClick={() => openProfile(u)} className="h-8 gap-1.5 text-xs">
+                        <Eye className="h-3.5 w-3.5" /> Perfil
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -276,16 +394,17 @@ const AdminUsers = () => {
               <div key={u.id} className="border rounded-lg p-4 space-y-3 bg-card">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{u.email}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Criado: {new Date(u.created_at).toLocaleDateString("pt-BR")}
-                    </p>
+                    <p className="font-medium text-sm">{u.nome || u.email}</p>
+                    {u.nome && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}
+                    {u.telefone && <p className="text-xs text-muted-foreground">{u.telefone}</p>}
                   </div>
-                  {u.banned ? (
-                    <Badge variant="destructive" className="text-xs shrink-0">Inativo</Badge>
-                  ) : (
-                    <Badge variant="secondary" className="text-xs shrink-0">Ativo</Badge>
-                  )}
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {u.banned ? (
+                      <Badge variant="destructive" className="text-xs">Inativo</Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -312,7 +431,10 @@ const AdminUsers = () => {
                   </Select>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <Button variant="outline" size="sm" onClick={() => openProfile(u)} className="h-9 gap-1 text-xs">
+                    <Eye className="h-3.5 w-3.5" /> Perfil
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -322,15 +444,15 @@ const AdminUsers = () => {
                       setResetPassword("");
                       setResetDialogOpen(true);
                     }}
-                    className="flex-1 h-9 gap-1.5 text-xs"
+                    className="h-9 gap-1 text-xs"
                   >
-                    <KeyRound className="h-3.5 w-3.5" /> Resetar Senha
+                    <KeyRound className="h-3.5 w-3.5" /> Senha
                   </Button>
                   <Button
                     variant={u.banned ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleToggleBan(u.id, !u.banned)}
-                    className="flex-1 h-9 gap-1.5 text-xs"
+                    className="h-9 gap-1 text-xs"
                   >
                     {u.banned ? (
                       <><CheckCircle className="h-3.5 w-3.5" /> Ativar</>
@@ -420,6 +542,105 @@ const AdminUsers = () => {
             </Button>
             <Button onClick={handleResetPassword} disabled={submitting}>
               {submitting ? "Salvando..." : "Redefinir Senha"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Profile detail dialog */}
+      <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Perfil do Usuário</DialogTitle>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-5 py-2">
+              <div className="bg-muted/50 rounded-lg p-3">
+                <p className="text-sm font-medium">{selectedUser.email}</p>
+                <p className="text-xs text-muted-foreground">
+                  Criado em: {new Date(selectedUser.created_at).toLocaleDateString("pt-BR")}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Nome completo</Label>
+                  <Input
+                    value={editNome}
+                    onChange={(e) => setEditNome(e.target.value)}
+                    placeholder="Nome completo"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefone</Label>
+                  <Input
+                    value={editTelefone}
+                    onChange={(e) => setEditTelefone(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Endereço</Label>
+                  <Textarea
+                    value={editEndereco}
+                    onChange={(e) => setEditEndereco(e.target.value)}
+                    placeholder="Endereço completo"
+                    rows={2}
+                  />
+                </div>
+              </div>
+
+              {/* Document photo section */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Camera className="h-4 w-4" />
+                  Documento (RG / CPF)
+                </Label>
+
+                {selectedUser.documento_foto_url ? (
+                  <div className="space-y-2">
+                    <div className="relative border rounded-lg overflow-hidden bg-muted">
+                      <img
+                        src={selectedUser.documento_foto_url}
+                        alt="Documento"
+                        className="w-full max-h-64 object-contain"
+                      />
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2 h-7 w-7 p-0"
+                        onClick={handleRemoveDoc}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer hover:bg-muted/50 transition-colors">
+                    <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                    <span className="text-sm text-muted-foreground">
+                      {uploadingDoc ? "Enviando..." : "Clique ou tire uma foto do documento"}
+                    </span>
+                    <span className="text-xs text-muted-foreground/60 mt-1">JPG, PNG — máx 5MB</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleDocUpload}
+                      disabled={uploadingDoc}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProfileDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveProfile} disabled={submitting}>
+              {submitting ? "Salvando..." : "Salvar Dados"}
             </Button>
           </DialogFooter>
         </DialogContent>
