@@ -597,19 +597,31 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string | null
+          documento_foto_url: string | null
+          endereco: string | null
           id: string
+          nome: string | null
+          telefone: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           display_name?: string | null
+          documento_foto_url?: string | null
+          endereco?: string | null
           id?: string
+          nome?: string | null
+          telefone?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           display_name?: string | null
+          documento_foto_url?: string | null
+          endereco?: string | null
           id?: string
+          nome?: string | null
+          telefone?: string | null
           user_id?: string
         }
         Relationships: []

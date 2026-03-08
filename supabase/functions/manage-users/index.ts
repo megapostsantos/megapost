@@ -89,14 +89,25 @@ Deno.serve(async (req) => {
       const { data: roles } = await adminClient.from("user_roles").select("*");
       const rolesMap = Object.fromEntries((roles || []).map((r: any) => [r.user_id, r.role]));
 
-      const users = (data?.users || []).map((u: any) => ({
-        id: u.id,
-        email: u.email,
-        role: rolesMap[u.id] || null,
-        created_at: u.created_at,
-        banned: u.banned_until ? new Date(u.banned_until) > new Date() : false,
-        last_sign_in_at: u.last_sign_in_at,
-      }));
+      const { data: profiles } = await adminClient.from("profiles").select("*");
+      const profilesMap = Object.fromEntries((profiles || []).map((p: any) => [p.user_id, p]));
+
+      const users = (data?.users || []).map((u: any) => {
+        const profile = profilesMap[u.id] || {};
+        return {
+          id: u.id,
+          email: u.email,
+          role: rolesMap[u.id] || null,
+          created_at: u.created_at,
+          banned: u.banned_until ? new Date(u.banned_until) > new Date() : false,
+          last_sign_in_at: u.last_sign_in_at,
+          nome: profile.nome || null,
+          telefone: profile.telefone || null,
+          endereco: profile.endereco || null,
+          documento_foto_url: profile.documento_foto_url || null,
+          display_name: profile.display_name || null,
+        };
+      });
 
       return new Response(JSON.stringify({ users }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -250,6 +261,36 @@ Deno.serve(async (req) => {
       
       // Audit log
       await logAudit(adminClient, caller.id, "password_reset", "users", user_id, null);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // UPDATE PROFILE
+    if (action === "update_profile") {
+      const { user_id, nome, telefone, endereco, documento_foto_url } = payload;
+      
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "ID do usuário é obrigatório." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const updateData: Record<string, unknown> = {};
+      if (nome !== undefined) updateData.nome = nome;
+      if (telefone !== undefined) updateData.telefone = telefone;
+      if (endereco !== undefined) updateData.endereco = endereco;
+      if (documento_foto_url !== undefined) updateData.documento_foto_url = documento_foto_url;
+
+      const { error } = await adminClient
+        .from("profiles")
+        .update(updateData)
+        .eq("user_id", user_id);
+      if (error) throw error;
+
+      await logAudit(adminClient, caller.id, "profile_updated", "profiles", user_id, updateData);
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
