@@ -36,6 +36,7 @@ import AdminDocumentos from "@/pages/admin/AdminDocumentos";
 import AdminSellers from "@/pages/admin/AdminSellers";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminControle from "@/pages/admin/AdminControle";
+import AdminConferencia from "@/pages/admin/AdminConferencia";
 import AdminTreinamento from "@/pages/admin/AdminTreinamento";
 import AdminPonto from "@/pages/admin/AdminPonto";
 
@@ -87,6 +88,7 @@ const App = () => (
                 <Route path="motoristas" element={<AdminDrivers />} />
                 <Route path="sellers" element={<AdminSellers />} />
                 <Route path="controle" element={<AdminControle />} />
+                <Route path="conferencia" element={<AdminConferencia />} />
                 <Route path="ajuda" element={<AdminAjuda />} />
                 <Route path="treinamento" element={<AdminTreinamento />} />
                 <Route path="ponto" element={<AdminPonto />} />
@@ -111,6 +113,7 @@ const App = () => (
                 <Route path="saida" element={<AdminSaida />} />
                 <Route path="sellers" element={<AdminSellers />} />
                 <Route path="controle" element={<AdminControle />} />
+                <Route path="conferencia" element={<AdminConferencia />} />
                 <Route path="ajuda" element={<AdminAjuda />} />
                 <Route path="treinamento" element={<AdminTreinamento />} />
                 <Route path="ponto" element={<AdminPonto />} />

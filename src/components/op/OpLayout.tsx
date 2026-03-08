@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Route, Users, HelpCircle,
   Menu, X, ChevronLeft, LogOut as LogOutIcon,
-  Store, Tv, ClipboardList, BookOpen, Clock,
+  Store, Tv, ClipboardList, BookOpen, Clock, ClipboardCheck,
 } from "lucide-react";
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { to: "/op/motoristas", label: "Motoristas", icon: Users },
   { to: "/op/sellers", label: "Sellers", icon: Store },
   { to: "/op/controle", label: "Controle Operacional", icon: ClipboardList },
+  { to: "/op/conferencia", label: "Conferência", icon: ClipboardCheck },
   { to: "/op/ajuda", label: "Ajuda", icon: HelpCircle },
   { to: "/op/treinamento", label: "Treinamento", icon: BookOpen },
   { to: "/op/ponto", label: "Ponto", icon: Clock },
