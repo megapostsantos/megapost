@@ -19,7 +19,7 @@ export async function logAudit(
       acao: action,
       tabela: module,
       registro_id: targetId || user.id,
-      dados_novos: metadata || null,
+      dados_novos: (metadata as any) || null,
     }]);
   } catch (e) {
     console.error("Audit log error:", e);
