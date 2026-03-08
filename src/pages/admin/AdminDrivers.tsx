@@ -35,6 +35,7 @@ const tipoOptions = [
 
 const AdminDrivers = () => {
   const { isAdmin } = useAuth();
+  const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
