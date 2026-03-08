@@ -82,26 +82,22 @@ const AdminOcorrencias = () => {
 
     const initScanner = async () => {
       try {
-        const html5QrCode = new Html5Qrcode("qr-reader-ocorrencia");
+        const html5QrCode = new Html5Qrcode("qr-reader-ocorrencia", {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.UPC_A,
+          ],
+        });
         scannerRef.current = html5QrCode;
 
         await html5QrCode.start(
           { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            formatsToSupport: [
-              0,  // QR_CODE
-              4,  // CODE_128
-              2,  // CODE_39
-              3,  // CODE_93
-              11, // EAN_13
-              12, // EAN_8
-              7,  // ITF
-              10, // UPC_A
-              9,  // UPC_E
-            ],
-          },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
           (decodedText) => {
             setForm((prev) => ({ ...prev, codigoPacote: decodedText }));
             stopScanner();
