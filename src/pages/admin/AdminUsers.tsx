@@ -239,7 +239,20 @@ const AdminUsers = () => {
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(u.created_at).toLocaleDateString("pt-BR")}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setResetUserId(u.id);
+                          setResetEmail(u.email);
+                          setResetPassword("");
+                          setResetDialogOpen(true);
+                        }}
+                        className="h-8 gap-1.5 text-xs"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" /> Resetar Senha
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
