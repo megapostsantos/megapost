@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/customSupabase";
+
+const MANAGE_USERS_URL = `https://otfjcpajobmjlwitgnqi.supabase.co/functions/v1/manage-users`;
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -283,10 +285,39 @@ const RecentHistory = ({ userId }: { userId: string }) => {
 
 // ── Admin View ──
 const AdminPontoView = () => {
+  const { session } = useAuth();
   const [records, setRecords] = useState<Timecard[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState(format(new Date(), "yyyy-MM"));
   const [profiles, setProfiles] = useState<Record<string, string>>({});
+  const userEmailsRef = useRef<Record<string, string>>({});
+
+  // Load user emails once from manage-users edge function
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const loadEmails = async () => {
+      try {
+        const res = await fetch(MANAGE_USERS_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ action: "list" }),
+        });
+        const data = await res.json();
+        if (data.users) {
+          const map: Record<string, string> = {};
+          data.users.forEach((u: any) => { map[u.id] = u.email; });
+          userEmailsRef.current = map;
+          setProfiles((prev) => ({ ...map, ...prev }));
+        }
+      } catch {
+        // silent fallback
+      }
+    };
+    loadEmails();
+  }, [session?.access_token]);
 
   const load = useCallback(async () => {
     try {
@@ -303,17 +334,20 @@ const AdminPontoView = () => {
       if (error) throw error;
       setRecords((data as Timecard[]) || []);
 
+      // Merge with already-loaded emails
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map((d: any) => d.user_id))];
         const { data: profs } = await supabase
           .from("profiles")
           .select("user_id, display_name")
           .in("user_id", userIds);
+        const map: Record<string, string> = { ...userEmailsRef.current };
         if (profs) {
-          const map: Record<string, string> = {};
-          profs.forEach((p: any) => { map[p.user_id] = p.display_name || p.user_id; });
-          setProfiles(map);
+          profs.forEach((p: any) => {
+            if (p.display_name) map[p.user_id] = p.display_name;
+          });
         }
+        setProfiles(map);
       }
     } catch (err: any) {
       toast.error(err.message);
