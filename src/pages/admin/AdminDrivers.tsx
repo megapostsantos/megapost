@@ -6,7 +6,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/customSupabase";
-import { Users, Plus, Search, Edit2, Check, X, Power, Camera, ChevronDown, ChevronUp, Flag, AlertTriangle, MessageCircle } from "lucide-react";
+import { Users, Plus, Search, Edit2, Check, X, Power, Camera, ChevronDown, ChevronUp, Flag, AlertTriangle, MessageCircle, Trash2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format, endOfMonth } from "date-fns";
 
@@ -22,6 +34,7 @@ const tipoOptions = [
 ];
 
 const AdminDrivers = () => {
+  const { isAdmin } = useAuth();
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -171,6 +184,27 @@ const AdminDrivers = () => {
       toast.success(driver.ativo ? "Motorista desativado" : "Motorista reativado");
       await loadDrivers();
     }
+  };
+
+  const handleDelete = async (driver: any) => {
+    // Check for linked routes
+    const { count } = await supabase.from("rotas").select("id", { count: "exact", head: true }).eq("driver_id", driver.id);
+    if (count && count > 0) {
+      toast.error(`Não é possível excluir: motorista tem ${count} rota(s) vinculada(s).`);
+      return;
+    }
+    // Delete photo from storage
+    if (driver.foto_url) {
+      const parts = driver.foto_url.split("/driver-photos/");
+      if (parts[1]) {
+        const filePath = parts[1].split("?")[0];
+        await supabase.storage.from("driver-photos").remove([filePath]);
+      }
+    }
+    const { error } = await supabase.from("drivers").delete().eq("id", driver.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Motorista excluído!");
+    await loadDrivers();
   };
 
   const loadDriverMetrics = useCallback(async (driverId: string, forceOpen = false) => {
@@ -421,6 +455,29 @@ const AdminDrivers = () => {
                     <button onClick={() => startEdit(d)} className="text-muted-foreground hover:text-foreground p-1">
                       <Edit2 className="h-4 w-4" />
                     </button>
+                    {isAdmin && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button className="text-muted-foreground hover:text-destructive p-1" title="Excluir motorista">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir motorista?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja excluir <strong>{d.nome}</strong>? Esta ação não pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(d)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
                   </div>
                 </div>
 
