@@ -732,6 +732,39 @@ export type Database = {
           },
         ]
       }
+      route_sack_conference: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          cycle: string
+          date: string
+          external_route_code: string
+          id: string
+          notes: string | null
+          sacks_count: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          cycle?: string
+          date?: string
+          external_route_code: string
+          id?: string
+          notes?: string | null
+          sacks_count?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          cycle?: string
+          date?: string
+          external_route_code?: string
+          id?: string
+          notes?: string | null
+          sacks_count?: number
+        }
+        Relationships: []
+      }
       sellers: {
         Row: {
           ativo: boolean
