@@ -611,7 +611,7 @@ const PayrollSection = () => {
                       <Badge variant="outline" className="text-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-400">
                         <Clock className="h-3 w-3 mr-1" /> Pendente
                       </Badge>
-                      <Button size="sm" variant="default" className="text-xs h-7"
+                       <Button size="sm" variant="default" className="text-xs h-7"
                         onClick={() => markPaid(operators.flatMap((o) => o.ids))}>
                         Pagar Todos
                       </Button>
