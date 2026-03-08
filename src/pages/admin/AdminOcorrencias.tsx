@@ -70,28 +70,55 @@ const AdminOcorrencias = () => {
     setLoading(false);
   };
 
-  const startScanner = async () => {
+  const startScanner = () => {
+    // Show the div first, then init scanner after DOM renders
     setScanning(true);
-    try {
-      const html5QrCode = new Html5Qrcode("qr-reader-ocorrencia");
-      scannerRef.current = html5QrCode;
-
-      await html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText) => {
-          setForm((prev) => ({ ...prev, codigoPacote: decodedText }));
-          stopScanner();
-          toast.success("Código lido: " + decodedText);
-        },
-        () => {}
-      );
-    } catch (err) {
-      console.error("Scanner error:", err);
-      toast.error("Não foi possível iniciar a câmera");
-      setScanning(false);
-    }
   };
+
+  useEffect(() => {
+    if (!scanning) return;
+    const el = document.getElementById("qr-reader-ocorrencia");
+    if (!el) return;
+
+    const initScanner = async () => {
+      try {
+        const html5QrCode = new Html5Qrcode("qr-reader-ocorrencia");
+        scannerRef.current = html5QrCode;
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            formatsToSupport: [
+              0,  // QR_CODE
+              4,  // CODE_128
+              2,  // CODE_39
+              3,  // CODE_93
+              11, // EAN_13
+              12, // EAN_8
+              7,  // ITF
+              10, // UPC_A
+              9,  // UPC_E
+            ],
+          },
+          (decodedText) => {
+            setForm((prev) => ({ ...prev, codigoPacote: decodedText }));
+            stopScanner();
+            toast.success("Código lido: " + decodedText);
+          },
+          () => {}
+        );
+      } catch (err) {
+        console.error("Scanner error:", err);
+        toast.error("Não foi possível iniciar a câmera. Verifique as permissões.");
+        setScanning(false);
+      }
+    };
+
+    initScanner();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanning]);
 
   const stopScanner = async () => {
     if (scannerRef.current) {
