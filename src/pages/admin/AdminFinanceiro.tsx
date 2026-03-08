@@ -373,6 +373,203 @@ const AdminFinanceiro = () => {
 
       {tab === "entradas" && renderList(entradas, "entrada")}
       {tab === "saidas" && renderList(saidas, "saida")}
+      {tab === "pagamento" && isAdmin && <PayrollSection />}
+    </div>
+  );
+};
+
+/* ─── Payroll Section (admin-only) ─── */
+interface WeekGroup {
+  weekLabel: string;
+  weekStart: string;
+  weekEnd: string;
+  operators: {
+    userId: string;
+    name: string;
+    days: number;
+    workedHours: number;
+    extraHours: number;
+    total: number;
+    allPaid: boolean;
+    ids: string[];
+  }[];
+  grandTotal: number;
+  allPaid: boolean;
+}
+
+const PayrollSection = () => {
+  const [timecards, setTimecards] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [filterUser, setFilterUser] = useState("");
+
+  const refDate = addWeeks(new Date(), weekOffset);
+  const wStart = startOfWeek(refDate, { weekStartsOn: 1 });
+  const wEnd = endOfWeek(refDate, { weekStartsOn: 1 });
+  const wStartStr = format(wStart, "yyyy-MM-dd");
+  const wEndStr = format(wEnd, "yyyy-MM-dd");
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    const [tcRes, prRes] = await Promise.all([
+      supabase.from("timecards").select("*").gte("date", wStartStr).lte("date", wEndStr).order("date"),
+      supabase.from("profiles").select("user_id, display_name"),
+    ]);
+    setTimecards(tcRes.data || []);
+    const map: Record<string, string> = {};
+    (prRes.data || []).forEach((p: any) => { map[p.user_id] = p.display_name || p.user_id; });
+    setProfiles(map);
+    setLoading(false);
+  }, [wStartStr, wEndStr]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const filtered = filterUser
+    ? timecards.filter((tc) => tc.user_id === filterUser)
+    : timecards;
+
+  // Group by operator
+  const byUser: Record<string, any[]> = {};
+  filtered.forEach((tc) => {
+    if (!byUser[tc.user_id]) byUser[tc.user_id] = [];
+    byUser[tc.user_id].push(tc);
+  });
+
+  const operators = Object.entries(byUser).map(([userId, cards]) => ({
+    userId,
+    name: profiles[userId] || userId.slice(0, 8),
+    days: cards.length,
+    workedHours: cards.reduce((s, c) => s + Number(c.worked_hours || 0), 0),
+    extraHours: cards.reduce((s, c) => s + Number(c.extra_hours || 0), 0),
+    total: cards.reduce((s, c) => s + Number(c.daily_payment || 0), 0),
+    allPaid: cards.every((c) => c.payment_status === "paid"),
+    ids: cards.map((c) => c.id),
+  }));
+
+  const grandTotal = operators.reduce((s, o) => s + o.total, 0);
+  const allPaid = operators.length > 0 && operators.every((o) => o.allPaid);
+
+  const markPaid = async (ids: string[]) => {
+    const { error } = await supabase
+      .from("timecards")
+      .update({ payment_status: "paid" } as any)
+      .in("id", ids);
+    if (error) toast.error(error.message);
+    else { toast.success("Marcado como pago!"); await loadData(); }
+  };
+
+  const markPending = async (ids: string[]) => {
+    const { error } = await supabase
+      .from("timecards")
+      .update({ payment_status: "pending" } as any)
+      .in("id", ids);
+    if (error) toast.error(error.message);
+    else { toast.success("Revertido para pendente."); await loadData(); }
+  };
+
+  const uniqueUsers = [...new Set(timecards.map((tc) => tc.user_id))];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Users className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-bold text-foreground">Pagamento de Operadores</h2>
+      </div>
+
+      {/* Week navigation */}
+      <div className="flex items-center justify-between bg-muted rounded-lg p-2">
+        <Button variant="ghost" size="sm" onClick={() => setWeekOffset((o) => o - 1)}>← Anterior</Button>
+        <p className="text-sm font-medium text-foreground">
+          {format(wStart, "dd/MM", { locale: ptBR })} — {format(wEnd, "dd/MM/yyyy", { locale: ptBR })}
+        </p>
+        <Button variant="ghost" size="sm" onClick={() => setWeekOffset((o) => o + 1)} disabled={weekOffset >= 0}>
+          Próxima →
+        </Button>
+      </div>
+
+      {/* Filter */}
+      {uniqueUsers.length > 1 && (
+        <select
+          value={filterUser}
+          onChange={(e) => setFilterUser(e.target.value)}
+          className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          <option value="">Todos os operadores</option>
+          {uniqueUsers.map((uid) => (
+            <option key={uid} value={uid}>{profiles[uid] || uid.slice(0, 8)}</option>
+          ))}
+        </select>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>
+      ) : operators.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-8">Nenhum registro de ponto nesta semana.</p>
+      ) : (
+        <>
+          {/* Summary card */}
+          <Card className="border-primary/20">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Total da semana</p>
+                  <p className="text-2xl font-bold text-foreground">R${grandTotal.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">{operators.length} operador(es)</p>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {allPaid ? (
+                    <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                      <CheckCircle className="h-3 w-3 mr-1" /> Tudo Pago
+                    </Badge>
+                  ) : (
+                    <>
+                      <Badge variant="outline" className="text-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 dark:text-yellow-400">
+                        <Clock className="h-3 w-3 mr-1" /> Pendente
+                      </Badge>
+                      <Button size="sm" variant="default" className="text-xs h-7"
+                        onClick={() => markPaid(operators.flatMap((o) => o.ids))}>
+                        Pagar Todos
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Per-operator cards */}
+          {operators.map((op) => (
+            <Card key={op.userId}>
+              <CardContent className="pt-4">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-sm text-foreground">{op.name}</p>
+                    <div className="text-xs text-muted-foreground space-y-0.5">
+                      <p>{op.days} dia(s) trabalhado(s)</p>
+                      <p>Horas: {op.workedHours.toFixed(1)}h ({op.extraHours.toFixed(1)}h extra)</p>
+                    </div>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p className="text-lg font-bold text-foreground">R${op.total.toFixed(2)}</p>
+                    {op.allPaid ? (
+                      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px] cursor-pointer"
+                        onClick={() => markPending(op.ids)}>
+                        Pago ✓
+                      </Badge>
+                    ) : (
+                      <Button size="sm" variant="outline" className="text-xs h-6 px-2"
+                        onClick={() => markPaid(op.ids)}>
+                        Marcar Pago
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </>
+      )}
     </div>
   );
 };
