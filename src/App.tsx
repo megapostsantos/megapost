@@ -38,6 +38,7 @@ import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminControle from "@/pages/admin/AdminControle";
 import AdminTreinamento from "@/pages/admin/AdminTreinamento";
 import AdminPonto from "@/pages/admin/AdminPonto";
+import AdminEscala from "@/pages/admin/AdminEscala";
 
 // Operator pages
 import OpLogin from "@/pages/op/OpLogin";
@@ -125,6 +126,7 @@ const App = () => (
                 <Route path="financeiro" element={<AdminFinanceiro />} />
                 <Route path="historico" element={<OpHistorico />} />
                 <Route path="documentos" element={<AdminDocumentos />} />
+                <Route path="escala" element={<AdminEscala />} />
                 <Route path="users" element={<AdminUsers />} />
                 <Route path="configuracoes" element={<AdminSettings />} />
               </Route>

@@ -837,6 +837,39 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_schedules: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          notes: string | null
+          shift: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          notes?: string | null
+          shift?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          shift?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       stock_pickups: {
         Row: {
           created_at: string
