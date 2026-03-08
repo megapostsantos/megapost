@@ -119,6 +119,42 @@ export type Database = {
         }
         Relationships: []
       }
+      divergencias: {
+        Row: {
+          created_at: string
+          descricao: string
+          foto_url: string | null
+          id: string
+          notas: string | null
+          status: string
+          tipo: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          descricao: string
+          foto_url?: string | null
+          id?: string
+          notas?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string
+          foto_url?: string | null
+          id?: string
+          notas?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       documentos: {
         Row: {
           arquivo_nome: string | null
