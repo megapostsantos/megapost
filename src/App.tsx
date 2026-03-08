@@ -38,6 +38,7 @@ import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminControle from "@/pages/admin/AdminControle";
 import AdminTreinamento from "@/pages/admin/AdminTreinamento";
 import AdminPonto from "@/pages/admin/AdminPonto";
+import AdminEscala from "@/pages/admin/AdminEscala";
 
 // Operator pages
 import OpLogin from "@/pages/op/OpLogin";
