@@ -91,11 +91,18 @@ Deno.serve(async (req) => {
       });
       if (error) throw error;
 
-      // Upsert role
-      if (role && newUser.user) {
+      if (newUser.user) {
+        // Ensure profile exists
         await adminClient
-          .from("user_roles")
-          .upsert({ user_id: newUser.user.id, role }, { onConflict: "user_id" });
+          .from("profiles")
+          .upsert({ user_id: newUser.user.id, display_name: email }, { onConflict: "user_id" });
+
+        // Upsert role
+        if (role) {
+          await adminClient
+            .from("user_roles")
+            .upsert({ user_id: newUser.user.id, role }, { onConflict: "user_id" });
+        }
       }
 
       return new Response(JSON.stringify({ user: newUser.user }), {
