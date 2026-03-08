@@ -36,7 +36,6 @@ import AdminDocumentos from "@/pages/admin/AdminDocumentos";
 import AdminSellers from "@/pages/admin/AdminSellers";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminControle from "@/pages/admin/AdminControle";
-import AdminConferencia from "@/pages/admin/AdminConferencia";
 import AdminTreinamento from "@/pages/admin/AdminTreinamento";
 import AdminPonto from "@/pages/admin/AdminPonto";
 
