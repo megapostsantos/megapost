@@ -6,10 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/customSupabase";
+import { useAuth } from "@/hooks/useAuth";
 import {
   DollarSign, Plus, Edit2, Trash2, ArrowUpCircle, ArrowDownCircle, Route,
+  Users, CheckCircle, Clock,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
 const CATEGORIAS_ENTRADA = [
