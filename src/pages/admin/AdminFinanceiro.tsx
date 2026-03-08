@@ -33,7 +33,8 @@ const VALOR_POR_ROTA = 10;
 const FIXO_ML = 3500;
 
 const AdminFinanceiro = () => {
-  const [tab, setTab] = useState<"resumo" | "entradas" | "saidas">("resumo");
+  const { isAdmin } = useAuth();
+  const [tab, setTab] = useState<"resumo" | "entradas" | "saidas" | "pagamento">("resumo");
   const [mesRef, setMesRef] = useState(format(new Date(), "yyyy-MM"));
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
