@@ -267,6 +267,36 @@ Deno.serve(async (req) => {
       });
     }
 
+    // UPDATE PROFILE
+    if (action === "update_profile") {
+      const { user_id, nome, telefone, endereco, documento_foto_url } = payload;
+      
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "ID do usuário é obrigatório." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const updateData: Record<string, unknown> = {};
+      if (nome !== undefined) updateData.nome = nome;
+      if (telefone !== undefined) updateData.telefone = telefone;
+      if (endereco !== undefined) updateData.endereco = endereco;
+      if (documento_foto_url !== undefined) updateData.documento_foto_url = documento_foto_url;
+
+      const { error } = await adminClient
+        .from("profiles")
+        .update(updateData)
+        .eq("user_id", user_id);
+      if (error) throw error;
+
+      await logAudit(adminClient, caller.id, "profile_updated", "profiles", user_id, updateData);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Ação desconhecida" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
