@@ -29,7 +29,6 @@ const navItems: NavItem[] = [
 
 // Admin-only items
 const adminOnlyItems: NavItem[] = [
-  { to: "/admin/estoque", label: "Estoque", icon: Package },
   { to: "/admin/motoristas", label: "Motoristas", icon: Users },
   { to: "/admin/financeiro", label: "Financeiro", icon: DollarSign },
   { to: "/admin/historico", label: "Histórico", icon: History },
