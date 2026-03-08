@@ -10,6 +10,28 @@ const EXTERNAL_URL = "https://tqajkhmvmwnltzfshugh.supabase.co";
 const EXTERNAL_SERVICE_KEY = Deno.env.get("EXTERNAL_SUPABASE_SERVICE_ROLE_KEY")!;
 const EXTERNAL_ANON_KEY = "sb_publishable_j47OP1q5aKd7ARzsj3Ea1Q_jXIANWMx";
 
+// Helper to log audit events
+async function logAudit(
+  adminClient: any,
+  actorId: string,
+  action: string,
+  module: string,
+  targetId: string | null,
+  metadata: Record<string, unknown> | null
+) {
+  try {
+    await adminClient.from("audit_log").insert({
+      user_id: actorId,
+      acao: action,
+      tabela: module,
+      registro_id: targetId || actorId,
+      dados_novos: metadata,
+    });
+  } catch (e) {
+    console.error("Audit log error:", e);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -33,29 +55,29 @@ Deno.serve(async (req) => {
       data: { user: caller },
     } = await callerClient.auth.getUser();
     if (!caller) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      return new Response(JSON.stringify({ error: "Sessão expirada. Faça login novamente." }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Check admin role
-    const { data: roleRow } = await createClient(EXTERNAL_URL, EXTERNAL_SERVICE_KEY)
+    const adminClient = createClient(EXTERNAL_URL, EXTERNAL_SERVICE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: roleRow } = await adminClient
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id)
       .maybeSingle();
 
     if (roleRow?.role !== "admin") {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
+      return new Response(JSON.stringify({ error: "Acesso negado. Apenas administradores podem gerenciar usuários." }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const adminClient = createClient(EXTERNAL_URL, EXTERNAL_SERVICE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
 
     const { action, ...payload } = await req.json();
 
@@ -84,6 +106,21 @@ Deno.serve(async (req) => {
     // CREATE USER
     if (action === "create") {
       const { email, password, role } = payload;
+      
+      if (!email || !password) {
+        return new Response(JSON.stringify({ error: "E-mail e senha são obrigatórios." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      if (password.length < 6) {
+        return new Response(JSON.stringify({ error: "A senha deve ter no mínimo 6 caracteres." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const { data: newUser, error } = await adminClient.auth.admin.createUser({
         email,
         password,
@@ -103,6 +140,12 @@ Deno.serve(async (req) => {
             .from("user_roles")
             .upsert({ user_id: newUser.user.id, role }, { onConflict: "user_id" });
         }
+        
+        // Audit log
+        await logAudit(adminClient, caller.id, "user_created", "users", newUser.user.id, {
+          email,
+          role: role || "operador",
+        });
       }
 
       return new Response(JSON.stringify({ user: newUser.user }), {
@@ -113,6 +156,14 @@ Deno.serve(async (req) => {
     // UPDATE ROLE
     if (action === "update_role") {
       const { user_id, role } = payload;
+      
+      if (!user_id || !role) {
+        return new Response(JSON.stringify({ error: "ID do usuário e role são obrigatórios." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
       // Prevent self-demotion
       if (user_id === caller.id && role !== "admin") {
         return new Response(
@@ -120,10 +171,24 @@ Deno.serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      
+      // Get previous role for audit
+      const { data: prevRole } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user_id)
+        .maybeSingle();
+      
       const { error } = await adminClient
         .from("user_roles")
         .upsert({ user_id, role }, { onConflict: "user_id" });
       if (error) throw error;
+      
+      // Audit log
+      await logAudit(adminClient, caller.id, "role_changed", "user_roles", user_id, {
+        previous_role: prevRole?.role || null,
+        new_role: role,
+      });
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -133,17 +198,28 @@ Deno.serve(async (req) => {
     // BAN / UNBAN USER
     if (action === "toggle_ban") {
       const { user_id, ban } = payload;
+      
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "ID do usuário é obrigatório." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
       if (user_id === caller.id) {
         return new Response(
           JSON.stringify({ error: "Você não pode desativar sua própria conta." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const banUntil = ban ? "2999-12-31T23:59:59Z" : "epoch";
+      
       const { error } = await adminClient.auth.admin.updateUserById(user_id, {
         ban_duration: ban ? "876000h" : "none",
       });
       if (error) throw error;
+      
+      // Audit log
+      await logAudit(adminClient, caller.id, ban ? "user_deactivated" : "user_activated", "users", user_id, null);
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -153,6 +229,14 @@ Deno.serve(async (req) => {
     // RESET PASSWORD
     if (action === "reset_password") {
       const { user_id, new_password } = payload;
+      
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "ID do usuário é obrigatório." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
       if (!new_password || new_password.length < 6) {
         return new Response(
           JSON.stringify({ error: "A senha deve ter no mínimo 6 caracteres." }),
@@ -163,18 +247,22 @@ Deno.serve(async (req) => {
         password: new_password,
       });
       if (error) throw error;
+      
+      // Audit log
+      await logAudit(adminClient, caller.id, "password_reset", "users", user_id, null);
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(JSON.stringify({ error: "Unknown action" }), {
+    return new Response(JSON.stringify({ error: "Ação desconhecida" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error("manage-users error:", err);
+    return new Response(JSON.stringify({ error: err.message || "Erro interno" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
