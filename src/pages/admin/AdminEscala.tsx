@@ -4,7 +4,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ChevronLeft, ChevronRight, Loader2, Plus, Trash2, UserPlus } from "lucide-react";
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -49,6 +63,8 @@ const AdminEscala = () => {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const dateRange = {
@@ -56,8 +72,8 @@ const AdminEscala = () => {
     to: format(weekDays[6], "yyyy-MM-dd"),
   };
 
-  // Fetch users (profiles + email from manage-users)
-  const { data: users = [], isLoading: loadingUsers } = useQuery({
+  // Fetch all users
+  const { data: allUsers = [], isLoading: loadingUsers } = useQuery({
     queryKey: ["escala-users"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("manage-users", {
@@ -87,24 +103,85 @@ const AdminEscala = () => {
     },
   });
 
-  const upsertMutation = useMutation({
+  // Users that have entries this week
+  const scheduledUserIds = useMemo(() => {
+    const ids = new Set(entries.map((e) => e.user_id));
+    return Array.from(ids);
+  }, [entries]);
+
+  const scheduledUsers = useMemo(
+    () => allUsers.filter((u) => scheduledUserIds.includes(u.user_id)),
+    [allUsers, scheduledUserIds]
+  );
+
+  const availableUsers = useMemo(
+    () => allUsers.filter((u) => !scheduledUserIds.includes(u.user_id)),
+    [allUsers, scheduledUserIds]
+  );
+
+  const getUserLabel = (u: UserInfo) => u.nome || u.display_name || u.email;
+
+  // Add employee to schedule (insert all shifts for the week as "trabalho")
+  const addUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const rows = weekDays.flatMap((day) =>
+        SHIFTS.map((shift) => ({
+          user_id: userId,
+          date: format(day, "yyyy-MM-dd"),
+          shift: shift.value,
+          status: "trabalho",
+        }))
+      );
+      const { error } = await supabase.from("staff_schedules").insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff-schedules"] });
+      setAddDialogOpen(false);
+      setSelectedUserId("");
+      toast({ title: "Funcionário adicionado à escala" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao adicionar funcionário", variant: "destructive" });
+    },
+  });
+
+  // Remove employee from this week's schedule
+  const removeUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from("staff_schedules")
+        .delete()
+        .eq("user_id", userId)
+        .gte("date", dateRange.from)
+        .lte("date", dateRange.to);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff-schedules"] });
+      toast({ title: "Funcionário removido da escala" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao remover funcionário", variant: "destructive" });
+    },
+  });
+
+  // Update a single cell status
+  const updateStatusMutation = useMutation({
     mutationFn: async (params: { user_id: string; date: string; shift: string; status: string }) => {
       const existing = entries.find(
         (e) => e.user_id === params.user_id && e.date === params.date && e.shift === params.shift
       );
       if (existing) {
-        // cycle status
-        const currentIdx = STATUS_OPTIONS.findIndex((s) => s.value === existing.status);
-        const nextStatus = STATUS_OPTIONS[(currentIdx + 1) % STATUS_OPTIONS.length].value;
         const { error } = await supabase
           .from("staff_schedules")
-          .update({ status: nextStatus, updated_at: new Date().toISOString() })
+          .update({ status: params.status, updated_at: new Date().toISOString() })
           .eq("id", existing.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("staff_schedules")
-          .insert({ user_id: params.user_id, date: params.date, shift: params.shift, status: "trabalho" });
+          .insert({ user_id: params.user_id, date: params.date, shift: params.shift, status: params.status });
         if (error) throw error;
       }
     },
@@ -120,8 +197,6 @@ const AdminEscala = () => {
     entries.find(
       (e) => e.user_id === userId && e.date === format(date, "yyyy-MM-dd") && e.shift === shift
     );
-
-  const getUserLabel = (u: UserInfo) => u.nome || u.display_name || u.email;
 
   const loading = loadingUsers || loadingEntries;
 
@@ -142,22 +217,69 @@ const AdminEscala = () => {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-2">
+      {/* Legend + Add button */}
+      <div className="flex flex-wrap items-center gap-2">
         {STATUS_OPTIONS.map((s) => (
           <Badge key={s.value} variant="outline" className={`${s.color} text-xs`}>
             {s.label}
           </Badge>
         ))}
-        <span className="text-xs text-muted-foreground ml-2">Clique para alternar status</span>
+        <div className="ml-auto">
+          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" disabled={!isAdmin || availableUsers.length === 0}>
+                <UserPlus className="h-4 w-4 mr-1" />
+                Adicionar Funcionário
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Adicionar Funcionário à Escala</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2">
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um funcionário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableUsers.map((u) => (
+                      <SelectItem key={u.user_id} value={u.user_id}>
+                        {getUserLabel(u)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  O funcionário será adicionado com status "Trabalho" em todos os dias e turnos da semana. Você pode ajustar depois.
+                </p>
+                <Button
+                  className="w-full"
+                  disabled={!selectedUserId || addUserMutation.isPending}
+                  onClick={() => addUserMutation.mutate(selectedUserId)}
+                >
+                  {addUserMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-1" />
+                  )}
+                  Adicionar
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : users.length === 0 ? (
-        <Card className="p-8 text-center text-muted-foreground">Nenhum funcionário encontrado.</Card>
+      ) : scheduledUsers.length === 0 ? (
+        <Card className="p-8 text-center text-muted-foreground">
+          <UserPlus className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <p>Nenhum funcionário na escala desta semana.</p>
+          <p className="text-xs mt-1">Use o botão "Adicionar Funcionário" para começar.</p>
+        </Card>
       ) : (
         <>
           {/* Desktop table */}
@@ -172,10 +294,11 @@ const AdminEscala = () => {
                       <div className="text-xs">{format(day, "dd/MM")}</div>
                     </th>
                   ))}
+                  <th className="w-10" />
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {scheduledUsers.map((user) => (
                   <tr key={user.user_id} className="border-b border-border/50 hover:bg-muted/30">
                     <td className="py-2 px-3 font-medium truncate max-w-[200px]">{getUserLabel(user)}</td>
                     {weekDays.map((day) => (
@@ -183,31 +306,55 @@ const AdminEscala = () => {
                         <div className="flex flex-col gap-0.5">
                           {SHIFTS.map((shift) => {
                             const entry = getEntry(user.user_id, day, shift.value);
+                            const currentStatus = entry?.status ?? "trabalho";
                             return (
-                              <button
+                              <Select
                                 key={shift.value}
-                                disabled={!isAdmin || upsertMutation.isPending}
-                                onClick={() =>
-                                  upsertMutation.mutate({
+                                value={currentStatus}
+                                disabled={!isAdmin || updateStatusMutation.isPending}
+                                onValueChange={(val) =>
+                                  updateStatusMutation.mutate({
                                     user_id: user.user_id,
                                     date: format(day, "yyyy-MM-dd"),
                                     shift: shift.value,
-                                    status: entry?.status ?? "",
+                                    status: val,
                                   })
                                 }
-                                className={`rounded px-1.5 py-0.5 text-[11px] font-medium border transition-colors ${
-                                  entry
-                                    ? getStatusStyle(entry.status)
-                                    : "bg-muted/40 text-muted-foreground/50 border-transparent hover:border-border"
-                                } ${isAdmin ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
                               >
-                                {entry ? `${shift.label[0]} ${getStatusLabel(entry.status)}` : shift.label[0]}
-                              </button>
+                                <SelectTrigger
+                                  className={`h-auto px-1.5 py-0.5 text-[11px] font-medium border ${getStatusStyle(currentStatus)} ${isAdmin ? "cursor-pointer" : "cursor-default"}`}
+                                >
+                                  <span>{shift.label[0]} {getStatusLabel(currentStatus)}</span>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {STATUS_OPTIONS.map((s) => (
+                                    <SelectItem key={s.value} value={s.value}>
+                                      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${s.color.split(" ")[0]}`} />
+                                      {s.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             );
                           })}
                         </div>
                       </td>
                     ))}
+                    <td className="py-1 px-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        disabled={!isAdmin || removeUserMutation.isPending}
+                        onClick={() => {
+                          if (confirm(`Remover ${getUserLabel(user)} da escala desta semana?`)) {
+                            removeUserMutation.mutate(user.user_id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -216,9 +363,24 @@ const AdminEscala = () => {
 
           {/* Mobile cards */}
           <div className="md:hidden space-y-3">
-            {users.map((user) => (
+            {scheduledUsers.map((user) => (
               <Card key={user.user_id} className="p-3">
-                <p className="font-medium text-sm mb-2 truncate">{getUserLabel(user)}</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-medium text-sm truncate">{getUserLabel(user)}</p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                    disabled={!isAdmin || removeUserMutation.isPending}
+                    onClick={() => {
+                      if (confirm(`Remover ${getUserLabel(user)} da escala desta semana?`)) {
+                        removeUserMutation.mutate(user.user_id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
                 <div className="grid grid-cols-7 gap-1">
                   {weekDays.map((day) => (
                     <div key={day.toISOString()} className="text-center">
@@ -227,25 +389,24 @@ const AdminEscala = () => {
                       </p>
                       {SHIFTS.map((shift) => {
                         const entry = getEntry(user.user_id, day, shift.value);
+                        const currentStatus = entry?.status ?? "trabalho";
                         return (
                           <button
                             key={shift.value}
-                            disabled={!isAdmin || upsertMutation.isPending}
-                            onClick={() =>
-                              upsertMutation.mutate({
+                            disabled={!isAdmin || updateStatusMutation.isPending}
+                            onClick={() => {
+                              const idx = STATUS_OPTIONS.findIndex((s) => s.value === currentStatus);
+                              const next = STATUS_OPTIONS[(idx + 1) % STATUS_OPTIONS.length].value;
+                              updateStatusMutation.mutate({
                                 user_id: user.user_id,
                                 date: format(day, "yyyy-MM-dd"),
                                 shift: shift.value,
-                                status: entry?.status ?? "",
-                              })
-                            }
-                            className={`w-full rounded text-[9px] py-0.5 font-medium border mb-0.5 ${
-                              entry
-                                ? getStatusStyle(entry.status)
-                                : "bg-muted/40 text-muted-foreground/40 border-transparent"
-                            } ${isAdmin ? "cursor-pointer" : "cursor-default"}`}
+                                status: next,
+                              });
+                            }}
+                            className={`w-full rounded text-[9px] py-0.5 font-medium border mb-0.5 ${getStatusStyle(currentStatus)} ${isAdmin ? "cursor-pointer" : "cursor-default"}`}
                           >
-                            {entry ? getStatusLabel(entry.status)[0] : "·"}
+                            {getStatusLabel(currentStatus)[0]}
                           </button>
                         );
                       })}
