@@ -468,7 +468,7 @@ const PayrollSection = () => {
 
   const operators = Object.entries(byUser).map(([userId, cards]) => ({
     userId,
-    name: profiles[userId] || `Usuário ${userId.slice(0, 6)}`,
+    name: profiles[userId] || userEmails[userId] || `Usuário ${userId.slice(0, 6)}`,
     days: cards.length,
     workedHours: cards.reduce((s, c) => s + Number(c.worked_hours || 0), 0),
     extraHours: cards.reduce((s, c) => s + Number(c.extra_hours || 0), 0),
