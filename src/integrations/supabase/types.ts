@@ -810,6 +810,48 @@ export type Database = {
           },
         ]
       }
+      timecards: {
+        Row: {
+          clock_in: string | null
+          clock_out: string | null
+          created_at: string
+          daily_payment: number | null
+          date: string
+          extra_hours: number | null
+          id: string
+          notes: string | null
+          payment_status: string
+          user_id: string
+          worked_hours: number | null
+        }
+        Insert: {
+          clock_in?: string | null
+          clock_out?: string | null
+          created_at?: string
+          daily_payment?: number | null
+          date?: string
+          extra_hours?: number | null
+          id?: string
+          notes?: string | null
+          payment_status?: string
+          user_id: string
+          worked_hours?: number | null
+        }
+        Update: {
+          clock_in?: string | null
+          clock_out?: string | null
+          created_at?: string
+          daily_payment?: number | null
+          date?: string
+          extra_hours?: number | null
+          id?: string
+          notes?: string | null
+          payment_status?: string
+          user_id?: string
+          worked_hours?: number | null
+        }
+        Relationships: []
+      }
       training_content: {
         Row: {
           content: string
