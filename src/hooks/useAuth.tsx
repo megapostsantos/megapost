@@ -72,8 +72,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         if (!mounted) return;
+        
+        // Handle token refresh failure / session expiry
+        if (event === "TOKEN_REFRESHED" && !session) {
+          setUser(null);
+          setSession(null);
+          setRole(null);
+          setLoading(false);
+          return;
+        }
+        
+        if (event === "SIGNED_OUT") {
+          setUser(null);
+          setSession(null);
+          setRole(null);
+          setLoading(false);
+          return;
+        }
+        
         setSession(session);
         setUser(session?.user ?? null);
 
@@ -104,6 +122,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (error.message.includes("Invalid login")) {
           return { error: "E-mail ou senha incorretos.", role: null as AppRole };
         }
+        // Check for banned user
+        if (error.message.toLowerCase().includes("banned") || error.message.toLowerCase().includes("user is banned")) {
+          return { error: "Sua conta está desativada. Contate o administrador.", role: null as AppRole };
+        }
         return { error: error.message, role: null as AppRole };
       }
 
@@ -111,6 +133,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!signedUserId) {
         return { error: "Sessão inválida após login. Tente novamente.", role: null as AppRole };
       }
+      
+      // Check if user is banned (double check)
+      if (data.user?.banned_until) {
+        const bannedUntil = new Date(data.user.banned_until);
+        if (bannedUntil > new Date()) {
+          await supabase.auth.signOut();
+          return { error: "Sua conta está desativada. Contate o administrador.", role: null as AppRole };
+        }
+      }
+      
       const userRole = await fetchRole(signedUserId);
       return { error: null, role: userRole };
     } catch (err: any) {

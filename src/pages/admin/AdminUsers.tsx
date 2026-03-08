@@ -179,32 +179,30 @@ const AdminUsers = () => {
         </Select>
       </div>
 
-      {/* Table */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          Nenhum usuário encontrado.
+        </div>
       ) : (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>E-mail</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Criado em</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
+        <>
+          {/* Desktop table */}
+          <div className="border rounded-lg hidden md:block">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    Nenhum usuário encontrado.
-                  </TableCell>
+                  <TableHead>E-mail</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Criado em</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ) : (
-                filtered.map((u) => (
+              </TableHeader>
+              <TableBody>
+                {filtered.map((u) => (
                   <TableRow key={u.id}>
                     <TableCell className="font-medium">{u.email}</TableCell>
                     <TableCell>
@@ -233,7 +231,7 @@ const AdminUsers = () => {
                       {u.banned ? (
                         <Badge variant="destructive" className="text-xs">Inativo</Badge>
                       ) : (
-                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">Ativo</Badge>
+                        <Badge variant="secondary" className="text-xs">Ativo</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
@@ -251,7 +249,7 @@ const AdminUsers = () => {
                         }}
                         className="h-8 gap-1.5 text-xs"
                       >
-                        <KeyRound className="h-3.5 w-3.5" /> Resetar Senha
+                        <KeyRound className="h-3.5 w-3.5" /> Resetar
                       </Button>
                       <Button
                         variant="ghost"
@@ -260,22 +258,91 @@ const AdminUsers = () => {
                         className="h-8 gap-1.5 text-xs"
                       >
                         {u.banned ? (
-                          <>
-                            <CheckCircle className="h-3.5 w-3.5" /> Ativar
-                          </>
+                          <><CheckCircle className="h-3.5 w-3.5" /> Ativar</>
                         ) : (
-                          <>
-                            <Ban className="h-3.5 w-3.5" /> Desativar
-                          </>
+                          <><Ban className="h-3.5 w-3.5" /> Desativar</>
                         )}
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="space-y-3 md:hidden">
+            {filtered.map((u) => (
+              <div key={u.id} className="border rounded-lg p-4 space-y-3 bg-card">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{u.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Criado: {new Date(u.created_at).toLocaleDateString("pt-BR")}
+                    </p>
+                  </div>
+                  {u.banned ? (
+                    <Badge variant="destructive" className="text-xs shrink-0">Inativo</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-xs shrink-0">Ativo</Badge>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs shrink-0">Role:</Label>
+                  <Select
+                    value={u.role || "operador"}
+                    onValueChange={(v) => handleRoleChange(u.id, v)}
+                  >
+                    <SelectTrigger className="h-9 text-xs flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">
+                        <span className="flex items-center gap-1.5">
+                          <ShieldCheck className="h-3 w-3" /> Admin
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="operador">
+                        <span className="flex items-center gap-1.5">
+                          <Shield className="h-3 w-3" /> Operador
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setResetUserId(u.id);
+                      setResetEmail(u.email);
+                      setResetPassword("");
+                      setResetDialogOpen(true);
+                    }}
+                    className="flex-1 h-9 gap-1.5 text-xs"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" /> Resetar Senha
+                  </Button>
+                  <Button
+                    variant={u.banned ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleToggleBan(u.id, !u.banned)}
+                    className="flex-1 h-9 gap-1.5 text-xs"
+                  >
+                    {u.banned ? (
+                      <><CheckCircle className="h-3.5 w-3.5" /> Ativar</>
+                    ) : (
+                      <><Ban className="h-3.5 w-3.5" /> Desativar</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Create dialog */}
