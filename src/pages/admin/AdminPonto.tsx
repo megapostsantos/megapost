@@ -360,7 +360,8 @@ const AdminPontoView = () => {
           const totalHours = userRecords.reduce((s, r) => s + (r.worked_hours || 0), 0);
           const totalExtra = userRecords.reduce((s, r) => s + (r.extra_hours || 0), 0);
           const totalPayment = userRecords.reduce((s, r) => s + (r.daily_payment || 0), 0);
-          const userName = profiles[userId] || userId.slice(0, 8);
+          const raw = profiles[userId] || "";
+          const userName = raw || `Usuário ${userId.slice(0, 6)}`;
 
           return (
             <Card key={userId}>
