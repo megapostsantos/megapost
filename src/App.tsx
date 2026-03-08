@@ -44,6 +44,7 @@ import AdminEscala from "@/pages/admin/AdminEscala";
 import OpLogin from "@/pages/op/OpLogin";
 import OpLayout from "@/components/op/OpLayout";
 import OpHistorico from "@/pages/op/OpHistorico";
+import OpEscala from "@/pages/op/OpEscala";
 
 const queryClient = new QueryClient();
 
