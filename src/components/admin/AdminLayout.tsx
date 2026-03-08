@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { to: "/admin/rotas", label: "Rotas", icon: Route },
   { to: "/admin/sellers", label: "Sellers", icon: Store },
   { to: "/admin/controle", label: "Controle Operacional", icon: ClipboardList },
+  { to: "/admin/conferencia", label: "Conferência", icon: ClipboardCheck },
   { to: "/admin/ajuda", label: "Ajuda", icon: HelpCircle },
   { to: "/admin/treinamento", label: "Treinamento", icon: BookOpen },
   { to: "/admin/ponto", label: "Ponto", icon: Clock },
