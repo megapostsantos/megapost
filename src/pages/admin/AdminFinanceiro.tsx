@@ -397,18 +397,46 @@ interface WeekGroup {
   allPaid: boolean;
 }
 
+const MANAGE_USERS_URL = `https://otfjcpajobmjlwitgnqi.supabase.co/functions/v1/manage-users`;
+
 const PayrollSection = () => {
+  const { session } = useAuth();
   const [timecards, setTimecards] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
   const [filterUser, setFilterUser] = useState("");
+  const [userEmails, setUserEmails] = useState<Record<string, string>>({});
 
   const refDate = addWeeks(new Date(), weekOffset);
   const wStart = startOfWeek(refDate, { weekStartsOn: 1 });
   const wEnd = endOfWeek(refDate, { weekStartsOn: 1 });
   const wStartStr = format(wStart, "yyyy-MM-dd");
   const wEndStr = format(wEnd, "yyyy-MM-dd");
+
+  // Load user emails once
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const load = async () => {
+      try {
+        const res = await fetch(MANAGE_USERS_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ action: "list" }),
+        });
+        const data = await res.json();
+        if (data.users) {
+          const map: Record<string, string> = {};
+          data.users.forEach((u: any) => { map[u.id] = u.email; });
+          setUserEmails(map);
+        }
+      } catch { /* silent */ }
+    };
+    load();
+  }, [session?.access_token]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -418,7 +446,9 @@ const PayrollSection = () => {
     ]);
     setTimecards(tcRes.data || []);
     const map: Record<string, string> = {};
-    (prRes.data || []).forEach((p: any) => { map[p.user_id] = p.display_name || p.user_id; });
+    (prRes.data || []).forEach((p: any) => {
+      if (p.display_name) map[p.user_id] = p.display_name;
+    });
     setProfiles(map);
     setLoading(false);
   }, [wStartStr, wEndStr]);
