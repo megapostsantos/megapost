@@ -11,6 +11,7 @@ import {
 const navItems = [
   { to: "/op/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/op/rotas", label: "Rotas", icon: Route },
+  { to: "/op/motoristas", label: "Motoristas", icon: Users },
   { to: "/op/sellers", label: "Sellers", icon: Store },
   { to: "/op/controle", label: "Controle Operacional", icon: ClipboardList },
   { to: "/op/ajuda", label: "Ajuda", icon: HelpCircle },
