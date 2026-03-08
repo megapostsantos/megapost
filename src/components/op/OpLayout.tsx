@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Route, Users, HelpCircle,
   Menu, X, ChevronLeft, LogOut as LogOutIcon,
-  Store, Tv, ClipboardList, BookOpen, Clock,
+  Store, Tv, ClipboardList, BookOpen, Clock, CalendarDays,
 } from "lucide-react";
 
 const navItems = [
