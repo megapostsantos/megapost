@@ -44,6 +44,7 @@ import AdminEscala from "@/pages/admin/AdminEscala";
 import OpLogin from "@/pages/op/OpLogin";
 import OpLayout from "@/components/op/OpLayout";
 import OpHistorico from "@/pages/op/OpHistorico";
+import OpEscala from "@/pages/op/OpEscala";
 
 const queryClient = new QueryClient();
 
@@ -91,6 +92,7 @@ const App = () => (
                 <Route path="ajuda" element={<AdminAjuda />} />
                 <Route path="treinamento" element={<AdminTreinamento />} />
                 <Route path="ponto" element={<AdminPonto />} />
+                <Route path="escala" element={<OpEscala />} />
                 <Route path="tv" element={<AdminTV />} />
               </Route>
 
