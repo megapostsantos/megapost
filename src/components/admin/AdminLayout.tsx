@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Route, Package, Users, HelpCircle,
   Settings, Tv, Menu, X, ChevronLeft, LogOut as LogOutIcon,
   DollarSign, FileText, History, Store, UserCog,
-  ClipboardList, BookOpen, Clock, ClipboardCheck,
+  ClipboardList, BookOpen, Clock,
 } from "lucide-react";
 
 interface NavItem {
