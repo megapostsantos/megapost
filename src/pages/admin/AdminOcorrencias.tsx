@@ -83,6 +83,7 @@ const AdminOcorrencias = () => {
     const initScanner = async () => {
       try {
         const html5QrCode = new Html5Qrcode("qr-reader-ocorrencia", {
+          verbose: false,
           formatsToSupport: [
             Html5QrcodeSupportedFormats.QR_CODE,
             Html5QrcodeSupportedFormats.CODE_128,
