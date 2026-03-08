@@ -186,6 +186,27 @@ const AdminDrivers = () => {
     }
   };
 
+  const handleDelete = async (driver: any) => {
+    // Check for linked routes
+    const { count } = await supabase.from("rotas").select("id", { count: "exact", head: true }).eq("driver_id", driver.id);
+    if (count && count > 0) {
+      toast.error(`Não é possível excluir: motorista tem ${count} rota(s) vinculada(s).`);
+      return;
+    }
+    // Delete photo from storage
+    if (driver.foto_url) {
+      const parts = driver.foto_url.split("/driver-photos/");
+      if (parts[1]) {
+        const filePath = parts[1].split("?")[0];
+        await supabase.storage.from("driver-photos").remove([filePath]);
+      }
+    }
+    const { error } = await supabase.from("drivers").delete().eq("id", driver.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Motorista excluído!");
+    await loadDrivers();
+  };
+
   const loadDriverMetrics = useCallback(async (driverId: string, forceOpen = false) => {
     if (!forceOpen && expandedDriver === driverId) { setExpandedDriver(null); setDriverMetrics(null); return; }
     setExpandedDriver(driverId);
