@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { UserPlus, Search, Shield, ShieldCheck, Ban, CheckCircle } from "lucide-react";
+import { UserPlus, Search, Shield, ShieldCheck, Ban, CheckCircle, KeyRound } from "lucide-react";
 
 const FUNCTION_URL = `https://otfjcpajobmjlwitgnqi.supabase.co/functions/v1/manage-users`;
 
@@ -38,6 +38,10 @@ const AdminUsers = () => {
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"admin" | "operador">("operador");
   const [submitting, setSubmitting] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetUserId, setResetUserId] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
 
   const callFn = useCallback(
     async (body: Record<string, unknown>) => {
@@ -110,6 +114,26 @@ const AdminUsers = () => {
       loadUsers();
     } catch (err: any) {
       toast.error(err.message);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetUserId || !resetPassword || resetPassword.length < 6) {
+      toast.error("A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await callFn({ action: "reset_password", user_id: resetUserId, new_password: resetPassword });
+      toast.success("Senha redefinida com sucesso!");
+      setResetDialogOpen(false);
+      setResetPassword("");
+      setResetUserId(null);
+      setResetEmail("");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -215,7 +239,20 @@ const AdminUsers = () => {
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(u.created_at).toLocaleDateString("pt-BR")}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setResetUserId(u.id);
+                          setResetEmail(u.email);
+                          setResetPassword("");
+                          setResetDialogOpen(true);
+                        }}
+                        className="h-8 gap-1.5 text-xs"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" /> Resetar Senha
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -285,6 +322,37 @@ const AdminUsers = () => {
             </Button>
             <Button onClick={handleCreate} disabled={submitting}>
               {submitting ? "Criando..." : "Criar Usuário"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset password dialog */}
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resetar senha</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Definir nova senha para <span className="font-medium text-foreground">{resetEmail}</span>
+            </p>
+            <div className="space-y-2">
+              <Label>Nova senha</Label>
+              <Input
+                type="text"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                placeholder="mínimo 6 caracteres"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleResetPassword} disabled={submitting}>
+              {submitting ? "Salvando..." : "Redefinir Senha"}
             </Button>
           </DialogFooter>
         </DialogContent>
