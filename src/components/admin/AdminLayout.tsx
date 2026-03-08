@@ -6,32 +6,37 @@ import {
   LayoutDashboard, Route, Package, Users, HelpCircle,
   Settings, Tv, Menu, X, ChevronLeft, LogOut as LogOutIcon,
   DollarSign, FileText, History, Store, UserCog,
+  ClipboardList, BookOpen, Clock,
 } from "lucide-react";
 
 interface NavItem {
   to: string;
   label: string;
   icon: React.ElementType;
-  adminOnly?: boolean;
 }
 
+// Shared items visible to both admin and operador
 const navItems: NavItem[] = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/rotas", label: "Rotas", icon: Route },
+  { to: "/admin/sellers", label: "Sellers", icon: Store },
+  { to: "/admin/controle", label: "Controle Operacional", icon: ClipboardList },
+  { to: "/admin/ajuda", label: "Ajuda", icon: HelpCircle },
+  { to: "/admin/treinamento", label: "Treinamento", icon: BookOpen },
+  { to: "/admin/ponto", label: "Ponto", icon: Clock },
+  { to: "/admin/tv", label: "Painel TV", icon: Tv },
+];
+
+// Admin-only items
+const adminOnlyItems: NavItem[] = [
   { to: "/admin/estoque", label: "Estoque", icon: Package },
   { to: "/admin/motoristas", label: "Motoristas", icon: Users },
   { to: "/admin/ocorrencias", label: "Ocorrências", icon: HelpCircle },
-  { to: "/admin/sellers", label: "Sellers", icon: Store },
+  { to: "/admin/financeiro", label: "Financeiro", icon: DollarSign },
   { to: "/admin/historico", label: "Histórico", icon: History },
-  { to: "/admin/ajuda", label: "Ajuda", icon: HelpCircle },
-];
-
-const adminOnlyItems: NavItem[] = [
-  { to: "/admin/financeiro", label: "Financeiro", icon: DollarSign, adminOnly: true },
-  { to: "/admin/documentos", label: "Documentos", icon: FileText, adminOnly: true },
-  { to: "/admin/users", label: "Usuários", icon: UserCog, adminOnly: true },
-  { to: "/admin/tv", label: "Painel TV", icon: Tv, adminOnly: true },
-  { to: "/admin/configuracoes", label: "Configurações", icon: Settings, adminOnly: true },
+  { to: "/admin/documentos", label: "Documentos", icon: FileText },
+  { to: "/admin/users", label: "Usuários", icon: UserCog },
+  { to: "/admin/configuracoes", label: "Configurações", icon: Settings },
 ];
 
 const AdminLayout = () => {
@@ -43,14 +48,11 @@ const AdminLayout = () => {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        {/* Logo */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-sidebar-border">
           <Link to="/admin/dashboard" className="flex items-center gap-2.5">
             <img src="/logo-megapost.jpg" alt="Mega POST" className="h-9 w-9 rounded-lg shadow-sm" />
@@ -64,7 +66,6 @@ const AdminLayout = () => {
           </button>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 py-3 space-y-0.5 overflow-y-auto px-3">
           {visibleItems.map((item) => {
             const isActive = location.pathname === item.to || location.pathname.startsWith(item.to + "/");
@@ -86,7 +87,6 @@ const AdminLayout = () => {
           })}
         </nav>
 
-        {/* Footer */}
         <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
           <Link to="/" className="flex items-center gap-2 text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors">
             <ChevronLeft className="h-3 w-3" />
@@ -109,9 +109,7 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen w-0">
-        {/* Mobile header */}
         <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-card border-b border-border shadow-sm">
           <button onClick={() => setSidebarOpen(true)} className="text-foreground">
             <Menu className="h-5 w-5" />

@@ -35,13 +35,15 @@ import AdminFinanceiro from "@/pages/admin/AdminFinanceiro";
 import AdminDocumentos from "@/pages/admin/AdminDocumentos";
 import AdminSellers from "@/pages/admin/AdminSellers";
 import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminControle from "@/pages/admin/AdminControle";
+import AdminTreinamento from "@/pages/admin/AdminTreinamento";
+import AdminPonto from "@/pages/admin/AdminPonto";
 
 // Operator pages
 import OpLogin from "@/pages/op/OpLogin";
 import OpLayout from "@/components/op/OpLayout";
 import OpHistorico from "@/pages/op/OpHistorico";
 
-// Rebuild: 2026-03-07T05:00Z-clean
 const queryClient = new QueryClient();
 
 const PublicLayout = ({ children }: { children: React.ReactNode }) => (
@@ -82,13 +84,12 @@ const App = () => (
                 <Route index element={<AdminDashboard />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
                 <Route path="rotas" element={<AdminRotas />} />
-                <Route path="estoque" element={<AdminEstoque />} />
-                <Route path="ocorrencias" element={<AdminOcorrencias />} />
-                <Route path="motoristas" element={<AdminDrivers />} />
-                <Route path="historico" element={<OpHistorico />} />
                 <Route path="sellers" element={<AdminSellers />} />
-                <Route path="financeiro" element={<AdminFinanceiro />} />
+                <Route path="controle" element={<AdminControle />} />
                 <Route path="ajuda" element={<AdminAjuda />} />
+                <Route path="treinamento" element={<AdminTreinamento />} />
+                <Route path="ponto" element={<AdminPonto />} />
+                <Route path="tv" element={<AdminTV />} />
               </Route>
 
               {/* Admin routes */}
@@ -107,19 +108,23 @@ const App = () => (
                 <Route path="rotas" element={<AdminRotas />} />
                 <Route path="checkin" element={<AdminCheckin />} />
                 <Route path="saida" element={<AdminSaida />} />
+                <Route path="sellers" element={<AdminSellers />} />
+                <Route path="controle" element={<AdminControle />} />
+                <Route path="ajuda" element={<AdminAjuda />} />
+                <Route path="treinamento" element={<AdminTreinamento />} />
+                <Route path="ponto" element={<AdminPonto />} />
+                <Route path="tv" element={<AdminTV />} />
+                {/* Admin-only pages */}
+                <Route path="estoque" element={<AdminEstoque />} />
+                <Route path="estoque/arquivo" element={<AdminEstoqueArquivo />} />
                 <Route path="ocorrencias" element={<AdminOcorrencias />} />
                 <Route path="drivers" element={<AdminDrivers />} />
                 <Route path="motoristas" element={<AdminDrivers />} />
-                <Route path="estoque" element={<AdminEstoque />} />
-                <Route path="estoque/arquivo" element={<AdminEstoqueArquivo />} />
-                <Route path="configuracoes" element={<AdminSettings />} />
                 <Route path="financeiro" element={<AdminFinanceiro />} />
-                <Route path="documentos" element={<AdminDocumentos />} />
-                <Route path="tv" element={<AdminTV />} />
-                <Route path="sellers" element={<AdminSellers />} />
-                <Route path="ajuda" element={<AdminAjuda />} />
                 <Route path="historico" element={<OpHistorico />} />
+                <Route path="documentos" element={<AdminDocumentos />} />
                 <Route path="users" element={<AdminUsers />} />
+                <Route path="configuracoes" element={<AdminSettings />} />
               </Route>
 
               <Route
