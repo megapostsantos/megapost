@@ -480,22 +480,76 @@ const PayrollSection = () => {
   const grandTotal = operators.reduce((s, o) => s + o.total, 0);
   const allPaid = operators.length > 0 && operators.every((o) => o.allPaid);
 
-  const markPaid = async (ids: string[]) => {
+  // Sync a payroll entry into finance_entries
+  const syncFinanceEntry = async (
+    userId: string,
+    name: string,
+    weekStartStr: string,
+    weekEndStr: string,
+    total: number,
+    status: "pago" | "pendente"
+  ) => {
+    const ref = `payroll:${userId}:${weekStartStr}`;
+    // Check if entry already exists
+    const { data: existing } = await supabase
+      .from("finance_entries")
+      .select("id")
+      .eq("observacao", ref)
+      .maybeSingle();
+
+    const payload = {
+      kind: "saida" as const,
+      descricao: `Pagamento ${name} (${format(parseISO(weekStartStr), "dd/MM")}–${format(parseISO(weekEndStr), "dd/MM")})`,
+      valor: total,
+      categoria: "FUNCIONARIO",
+      data: weekEndStr,
+      status,
+      observacao: ref,
+    };
+
+    if (existing) {
+      await supabase.from("finance_entries").update(payload as any).eq("id", existing.id);
+    } else if (status === "pago") {
+      await supabase.from("finance_entries").insert(payload as any);
+    }
+  };
+
+  const markPaid = async (ids: string[], opUserId?: string, opName?: string, opTotal?: number) => {
     const { error } = await supabase
       .from("timecards")
       .update({ payment_status: "paid" } as any)
       .in("id", ids);
-    if (error) toast.error(error.message);
-    else { toast.success("Marcado como pago!"); await loadData(); }
+    if (error) { toast.error(error.message); return; }
+
+    // If individual operator, sync single finance entry
+    if (opUserId && opName && opTotal !== undefined) {
+      await syncFinanceEntry(opUserId, opName, wStartStr, wEndStr, opTotal, "pago");
+    } else {
+      // Bulk: sync all operators
+      for (const op of operators) {
+        await syncFinanceEntry(op.userId, op.name, wStartStr, wEndStr, op.total, "pago");
+      }
+    }
+    toast.success("Marcado como pago!");
+    await loadData();
   };
 
-  const markPending = async (ids: string[]) => {
+  const markPending = async (ids: string[], opUserId?: string, opName?: string, opTotal?: number) => {
     const { error } = await supabase
       .from("timecards")
       .update({ payment_status: "pending" } as any)
       .in("id", ids);
-    if (error) toast.error(error.message);
-    else { toast.success("Revertido para pendente."); await loadData(); }
+    if (error) { toast.error(error.message); return; }
+
+    if (opUserId && opName && opTotal !== undefined) {
+      await syncFinanceEntry(opUserId, opName, wStartStr, wEndStr, opTotal, "pendente");
+    } else {
+      for (const op of operators) {
+        await syncFinanceEntry(op.userId, op.name, wStartStr, wEndStr, op.total, "pendente");
+      }
+    }
+    toast.success("Revertido para pendente.");
+    await loadData();
   };
 
   const uniqueUsers = [...new Set(timecards.map((tc) => tc.user_id))];
