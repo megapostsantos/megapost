@@ -83,8 +83,8 @@ const AdminEscala = () => {
       return (data.users ?? []).filter((u: any) => !u.banned).map((u: any) => ({
         user_id: u.id,
         email: u.email,
-        display_name: u.profile?.display_name,
-        nome: u.profile?.nome,
+        display_name: u.display_name,
+        nome: u.nome,
       })) as UserInfo[];
     },
   });
