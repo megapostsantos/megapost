@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/customSupabase";
-import { supabase as cloudSupabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,11 +33,12 @@ type ScheduleEntry = {
   notes: string | null;
 };
 
-type UserInfo = {
+type AppUser = {
   user_id: string;
   email: string;
   display_name: string | null;
-  nome: string | null;
+  role: string;
+  is_active: boolean;
 };
 
 const SHIFTS = [
@@ -73,21 +73,23 @@ const AdminEscala = () => {
     to: format(weekDays[6], "yyyy-MM-dd"),
   };
 
-  // Fetch all users
-  const { data: allUsers = [], isLoading: loadingUsers } = useQuery({
-    queryKey: ["escala-users"],
+  const { data: allUsers = [], isLoading: loadingUsers, isError: usersError } = useQuery({
+    queryKey: ["escala-app-users"],
     queryFn: async () => {
-      const { data, error } = await cloudSupabase.functions.invoke("manage-users", {
-        body: { action: "list" },
+      const session = (await supabase.auth.getSession()).data.session;
+      const url = `https://tqajkhmvmwnltzfshugh.supabase.co/rest/v1/app_users?is_active=eq.true&select=user_id,email,display_name,role,is_active`;
+      const res = await fetch(url, {
+        headers: {
+          apikey: "sb_publishable_j47OP1q5aKd7ARzsj3Ea1Q_jXIANWMx",
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
       });
-      if (error) throw error;
-      return (data.users ?? []).filter((u: any) => !u.banned).map((u: any) => ({
-        user_id: u.id,
-        email: u.email,
-        display_name: u.display_name,
-        nome: u.nome,
-      })) as UserInfo[];
+      if (!res.ok) throw new Error("Falha ao carregar usuários");
+      return (await res.json()) as AppUser[];
     },
+    enabled: addDialogOpen,
+    retry: 1,
+    staleTime: 30_000,
   });
 
   // Fetch schedule entries for the week
@@ -110,17 +112,19 @@ const AdminEscala = () => {
     return Array.from(ids);
   }, [entries]);
 
-  const scheduledUsers = useMemo(
-    () => allUsers.filter((u) => scheduledUserIds.includes(u.user_id)),
-    [allUsers, scheduledUserIds]
-  );
+  const scheduledUsers = useMemo(() => {
+    return scheduledUserIds.map((uid) => {
+      const found = allUsers.find((u) => u.user_id === uid);
+      return found ?? { user_id: uid, email: uid.slice(0, 8) + "…", display_name: null, role: "", is_active: true };
+    });
+  }, [allUsers, scheduledUserIds]);
 
   const availableUsers = useMemo(
     () => allUsers.filter((u) => !scheduledUserIds.includes(u.user_id)),
     [allUsers, scheduledUserIds]
   );
 
-  const getUserLabel = (u: UserInfo) => u.nome || u.display_name || u.email;
+  const getUserLabel = (u: AppUser) => u.display_name || u.email;
 
   // Add employee to schedule (insert all shifts for the week as "trabalho")
   const addUserMutation = useMutation({
@@ -199,7 +203,7 @@ const AdminEscala = () => {
       (e) => e.user_id === userId && e.date === format(date, "yyyy-MM-dd") && e.shift === shift
     );
 
-  const loading = loadingUsers || loadingEntries;
+  const loading = loadingEntries;
 
   return (
     <div className="space-y-4">
@@ -228,7 +232,7 @@ const AdminEscala = () => {
         <div className="ml-auto">
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" disabled={!isAdmin || availableUsers.length === 0}>
+              <Button size="sm" disabled={!isAdmin}>
                 <UserPlus className="h-4 w-4 mr-1" />
                 Adicionar Funcionário
               </Button>
@@ -238,33 +242,53 @@ const AdminEscala = () => {
                 <DialogTitle>Adicionar Funcionário à Escala</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2">
-                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um funcionário" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableUsers.map((u) => (
-                      <SelectItem key={u.user_id} value={u.user_id}>
-                        {getUserLabel(u)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  O funcionário será adicionado com status "Trabalho" em todos os dias e turnos da semana. Você pode ajustar depois.
-                </p>
-                <Button
-                  className="w-full"
-                  disabled={!selectedUserId || addUserMutation.isPending}
-                  onClick={() => addUserMutation.mutate(selectedUserId)}
-                >
-                  {addUserMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  ) : (
-                    <Plus className="h-4 w-4 mr-1" />
-                  )}
-                  Adicionar
-                </Button>
+                {loadingUsers ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Carregando funcionários...</span>
+                  </div>
+                ) : usersError ? (
+                  <div className="text-center py-6 text-sm text-destructive">
+                    Não foi possível carregar a lista de funcionários. Tente novamente.
+                  </div>
+                ) : availableUsers.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-muted-foreground">
+                    Todos os funcionários já estão na escala desta semana.
+                  </div>
+                ) : (
+                  <>
+                    <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um funcionário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableUsers.map((u) => (
+                          <SelectItem key={u.user_id} value={u.user_id}>
+                            <span>{getUserLabel(u)}</span>
+                            {u.email && u.display_name && (
+                              <span className="ml-2 text-xs text-muted-foreground">{u.email}</span>
+                            )}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      O funcionário será adicionado com status "Trabalho" em todos os dias e turnos da semana.
+                    </p>
+                    <Button
+                      className="w-full"
+                      disabled={!selectedUserId || addUserMutation.isPending}
+                      onClick={() => addUserMutation.mutate(selectedUserId)}
+                    >
+                      {addUserMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      ) : (
+                        <Plus className="h-4 w-4 mr-1" />
+                      )}
+                      Adicionar
+                    </Button>
+                  </>
+                )}
               </div>
             </DialogContent>
           </Dialog>
