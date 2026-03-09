@@ -112,10 +112,12 @@ const AdminEscala = () => {
     return Array.from(ids);
   }, [entries]);
 
-  const scheduledUsers = useMemo(
-    () => allUsers.filter((u) => scheduledUserIds.includes(u.user_id)),
-    [allUsers, scheduledUserIds]
-  );
+  const scheduledUsers = useMemo(() => {
+    return scheduledUserIds.map((uid) => {
+      const found = allUsers.find((u) => u.user_id === uid);
+      return found ?? { user_id: uid, email: uid.slice(0, 8) + "…", display_name: null, role: "", is_active: true };
+    });
+  }, [allUsers, scheduledUserIds]);
 
   const availableUsers = useMemo(
     () => allUsers.filter((u) => !scheduledUserIds.includes(u.user_id)),
