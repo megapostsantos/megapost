@@ -50,7 +50,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 type ScheduleEntry = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   date: string;
   shift: string;
   status: string;
