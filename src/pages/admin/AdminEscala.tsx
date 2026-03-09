@@ -246,8 +246,9 @@ const AdminEscala = () => {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
-        user_id: formUserId,
+      if (!formDate) throw new Error("Data é obrigatória");
+      const payload: any = {
+        user_id: formUserId || null,
         date: formDate,
         shift: "custom",
         shift_start_time: formStart + ":00",
@@ -276,8 +277,9 @@ const AdminEscala = () => {
       resetForm();
       toast({ title: editingEntry ? "Turno atualizado" : "Turno adicionado" });
     },
-    onError: () => {
-      toast({ title: "Erro ao salvar turno", variant: "destructive" });
+    onError: (err: any) => {
+      const msg = err?.message || "Erro ao salvar turno";
+      toast({ title: msg, variant: "destructive" });
     },
   });
 
