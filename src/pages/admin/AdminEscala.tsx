@@ -201,7 +201,7 @@ const AdminEscala = () => {
       (e) => e.user_id === userId && e.date === format(date, "yyyy-MM-dd") && e.shift === shift
     );
 
-  const loading = loadingUsers || loadingEntries;
+  const loading = loadingEntries;
 
   return (
     <div className="space-y-4">
