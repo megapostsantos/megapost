@@ -1,14 +1,37 @@
 
 
-## Status: Ready -- No Code Changes Needed
+## Plan: Redesign Training Module with Udemy-style Layout
 
-The `AdminEscala.tsx` component already:
+### What changes
 
-1. Uses `select("*")` to fetch from `staff_schedules` (line 237), so it will automatically pick up the new `shift_start_time` and `shift_end_time` columns
-2. Handles nullable shift times with fallback defaults via `parseTime()` 
-3. Sends `shift_start_time` and `shift_end_time` correctly on save (lines 306-307)
+Rewrite `AdminTreinamento.tsx` to display the 10 training modules in a Udemy-inspired course layout:
 
-Since you've already added the columns on your external database, the schedule module should now work correctly -- shifts will save and load with time ranges without errors.
+**List view (course overview):**
+- Header section with course title "MANUAL DE OPERAÇÃO - MEGA POST", subtitle, and intro text
+- Progress bar showing completed/total modules
+- Left sidebar (desktop) or top accordion (mobile) listing all 10 modules as a collapsible curriculum — each module shows number, title, and a checkmark if "completed" (tracked in localStorage)
+- Clicking a module opens its content on the right panel
 
-**No code changes are required.** The app should refresh and work immediately. Try creating a new shift to confirm.
+**Detail view (lesson view):**
+- Split layout: sidebar with module list on left, content area on right (on mobile, full-width with back button)
+- Content area renders the module text with proper formatting: headings for section titles, styled bullet lists (• items), numbered lists (1. items), and highlighted "warning" blocks for critical rules
+- Bottom navigation: Previous / Next module buttons + "Mark as complete" toggle
+- Progress persists in localStorage per user
+
+**Content rendering:**
+- Parse the plain-text content intelligently: lines starting with `•` render as styled list items, numbered lines as ordered steps, blank lines as paragraph breaks
+- Highlight keywords like "nunca", "obrigatório", "não permitido" with warning styling
+
+**Admin features preserved:**
+- Admin can still create/edit/delete modules via the existing dialog
+- Edit button visible in the lesson view header for admins
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `src/pages/admin/AdminTreinamento.tsx` | Complete redesign with Udemy-style split layout, progress tracking, rich content rendering |
+
+### No database changes needed
+The existing `training_content` table with `title`, `content`, `sort_order` fields is sufficient.
 
