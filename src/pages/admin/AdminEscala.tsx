@@ -516,24 +516,28 @@ const AdminEscala = () => {
           <>
             {/* ==================== WEEKLY VIEW ==================== */}
             <TabsContent value="semana" className="mt-4">
-              {scheduledUserIds.assigned.length === 0 && !scheduledUserIds.hasUnassigned ? (
+              {entries.length === 0 ? (
                 <Card className="p-8 text-center text-muted-foreground">
                   <UserPlus className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>Nenhum turno cadastrado esta semana.</p>
                 </Card>
               ) : (
-                <div className="space-y-2">
-                  {/* Assigned users */}
-                  {scheduledUserIds.assigned.map((uid) => {
-                    const userEntries = entries.filter((e) => e.user_id === uid);
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {weekDays.map((day) => {
+                    const dayStr = format(day, "yyyy-MM-dd");
+                    const dayE = entries.filter((e) => e.date === dayStr);
                     return (
-                      <WeekRow key={uid} label={getUserLabel(uid)} entries={userEntries} weekDays={weekDays} isAdmin={isAdmin} openEditDialog={openEditDialog} dashed={false} />
+                      <WeekDayCard
+                        key={dayStr}
+                        day={day}
+                        dayEntries={dayE}
+                        isAdmin={isAdmin}
+                        openEditDialog={openEditDialog}
+                        getUserLabel={getUserLabel}
+                        employeeIds={scheduledUserIds.assigned}
+                      />
                     );
                   })}
-                  {/* Unassigned shifts */}
-                  {scheduledUserIds.hasUnassigned && (
-                    <WeekRow label="Turno em aberto" entries={entries.filter(e => !e.user_id)} weekDays={weekDays} isAdmin={isAdmin} openEditDialog={openEditDialog} dashed={true} />
-                  )}
                 </div>
               )}
             </TabsContent>
