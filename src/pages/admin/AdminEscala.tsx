@@ -452,11 +452,12 @@ const AdminEscala = () => {
                       <Card key={entry.id} className="p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getStatusDot(entry.status)}`} />
-                              <p className="font-semibold text-sm truncate">
+                        <div className="flex items-center gap-2 mb-1">
+                              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${!entry.user_id ? "bg-muted-foreground/40" : getStatusDot(entry.status)}`} />
+                              <p className={`font-semibold text-sm truncate ${!entry.user_id ? "italic text-muted-foreground" : ""}`}>
                                 {getUserLabel(entry.user_id)}
                               </p>
+                              {!entry.user_id && <Badge variant="outline" className="text-[10px] border-dashed">Não alocado</Badge>}
                               <Badge variant="outline" className={`text-[10px] ${getStatusStyle(entry.status)}`}>
                                 {getStatusLabel(entry.status)}
                               </Badge>
