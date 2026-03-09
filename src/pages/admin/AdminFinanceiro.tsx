@@ -200,14 +200,31 @@ const AdminFinanceiro = () => {
   // Escala vs Ponto
   const escalaVsPonto = useMemo(() => {
     const alerts: { name: string; type: string; detail: string }[] = [];
+    const today = format(new Date(), "yyyy-MM-dd");
+    const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+
     const schedByUser: Record<string, any[]> = {};
-    schedules.forEach(s => { if (!schedByUser[s.user_id]) schedByUser[s.user_id] = []; schedByUser[s.user_id].push(s); });
+    schedules.forEach(s => {
+      if (!s.user_id) return; // skip unassigned
+      if (!schedByUser[s.user_id]) schedByUser[s.user_id] = [];
+      schedByUser[s.user_id].push(s);
+    });
     const tcByUserDate: Record<string, any> = {};
     timecards.forEach(tc => { tcByUserDate[`${tc.user_id}:${tc.date}`] = tc; });
+
     Object.entries(schedByUser).forEach(([uid, scheds]) => {
       const name = profiles[uid] || `Usuário ${uid.slice(0, 6)}`;
       scheds.forEach(sched => {
         if (sched.status !== "trabalho") return;
+        // Skip future shifts
+        if (sched.date > today) return;
+        // Skip today's shifts that haven't ended yet
+        if (sched.date === today && sched.shift_end_time) {
+          const endParts = sched.shift_end_time.split(":").map(Number);
+          const endMin = endParts[0] * 60 + (endParts[1] || 0);
+          if (endMin > nowMinutes) return;
+        }
+
         const tc = tcByUserDate[`${uid}:${sched.date}`];
         if (!tc) { alerts.push({ name, type: "sem_ponto", detail: `Sem registro de ponto em ${format(parseISO(sched.date), "dd/MM")}` }); return; }
         if (!tc.clock_out) { alerts.push({ name, type: "sem_saida", detail: `Sem registro de saída em ${format(parseISO(sched.date), "dd/MM")}` }); }

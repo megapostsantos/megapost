@@ -50,7 +50,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 type ScheduleEntry = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   date: string;
   shift: string;
   status: string;
@@ -108,6 +108,58 @@ function timeToFraction(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h + m / 60;
 }
+
+/* ------------------------------------------------------------------ */
+/*  WEEK ROW SUB-COMPONENT                                            */
+/* ------------------------------------------------------------------ */
+
+const WeekRow = ({ label, entries: userEntries, weekDays, isAdmin, openEditDialog, dashed }: {
+  label: string;
+  entries: ScheduleEntry[];
+  weekDays: Date[];
+  isAdmin: boolean;
+  openEditDialog: (e: ScheduleEntry) => void;
+  dashed: boolean;
+}) => (
+  <Card className={`p-3 ${dashed ? "border-dashed border-muted-foreground/40" : ""}`}>
+    <p className={`font-semibold text-sm mb-2 ${dashed ? "italic text-muted-foreground" : ""}`}>{label}</p>
+    <div className="grid grid-cols-7 gap-1">
+      {weekDays.map((day) => {
+        const dayStr = format(day, "yyyy-MM-dd");
+        const dayE = userEntries.filter((e) => e.date === dayStr);
+        const isToday = isSameDay(day, new Date());
+        return (
+          <div key={dayStr} className={`text-center rounded p-1 ${isToday ? "ring-1 ring-primary/50" : ""}`}>
+            <p className={`text-[10px] font-medium ${isToday ? "text-primary" : "text-muted-foreground"}`}>
+              {format(day, "EEE", { locale: ptBR })}
+            </p>
+            <p className="text-[9px] text-muted-foreground mb-0.5">{format(day, "dd/MM")}</p>
+            {dayE.length === 0 ? (
+              <span className="text-[9px] text-muted-foreground">—</span>
+            ) : (
+              dayE.map((e) => {
+                if (e.status !== "trabalho") {
+                  return (
+                    <div key={e.id} className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${getStatusStyle(e.status)} ${isAdmin ? "cursor-pointer" : ""}`} onClick={() => isAdmin && openEditDialog(e)}>
+                      {getStatusLabel(e.status)}
+                    </div>
+                  );
+                }
+                const s = parseTime(e.shift_start_time, DEFAULT_START);
+                const end = parseTime(e.shift_end_time, DEFAULT_END);
+                return (
+                  <div key={e.id} className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${dashed ? "border-dashed border-muted-foreground/40 bg-muted/50 text-muted-foreground" : getStatusStyle("trabalho")} ${isAdmin ? "cursor-pointer" : ""}`} onClick={() => isAdmin && openEditDialog(e)}>
+                    {s}–{end}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </Card>
+);
 
 /* ------------------------------------------------------------------ */
 /*  MAIN COMPONENT                                                     */
@@ -199,7 +251,8 @@ const AdminEscala = () => {
   }, [allUsers]);
 
   const getUserLabel = useCallback(
-    (uid: string) => {
+    (uid: string | null) => {
+      if (!uid) return "Turno em aberto";
       const u = userMap.get(uid);
       return u?.display_name || u?.email || uid.slice(0, 8) + "…";
     },
@@ -207,7 +260,9 @@ const AdminEscala = () => {
   );
 
   const scheduledUserIds = useMemo(() => {
-    return Array.from(new Set(entries.map((e) => e.user_id)));
+    const assigned = Array.from(new Set(entries.filter(e => e.user_id).map((e) => e.user_id as string)));
+    const hasUnassigned = entries.some(e => !e.user_id);
+    return { assigned, hasUnassigned };
   }, [entries]);
 
   const dayEntries = useMemo(() => {
@@ -243,8 +298,9 @@ const AdminEscala = () => {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
-        user_id: formUserId,
+      if (!formDate) throw new Error("Data é obrigatória");
+      const payload: any = {
+        user_id: formUserId || null,
         date: formDate,
         shift: "custom",
         shift_start_time: formStart + ":00",
@@ -273,8 +329,9 @@ const AdminEscala = () => {
       resetForm();
       toast({ title: editingEntry ? "Turno atualizado" : "Turno adicionado" });
     },
-    onError: () => {
-      toast({ title: "Erro ao salvar turno", variant: "destructive" });
+    onError: (err: any) => {
+      const msg = err?.message || "Erro ao salvar turno";
+      toast({ title: msg, variant: "destructive" });
     },
   });
 
@@ -390,69 +447,24 @@ const AdminEscala = () => {
           <>
             {/* ==================== WEEKLY VIEW ==================== */}
             <TabsContent value="semana" className="mt-4">
-              {scheduledUserIds.length === 0 ? (
+              {scheduledUserIds.assigned.length === 0 && !scheduledUserIds.hasUnassigned ? (
                 <Card className="p-8 text-center text-muted-foreground">
                   <UserPlus className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>Nenhum turno cadastrado esta semana.</p>
                 </Card>
               ) : (
                 <div className="space-y-2">
-                  {scheduledUserIds.map((uid) => {
+                  {/* Assigned users */}
+                  {scheduledUserIds.assigned.map((uid) => {
                     const userEntries = entries.filter((e) => e.user_id === uid);
                     return (
-                      <Card key={uid} className="p-3">
-                        <p className="font-semibold text-sm mb-2">{getUserLabel(uid)}</p>
-                        <div className="grid grid-cols-7 gap-1">
-                          {weekDays.map((day) => {
-                            const dayStr = format(day, "yyyy-MM-dd");
-                            const dayE = userEntries.filter((e) => e.date === dayStr);
-                            const isToday = isSameDay(day, new Date());
-                            return (
-                              <div
-                                key={dayStr}
-                                className={`text-center rounded p-1 ${isToday ? "ring-1 ring-primary/50" : ""}`}
-                              >
-                                <p className={`text-[10px] font-medium ${isToday ? "text-primary" : "text-muted-foreground"}`}>
-                                  {format(day, "EEE", { locale: ptBR })}
-                                </p>
-                                <p className="text-[9px] text-muted-foreground mb-0.5">
-                                  {format(day, "dd/MM")}
-                                </p>
-                                {dayE.length === 0 ? (
-                                  <span className="text-[9px] text-muted-foreground">—</span>
-                                ) : (
-                                  dayE.map((e) => {
-                                    if (e.status !== "trabalho") {
-                                      return (
-                                        <div
-                                          key={e.id}
-                                          className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${getStatusStyle(e.status)} ${isAdmin ? "cursor-pointer" : ""}`}
-                                          onClick={() => isAdmin && openEditDialog(e)}
-                                        >
-                                          {getStatusLabel(e.status)}
-                                        </div>
-                                      );
-                                    }
-                                    const s = parseTime(e.shift_start_time, DEFAULT_START);
-                                    const end = parseTime(e.shift_end_time, DEFAULT_END);
-                                    return (
-                                      <div
-                                        key={e.id}
-                                        className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${getStatusStyle("trabalho")} ${isAdmin ? "cursor-pointer" : ""}`}
-                                        onClick={() => isAdmin && openEditDialog(e)}
-                                      >
-                                        {s}–{end}
-                                      </div>
-                                    );
-                                  })
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </Card>
+                      <WeekRow key={uid} label={getUserLabel(uid)} entries={userEntries} weekDays={weekDays} isAdmin={isAdmin} openEditDialog={openEditDialog} dashed={false} />
                     );
                   })}
+                  {/* Unassigned shifts */}
+                  {scheduledUserIds.hasUnassigned && (
+                    <WeekRow label="Turno em aberto" entries={entries.filter(e => !e.user_id)} weekDays={weekDays} isAdmin={isAdmin} openEditDialog={openEditDialog} dashed={true} />
+                  )}
                 </div>
               )}
             </TabsContent>
@@ -492,11 +504,12 @@ const AdminEscala = () => {
                       <Card key={entry.id} className="p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getStatusDot(entry.status)}`} />
-                              <p className="font-semibold text-sm truncate">
+                        <div className="flex items-center gap-2 mb-1">
+                              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${!entry.user_id ? "bg-muted-foreground/40" : getStatusDot(entry.status)}`} />
+                              <p className={`font-semibold text-sm truncate ${!entry.user_id ? "italic text-muted-foreground" : ""}`}>
                                 {getUserLabel(entry.user_id)}
                               </p>
+                              {!entry.user_id && <Badge variant="outline" className="text-[10px] border-dashed">Não alocado</Badge>}
                               <Badge variant="outline" className={`text-[10px] ${getStatusStyle(entry.status)}`}>
                                 {getStatusLabel(entry.status)}
                               </Badge>
@@ -578,11 +591,11 @@ const AdminEscala = () => {
                         const width = ((endFrac - startFrac) / TIMELINE_HOURS) * 100;
                         return (
                           <div key={entry.id} className="relative h-7 min-w-[500px]">
-                            <span className="absolute left-0 text-[10px] text-muted-foreground w-20 truncate -top-0.5">
+                            <span className={`absolute left-0 text-[10px] w-20 truncate -top-0.5 ${!entry.user_id ? "italic text-muted-foreground/60" : "text-muted-foreground"}`}>
                               {getUserLabel(entry.user_id)}
                             </span>
                             <div
-                              className="absolute top-0 h-6 rounded bg-primary/70 flex items-center justify-center text-[9px] text-primary-foreground font-medium"
+                              className={`absolute top-0 h-6 rounded flex items-center justify-center text-[9px] font-medium ${!entry.user_id ? "bg-muted border border-dashed border-muted-foreground/40 text-muted-foreground" : "bg-primary/70 text-primary-foreground"}`}
                               style={{
                                 left: `max(80px, ${left}%)`,
                                 width: `${Math.max(width, 2)}%`,
@@ -663,45 +676,40 @@ const AdminEscala = () => {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             {/* Employee */}
-            {!editingEntry && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Funcionário</label>
-                {loadingUsers ? (
-                  <div className="flex items-center gap-2 py-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Carregando...</span>
-                  </div>
-                ) : usersError ? (
-                  <p className="text-sm text-destructive">
-                    Erro ao carregar funcionários.
-                  </p>
-                ) : (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Funcionário <span className="text-muted-foreground font-normal">(opcional)</span></label>
+              {loadingUsers ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Carregando...</span>
+                </div>
+              ) : usersError ? (
+                <p className="text-sm text-destructive">
+                  Erro ao carregar funcionários.
+                </p>
+              ) : (
+                <div className="flex gap-2">
                   <Select value={formUserId} onValueChange={setFormUserId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Turno em aberto" />
                     </SelectTrigger>
                     <SelectContent>
                       {allUsers.map((u) => (
                         <SelectItem key={u.user_id} value={u.user_id}>
                           {u.display_name || u.email}
-                          {u.display_name && (
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              {u.email}
-                            </span>
-                          )}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                )}
-              </div>
-            )}
-
-            {editingEntry && (
-              <p className="text-sm font-medium">
-                {getUserLabel(editingEntry.user_id)}
-              </p>
-            )}
+                  {formUserId && (
+                    <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setFormUserId("")}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              )}
+              {!formUserId && <p className="text-xs text-muted-foreground">Será criado como turno em aberto.</p>}
+            </div>
 
             {/* Date */}
             <div className="space-y-1">
@@ -772,7 +780,6 @@ const AdminEscala = () => {
               className="w-full"
               disabled={
                 saveMutation.isPending ||
-                (!editingEntry && !formUserId) ||
                 !formDate
               }
               onClick={() => saveMutation.mutate()}
