@@ -76,22 +76,16 @@ const AdminEscala = () => {
   const { data: allUsers = [], isLoading: loadingUsers, isError: usersError } = useQuery({
     queryKey: ["escala-app-users"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_active_app_users" as any);
-      if (error) {
-        // Fallback: raw query via postgrest
-        const res = await fetch(
-          `${(supabase as any).supabaseUrl}/rest/v1/app_users?is_active=eq.true&select=user_id,email,display_name,role,is_active`,
-          {
-            headers: {
-              apikey: (supabase as any).supabaseKey,
-              Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            },
-          }
-        );
-        if (!res.ok) throw new Error("Falha ao carregar usuários");
-        return (await res.json()) as AppUser[];
-      }
-      return (data ?? []) as AppUser[];
+      const session = (await supabase.auth.getSession()).data.session;
+      const url = `https://tqajkhmvmwnltzfshugh.supabase.co/rest/v1/app_users?is_active=eq.true&select=user_id,email,display_name,role,is_active`;
+      const res = await fetch(url, {
+        headers: {
+          apikey: "sb_publishable_j47OP1q5aKd7ARzsj3Ea1Q_jXIANWMx",
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+      });
+      if (!res.ok) throw new Error("Falha ao carregar usuários");
+      return (await res.json()) as AppUser[];
     },
     enabled: addDialogOpen,
     retry: 1,
