@@ -240,33 +240,53 @@ const AdminEscala = () => {
                 <DialogTitle>Adicionar Funcionário à Escala</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2">
-                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um funcionário" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableUsers.map((u) => (
-                      <SelectItem key={u.user_id} value={u.user_id}>
-                        {getUserLabel(u)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  O funcionário será adicionado com status "Trabalho" em todos os dias e turnos da semana. Você pode ajustar depois.
-                </p>
-                <Button
-                  className="w-full"
-                  disabled={!selectedUserId || addUserMutation.isPending}
-                  onClick={() => addUserMutation.mutate(selectedUserId)}
-                >
-                  {addUserMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  ) : (
-                    <Plus className="h-4 w-4 mr-1" />
-                  )}
-                  Adicionar
-                </Button>
+                {loadingUsers ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Carregando funcionários...</span>
+                  </div>
+                ) : usersError ? (
+                  <div className="text-center py-6 text-sm text-destructive">
+                    Não foi possível carregar a lista de funcionários. Tente novamente.
+                  </div>
+                ) : availableUsers.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-muted-foreground">
+                    Todos os funcionários já estão na escala desta semana.
+                  </div>
+                ) : (
+                  <>
+                    <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um funcionário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableUsers.map((u) => (
+                          <SelectItem key={u.user_id} value={u.user_id}>
+                            <span>{getUserLabel(u)}</span>
+                            {u.email && u.display_name && (
+                              <span className="ml-2 text-xs text-muted-foreground">{u.email}</span>
+                            )}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      O funcionário será adicionado com status "Trabalho" em todos os dias e turnos da semana.
+                    </p>
+                    <Button
+                      className="w-full"
+                      disabled={!selectedUserId || addUserMutation.isPending}
+                      onClick={() => addUserMutation.mutate(selectedUserId)}
+                    >
+                      {addUserMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      ) : (
+                        <Plus className="h-4 w-4 mr-1" />
+                      )}
+                      Adicionar
+                    </Button>
+                  </>
+                )}
               </div>
             </DialogContent>
           </Dialog>
