@@ -230,7 +230,7 @@ const AdminEscala = () => {
         <div className="ml-auto">
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" disabled={!isAdmin || availableUsers.length === 0}>
+              <Button size="sm" disabled={!isAdmin}>
                 <UserPlus className="h-4 w-4 mr-1" />
                 Adicionar Funcionário
               </Button>
