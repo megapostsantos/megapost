@@ -395,69 +395,24 @@ const AdminEscala = () => {
           <>
             {/* ==================== WEEKLY VIEW ==================== */}
             <TabsContent value="semana" className="mt-4">
-              {scheduledUserIds.length === 0 ? (
+              {scheduledUserIds.assigned.length === 0 && !scheduledUserIds.hasUnassigned ? (
                 <Card className="p-8 text-center text-muted-foreground">
                   <UserPlus className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>Nenhum turno cadastrado esta semana.</p>
                 </Card>
               ) : (
                 <div className="space-y-2">
-                  {scheduledUserIds.map((uid) => {
+                  {/* Assigned users */}
+                  {scheduledUserIds.assigned.map((uid) => {
                     const userEntries = entries.filter((e) => e.user_id === uid);
                     return (
-                      <Card key={uid} className="p-3">
-                        <p className="font-semibold text-sm mb-2">{getUserLabel(uid)}</p>
-                        <div className="grid grid-cols-7 gap-1">
-                          {weekDays.map((day) => {
-                            const dayStr = format(day, "yyyy-MM-dd");
-                            const dayE = userEntries.filter((e) => e.date === dayStr);
-                            const isToday = isSameDay(day, new Date());
-                            return (
-                              <div
-                                key={dayStr}
-                                className={`text-center rounded p-1 ${isToday ? "ring-1 ring-primary/50" : ""}`}
-                              >
-                                <p className={`text-[10px] font-medium ${isToday ? "text-primary" : "text-muted-foreground"}`}>
-                                  {format(day, "EEE", { locale: ptBR })}
-                                </p>
-                                <p className="text-[9px] text-muted-foreground mb-0.5">
-                                  {format(day, "dd/MM")}
-                                </p>
-                                {dayE.length === 0 ? (
-                                  <span className="text-[9px] text-muted-foreground">—</span>
-                                ) : (
-                                  dayE.map((e) => {
-                                    if (e.status !== "trabalho") {
-                                      return (
-                                        <div
-                                          key={e.id}
-                                          className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${getStatusStyle(e.status)} ${isAdmin ? "cursor-pointer" : ""}`}
-                                          onClick={() => isAdmin && openEditDialog(e)}
-                                        >
-                                          {getStatusLabel(e.status)}
-                                        </div>
-                                      );
-                                    }
-                                    const s = parseTime(e.shift_start_time, DEFAULT_START);
-                                    const end = parseTime(e.shift_end_time, DEFAULT_END);
-                                    return (
-                                      <div
-                                        key={e.id}
-                                        className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${getStatusStyle("trabalho")} ${isAdmin ? "cursor-pointer" : ""}`}
-                                        onClick={() => isAdmin && openEditDialog(e)}
-                                      >
-                                        {s}–{end}
-                                      </div>
-                                    );
-                                  })
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </Card>
+                      <WeekRow key={uid} label={getUserLabel(uid)} entries={userEntries} weekDays={weekDays} isAdmin={isAdmin} openEditDialog={openEditDialog} dashed={false} />
                     );
                   })}
+                  {/* Unassigned shifts */}
+                  {scheduledUserIds.hasUnassigned && (
+                    <WeekRow label="Turno em aberto" entries={entries.filter(e => !e.user_id)} weekDays={weekDays} isAdmin={isAdmin} openEditDialog={openEditDialog} dashed={true} />
+                  )}
                 </div>
               )}
             </TabsContent>
