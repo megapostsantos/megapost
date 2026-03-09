@@ -128,7 +128,7 @@ const AdminEscala = () => {
     [allUsers, scheduledUserIds]
   );
 
-  const getUserLabel = (u: UserInfo) => u.nome || u.display_name || u.email;
+  const getUserLabel = (u: AppUser) => u.display_name || u.email;
 
   // Add employee to schedule (insert all shifts for the week as "trabalho")
   const addUserMutation = useMutation({
