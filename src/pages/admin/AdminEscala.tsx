@@ -33,11 +33,12 @@ type ScheduleEntry = {
   notes: string | null;
 };
 
-type UserInfo = {
+type AppUser = {
   user_id: string;
   email: string;
   display_name: string | null;
-  nome: string | null;
+  role: string;
+  is_active: boolean;
 };
 
 const SHIFTS = [
