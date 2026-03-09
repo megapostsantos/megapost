@@ -728,7 +728,6 @@ const AdminEscala = () => {
               className="w-full"
               disabled={
                 saveMutation.isPending ||
-                (!editingEntry && !formUserId) ||
                 !formDate
               }
               onClick={() => saveMutation.mutate()}
