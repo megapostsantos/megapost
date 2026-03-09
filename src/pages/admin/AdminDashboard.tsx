@@ -5,7 +5,7 @@ import { supabase } from "@/lib/customSupabase";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import {
   Route, Users, Clock, AlertTriangle, CheckCircle, Package, ArrowRight,
-  UserCheck, RefreshCw, Truck, Archive, Flag, History,
+  UserCheck, RefreshCw, Truck, Archive, Flag, History, Tv, ClipboardList,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -304,10 +304,10 @@ const AdminDashboard = () => {
       {/* Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
+          { href: `${basePath}/tv`, icon: Tv, label: "Painel TV" },
           { href: `${basePath}/rotas`, icon: Route, label: "Rotas" },
-          { href: `${basePath}/estoque`, icon: Package, label: "Estoque" },
           { href: `${basePath}/motoristas`, icon: Users, label: "Motoristas" },
-          { href: `${basePath}/ocorrencias`, icon: AlertTriangle, label: "Ocorrências" },
+          { href: `${basePath}/controle`, icon: ClipboardList, label: "Controle Operacional" },
         ].map((action) => (
           <a key={action.href} href={action.href} className="block">
             <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
