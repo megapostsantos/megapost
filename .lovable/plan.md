@@ -1,78 +1,74 @@
 
 
-## Analysis
+## Plan: Add shift time columns to the external database
 
-The current auth system uses the Lovable Cloud Supabase client (`src/integrations/supabase/client.ts`) for everything: authentication AND data queries. The user wants to split this so that **auth goes through their own Supabase** (`tcajkhmwmmnltzfshugh.supabase.co`) while **data queries continue using the Cloud client**.
+### Problem
 
-### Critical blocker
+The app uses an **external Supabase** (`tqajkhmvmwnltzfshugh.supabase.co`) via `customSupabase`. The Cloud DB already has `shift_start_time` and `shift_end_time` on `staff_schedules`, but the **external DB does not**. PostgREST on the external instance returns the schema cache error.
 
-The user has not provided the **anon key** for their Supabase project. The URL alone is not sufficient to create a client. We need:
-- `SUPABASE_URL`: `https://tcajkhmwmmnltzfshugh.supabase.co` (provided)
-- `SUPABASE_ANON_KEY`: **missing**
+### Solution
 
-Additionally, their Supabase project must have:
-- Users created in `auth.users`
-- A `public.user_roles` table with `user_id` and `role` columns
-- RLS policies that allow authenticated users to read their own role
+Create a backend function that runs the `ALTER TABLE` on the external database using the service role key, then call it once.
 
-### Important architectural consideration
+### Changes
 
-Even after creating a separate auth client, the **data client** (Cloud) will still use its own JWT for RLS. Since all tables have RLS policies using `has_role(auth.uid(), ...)`, and `auth.uid()` comes from the Cloud Supabase session, **data access will break** if users are only authenticated against the external Supabase.
+#### 1. Create Edge Function `migrate-schema`
 
-This means either:
-1. The same user must exist in **both** Supabase instances (Cloud + external), OR
-2. All RLS policies on the Cloud database must be rewritten to not depend on `auth.uid()`, OR
-3. All data must also move to the external Supabase (defeating the purpose of Cloud)
+A new edge function at `supabase/functions/migrate-schema/index.ts` that:
+- Connects to the external Supabase using `EXTERNAL_SUPABASE_SERVICE_ROLE_KEY`
+- Runs the migration via the Supabase REST RPC or direct SQL (using `supabase-js` `.rpc()` with a temporary function, or the management API)
 
-This is a fundamental constraint, not a code limitation.
+**However**, Supabase JS client cannot run raw DDL. The better approach: use the external DB's **REST endpoint** with the service role key to call `pg_catalog` or use the management API.
 
----
+**Simplest reliable approach**: Create the edge function that uses `fetch` to call the external Supabase's SQL endpoint directly via the PostgREST `rpc` mechanism. But PostgREST doesn't expose DDL either.
 
-## Proposed plan (contingent on resolving the above)
+**Revised approach**: Use the external Supabase's **pg connection string** if available via `SUPABASE_DB_URL`, or create a temporary RPC function on the external DB.
 
-### Step 1 — Get the anon key
-Ask the user for their Supabase anon key.
+**Most practical approach**: Since the `migrate-data` function already connects to the external DB with service role, I'll create an edge function that:
+1. Uses the external service role key to call the Supabase Management API, OR
+2. Simply tries to insert data with the new columns — if they don't exist, creates them via a database function.
 
-### Step 2 — Create `src/lib/customSupabase.ts`
-A second Supabase client pointing to `tcajkhmwmmnltzfshugh.supabase.co` with the provided anon key, used exclusively for auth operations.
+**Actually simplest**: Create an edge function that connects to the external PostgreSQL directly using `postgres` module (Deno) and runs the ALTER TABLE.
 
-### Step 3 — Update `useAuth.tsx`
-Replace all `supabase.auth.*` calls with `customSupabase.auth.*`. The `user_roles` query must also go through `customSupabase` (since the roles table lives on the external Supabase).
+#### Revised Final Plan
 
-### Step 4 — Update login pages
-No changes needed — they already use `useAuth` which will be rewired internally.
+**File: `supabase/functions/migrate-schema/index.ts`**
+- Uses `https://deno.land/x/postgres` to connect directly to the external database
+- Runs: `ALTER TABLE public.staff_schedules ADD COLUMN IF NOT EXISTS shift_start_time TIME, ADD COLUMN IF NOT EXISTS shift_end_time TIME;`
+- Uses `SUPABASE_DB_URL` secret or a hardcoded connection string for the external DB
 
-### Step 5 — ProtectedRoute
-No changes needed — it already uses `useAuth`.
+**Problem**: We don't have the external DB's direct PostgreSQL connection string as a secret.
 
-### Step 6 — Admin user management page
-Create `/admin/usuarios` page allowing admins to:
-- List users (via edge function on external Supabase using service role key)
-- Create operator accounts
-- Assign/change roles
-- Enable/disable access
+### Alternative: Instruct user + fix code resilience
 
-### Step 7 — Logout in sidebar components
-Update `AdminLayout` and `OpLayout` signOut calls (already go through `useAuth`, so no change needed).
+Since we cannot run DDL on the external database from here, the cleanest approach is:
 
----
+1. **Tell the user** to run this SQL on their external Supabase dashboard:
+```sql
+ALTER TABLE public.staff_schedules 
+  ADD COLUMN IF NOT EXISTS shift_start_time TIME,
+  ADD COLUMN IF NOT EXISTS shift_end_time TIME;
+```
 
-## What blocks this migration
+2. **Update `AdminEscala.tsx`** to gracefully handle missing columns — only include `shift_start_time`/`shift_end_time` in queries if they exist, preventing the schema cache error from breaking the page.
 
-**RLS on the Cloud database**: Every table (`drivers`, `rotas`, `dias`, `estoque`, `finance_entries`, etc.) uses `has_role(auth.uid(), ...)` which requires the user to be authenticated against the **Cloud** Supabase. If auth moves to an external instance, `auth.uid()` on the Cloud instance will be `null` and all data queries will return empty or fail with permission errors.
+### Recommended approach
 
-**Options to resolve:**
-- A) Create matching users in both instances (complex, fragile)
-- B) Disable RLS on all Cloud tables (insecure)
-- C) Migrate all data to the external Supabase (large effort, loses Cloud benefits)
-- D) Keep auth on Cloud and create users there via admin tooling (simplest)
+Since the external DB is under user control, provide the SQL and make the code resilient:
 
-I recommend **option D**: keep using Cloud auth but build an admin page to manage users (create operators, assign roles) directly in the Cloud Supabase. This gives you full control over who can log in without needing an external instance.
+| File | Change |
+|------|--------|
+| `src/pages/admin/AdminEscala.tsx` | Update the select query to not request `shift_start_time`/`shift_end_time` explicitly (use `*` or catch errors gracefully), and handle missing fields in the UI |
+| User action | Run the ALTER TABLE SQL on the external database |
 
----
+Alternatively, I can create a `migrate-schema` edge function that uses the external service role key with the Supabase Management API to run the SQL — though this requires the external project ref.
 
-## Before proceeding, I need:
+### Decision needed
 
-1. Your **anon key** for `tcajkhmwmmnltzfshugh.supabase.co`
-2. Your decision on the RLS problem described above — which option (A/B/C/D) do you prefer?
+The external database cannot be modified through Lovable's migration tool. The SQL must be run on the external Supabase instance directly.
+
+**I will**:
+1. Update `AdminEscala.tsx` to use `select('*')` instead of explicitly listing columns, making it resilient to missing columns
+2. Handle `shift_start_time`/`shift_end_time` as optional in the UI (fallback to full-day display)
+3. Provide the user with the exact SQL to run on their external database
 
