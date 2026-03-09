@@ -624,45 +624,40 @@ const AdminEscala = () => {
           </DialogHeader>
           <div className="space-y-4 pt-2">
             {/* Employee */}
-            {!editingEntry && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Funcionário</label>
-                {loadingUsers ? (
-                  <div className="flex items-center gap-2 py-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Carregando...</span>
-                  </div>
-                ) : usersError ? (
-                  <p className="text-sm text-destructive">
-                    Erro ao carregar funcionários.
-                  </p>
-                ) : (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Funcionário <span className="text-muted-foreground font-normal">(opcional)</span></label>
+              {loadingUsers ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Carregando...</span>
+                </div>
+              ) : usersError ? (
+                <p className="text-sm text-destructive">
+                  Erro ao carregar funcionários.
+                </p>
+              ) : (
+                <div className="flex gap-2">
                   <Select value={formUserId} onValueChange={setFormUserId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Turno em aberto" />
                     </SelectTrigger>
                     <SelectContent>
                       {allUsers.map((u) => (
                         <SelectItem key={u.user_id} value={u.user_id}>
                           {u.display_name || u.email}
-                          {u.display_name && (
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              {u.email}
-                            </span>
-                          )}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                )}
-              </div>
-            )}
-
-            {editingEntry && (
-              <p className="text-sm font-medium">
-                {getUserLabel(editingEntry.user_id)}
-              </p>
-            )}
+                  {formUserId && (
+                    <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setFormUserId("")}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              )}
+              {!formUserId && <p className="text-xs text-muted-foreground">Será criado como turno em aberto.</p>}
+            </div>
 
             {/* Date */}
             <div className="space-y-1">
