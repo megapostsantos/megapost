@@ -387,6 +387,7 @@ export type Database = {
           kind: string
           observacao: string | null
           status: string
+          tipo: string
           updated_at: string
           valor: number
         }
@@ -399,6 +400,7 @@ export type Database = {
           kind?: string
           observacao?: string | null
           status?: string
+          tipo?: string
           updated_at?: string
           valor?: number
         }
@@ -411,6 +413,7 @@ export type Database = {
           kind?: string
           observacao?: string | null
           status?: string
+          tipo?: string
           updated_at?: string
           valor?: number
         }
