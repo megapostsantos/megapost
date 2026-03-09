@@ -110,56 +110,125 @@ function timeToFraction(time: string): number {
 }
 
 /* ------------------------------------------------------------------ */
-/*  WEEK ROW SUB-COMPONENT                                            */
+/*  EMPLOYEE COLOR PALETTE                                             */
 /* ------------------------------------------------------------------ */
 
-const WeekRow = ({ label, entries: userEntries, weekDays, isAdmin, openEditDialog, dashed }: {
-  label: string;
-  entries: ScheduleEntry[];
-  weekDays: Date[];
+const EMPLOYEE_COLORS = [
+  { bg: "bg-blue-500/15", border: "border-blue-400", text: "text-blue-700", dot: "bg-blue-500" },
+  { bg: "bg-violet-500/15", border: "border-violet-400", text: "text-violet-700", dot: "bg-violet-500" },
+  { bg: "bg-teal-500/15", border: "border-teal-400", text: "text-teal-700", dot: "bg-teal-500" },
+  { bg: "bg-orange-500/15", border: "border-orange-400", text: "text-orange-700", dot: "bg-orange-500" },
+  { bg: "bg-pink-500/15", border: "border-pink-400", text: "text-pink-700", dot: "bg-pink-500" },
+  { bg: "bg-cyan-500/15", border: "border-cyan-400", text: "text-cyan-700", dot: "bg-cyan-500" },
+  { bg: "bg-lime-500/15", border: "border-lime-400", text: "text-lime-700", dot: "bg-lime-500" },
+  { bg: "bg-rose-500/15", border: "border-rose-400", text: "text-rose-700", dot: "bg-rose-500" },
+];
+
+function getEmployeeColor(userId: string, allIds: string[]) {
+  const idx = allIds.indexOf(userId);
+  return EMPLOYEE_COLORS[idx >= 0 ? idx % EMPLOYEE_COLORS.length : 0];
+}
+
+/* ------------------------------------------------------------------ */
+/*  WEEK DAY CARD SUB-COMPONENT                                       */
+/* ------------------------------------------------------------------ */
+
+const WeekDayCard = ({ day, dayEntries, isAdmin, openEditDialog, getUserLabel, employeeIds }: {
+  day: Date;
+  dayEntries: ScheduleEntry[];
   isAdmin: boolean;
   openEditDialog: (e: ScheduleEntry) => void;
-  dashed: boolean;
-}) => (
-  <Card className={`p-3 ${dashed ? "border-dashed border-muted-foreground/40" : ""}`}>
-    <p className={`font-semibold text-sm mb-2 ${dashed ? "italic text-muted-foreground" : ""}`}>{label}</p>
-    <div className="grid grid-cols-7 gap-1">
-      {weekDays.map((day) => {
-        const dayStr = format(day, "yyyy-MM-dd");
-        const dayE = userEntries.filter((e) => e.date === dayStr);
-        const isToday = isSameDay(day, new Date());
-        return (
-          <div key={dayStr} className={`text-center rounded p-1 ${isToday ? "ring-1 ring-primary/50" : ""}`}>
-            <p className={`text-[10px] font-medium ${isToday ? "text-primary" : "text-muted-foreground"}`}>
-              {format(day, "EEE", { locale: ptBR })}
-            </p>
-            <p className="text-[9px] text-muted-foreground mb-0.5">{format(day, "dd/MM")}</p>
-            {dayE.length === 0 ? (
-              <span className="text-[9px] text-muted-foreground">—</span>
-            ) : (
-              dayE.map((e) => {
-                if (e.status !== "trabalho") {
-                  return (
-                    <div key={e.id} className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${getStatusStyle(e.status)} ${isAdmin ? "cursor-pointer" : ""}`} onClick={() => isAdmin && openEditDialog(e)}>
+  getUserLabel: (uid: string | null) => string;
+  employeeIds: string[];
+}) => {
+  const isToday = isSameDay(day, new Date());
+  const sorted = [...dayEntries].sort((a, b) => {
+    const as = parseTime(a.shift_start_time, "08:00");
+    const bs = parseTime(b.shift_start_time, "08:00");
+    return as.localeCompare(bs);
+  });
+
+  return (
+    <Card className={`${isToday ? "ring-2 ring-primary/40" : ""}`}>
+      <CardHeader className="pb-2 pt-3 px-4">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <span className={`capitalize ${isToday ? "text-primary" : ""}`}>
+            {format(day, "EEEE", { locale: ptBR })}
+          </span>
+          <span className="text-muted-foreground font-normal">
+            {format(day, "dd/MM")}
+          </span>
+          {isToday && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary text-primary">
+              Hoje
+            </Badge>
+          )}
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-auto">
+            {sorted.length} turno{sorted.length !== 1 ? "s" : ""}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-4 pb-3 pt-0">
+        {sorted.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic py-2">Nenhum turno</p>
+        ) : (
+          <div className="space-y-1.5">
+            {sorted.map((e) => {
+              const isOpen = !e.user_id;
+              const isWork = e.status === "trabalho";
+              const s = parseTime(e.shift_start_time, DEFAULT_START);
+              const end = parseTime(e.shift_end_time, DEFAULT_END);
+              const empColor = !isOpen && e.user_id ? getEmployeeColor(e.user_id, employeeIds) : null;
+
+              return (
+                <div
+                  key={e.id}
+                  onClick={() => isAdmin && openEditDialog(e)}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 border transition-colors ${
+                    isOpen
+                      ? "border-dashed border-muted-foreground/40 bg-muted/30"
+                      : isWork && empColor
+                        ? `${empColor.bg} ${empColor.border} border-solid`
+                        : `border-solid ${getStatusStyle(e.status)}`
+                  } ${isAdmin ? "cursor-pointer hover:shadow-sm" : ""}`}
+                >
+                  {/* Color dot */}
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${
+                    isOpen ? "bg-muted-foreground/40" : empColor ? empColor.dot : getStatusDot(e.status)
+                  }`} />
+
+                  {/* Time */}
+                  {isWork ? (
+                    <span className={`text-sm font-mono font-medium shrink-0 ${isOpen ? "text-muted-foreground" : empColor ? empColor.text : ""}`}>
+                      {s}–{end}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-medium shrink-0">
                       {getStatusLabel(e.status)}
-                    </div>
-                  );
-                }
-                const s = parseTime(e.shift_start_time, DEFAULT_START);
-                const end = parseTime(e.shift_end_time, DEFAULT_END);
-                return (
-                  <div key={e.id} className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${dashed ? "border-dashed border-muted-foreground/40 bg-muted/50 text-muted-foreground" : getStatusStyle("trabalho")} ${isAdmin ? "cursor-pointer" : ""}`} onClick={() => isAdmin && openEditDialog(e)}>
-                    {s}–{end}
-                  </div>
-                );
-              })
-            )}
+                    </span>
+                  )}
+
+                  {/* Arrow */}
+                  <span className="text-muted-foreground text-xs">→</span>
+
+                  {/* Name */}
+                  <span className={`text-sm truncate ${isOpen ? "italic text-muted-foreground" : "font-medium"}`}>
+                    {getUserLabel(e.user_id)}
+                  </span>
+
+                  {/* Edit icon for admin */}
+                  {isAdmin && (
+                    <Edit2 className="h-3 w-3 ml-auto text-muted-foreground/50 shrink-0" />
+                  )}
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
-    </div>
-  </Card>
-);
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  MAIN COMPONENT                                                     */
@@ -447,24 +516,28 @@ const AdminEscala = () => {
           <>
             {/* ==================== WEEKLY VIEW ==================== */}
             <TabsContent value="semana" className="mt-4">
-              {scheduledUserIds.assigned.length === 0 && !scheduledUserIds.hasUnassigned ? (
+              {entries.length === 0 ? (
                 <Card className="p-8 text-center text-muted-foreground">
                   <UserPlus className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>Nenhum turno cadastrado esta semana.</p>
                 </Card>
               ) : (
-                <div className="space-y-2">
-                  {/* Assigned users */}
-                  {scheduledUserIds.assigned.map((uid) => {
-                    const userEntries = entries.filter((e) => e.user_id === uid);
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {weekDays.map((day) => {
+                    const dayStr = format(day, "yyyy-MM-dd");
+                    const dayE = entries.filter((e) => e.date === dayStr);
                     return (
-                      <WeekRow key={uid} label={getUserLabel(uid)} entries={userEntries} weekDays={weekDays} isAdmin={isAdmin} openEditDialog={openEditDialog} dashed={false} />
+                      <WeekDayCard
+                        key={dayStr}
+                        day={day}
+                        dayEntries={dayE}
+                        isAdmin={isAdmin}
+                        openEditDialog={openEditDialog}
+                        getUserLabel={getUserLabel}
+                        employeeIds={scheduledUserIds.assigned}
+                      />
                     );
                   })}
-                  {/* Unassigned shifts */}
-                  {scheduledUserIds.hasUnassigned && (
-                    <WeekRow label="Turno em aberto" entries={entries.filter(e => !e.user_id)} weekDays={weekDays} isAdmin={isAdmin} openEditDialog={openEditDialog} dashed={true} />
-                  )}
                 </div>
               )}
             </TabsContent>
