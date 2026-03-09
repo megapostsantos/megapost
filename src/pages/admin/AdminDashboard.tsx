@@ -5,7 +5,7 @@ import { supabase } from "@/lib/customSupabase";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import {
   Route, Users, Clock, AlertTriangle, CheckCircle, Package, ArrowRight,
-  UserCheck, RefreshCw, Truck, Archive, Flag, History,
+  UserCheck, RefreshCw, Truck, Archive, Flag, History, Tv, ClipboardList,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
