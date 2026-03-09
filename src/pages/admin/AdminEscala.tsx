@@ -73,21 +73,20 @@ const AdminEscala = () => {
     to: format(weekDays[6], "yyyy-MM-dd"),
   };
 
-  // Fetch all users
-  const { data: allUsers = [], isLoading: loadingUsers } = useQuery({
-    queryKey: ["escala-users"],
+  // Fetch users on demand (when dialog opens)
+  const { data: allUsers = [], isLoading: loadingUsers, isError: usersError, refetch: refetchUsers } = useQuery({
+    queryKey: ["escala-app-users"],
     queryFn: async () => {
-      const { data, error } = await cloudSupabase.functions.invoke("manage-users", {
-        body: { action: "list" },
-      });
+      const { data, error } = await supabase
+        .from("app_users")
+        .select("user_id, email, display_name, role, is_active")
+        .eq("is_active", true);
       if (error) throw error;
-      return (data.users ?? []).filter((u: any) => !u.banned).map((u: any) => ({
-        user_id: u.id,
-        email: u.email,
-        display_name: u.display_name,
-        nome: u.nome,
-      })) as UserInfo[];
+      return (data ?? []) as AppUser[];
     },
+    enabled: addDialogOpen, // only fetch when dialog is open
+    retry: 1,
+    staleTime: 30_000,
   });
 
   // Fetch schedule entries for the week
