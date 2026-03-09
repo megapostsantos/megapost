@@ -199,7 +199,8 @@ const AdminEscala = () => {
   }, [allUsers]);
 
   const getUserLabel = useCallback(
-    (uid: string) => {
+    (uid: string | null) => {
+      if (!uid) return "Turno em aberto";
       const u = userMap.get(uid);
       return u?.display_name || u?.email || uid.slice(0, 8) + "…";
     },
@@ -207,7 +208,9 @@ const AdminEscala = () => {
   );
 
   const scheduledUserIds = useMemo(() => {
-    return Array.from(new Set(entries.map((e) => e.user_id)));
+    const assigned = Array.from(new Set(entries.filter(e => e.user_id).map((e) => e.user_id as string)));
+    const hasUnassigned = entries.some(e => !e.user_id);
+    return { assigned, hasUnassigned };
   }, [entries]);
 
   const dayEntries = useMemo(() => {
