@@ -110,6 +110,58 @@ function timeToFraction(time: string): number {
 }
 
 /* ------------------------------------------------------------------ */
+/*  WEEK ROW SUB-COMPONENT                                            */
+/* ------------------------------------------------------------------ */
+
+const WeekRow = ({ label, entries: userEntries, weekDays, isAdmin, openEditDialog, dashed }: {
+  label: string;
+  entries: ScheduleEntry[];
+  weekDays: Date[];
+  isAdmin: boolean;
+  openEditDialog: (e: ScheduleEntry) => void;
+  dashed: boolean;
+}) => (
+  <Card className={`p-3 ${dashed ? "border-dashed border-muted-foreground/40" : ""}`}>
+    <p className={`font-semibold text-sm mb-2 ${dashed ? "italic text-muted-foreground" : ""}`}>{label}</p>
+    <div className="grid grid-cols-7 gap-1">
+      {weekDays.map((day) => {
+        const dayStr = format(day, "yyyy-MM-dd");
+        const dayE = userEntries.filter((e) => e.date === dayStr);
+        const isToday = isSameDay(day, new Date());
+        return (
+          <div key={dayStr} className={`text-center rounded p-1 ${isToday ? "ring-1 ring-primary/50" : ""}`}>
+            <p className={`text-[10px] font-medium ${isToday ? "text-primary" : "text-muted-foreground"}`}>
+              {format(day, "EEE", { locale: ptBR })}
+            </p>
+            <p className="text-[9px] text-muted-foreground mb-0.5">{format(day, "dd/MM")}</p>
+            {dayE.length === 0 ? (
+              <span className="text-[9px] text-muted-foreground">—</span>
+            ) : (
+              dayE.map((e) => {
+                if (e.status !== "trabalho") {
+                  return (
+                    <div key={e.id} className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${getStatusStyle(e.status)} ${isAdmin ? "cursor-pointer" : ""}`} onClick={() => isAdmin && openEditDialog(e)}>
+                      {getStatusLabel(e.status)}
+                    </div>
+                  );
+                }
+                const s = parseTime(e.shift_start_time, DEFAULT_START);
+                const end = parseTime(e.shift_end_time, DEFAULT_END);
+                return (
+                  <div key={e.id} className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${dashed ? "border-dashed border-muted-foreground/40 bg-muted/50 text-muted-foreground" : getStatusStyle("trabalho")} ${isAdmin ? "cursor-pointer" : ""}`} onClick={() => isAdmin && openEditDialog(e)}>
+                    {s}–{end}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </Card>
+);
+
+/* ------------------------------------------------------------------ */
 /*  MAIN COMPONENT                                                     */
 /* ------------------------------------------------------------------ */
 
