@@ -539,11 +539,11 @@ const AdminEscala = () => {
                         const width = ((endFrac - startFrac) / TIMELINE_HOURS) * 100;
                         return (
                           <div key={entry.id} className="relative h-7 min-w-[500px]">
-                            <span className="absolute left-0 text-[10px] text-muted-foreground w-20 truncate -top-0.5">
+                            <span className={`absolute left-0 text-[10px] w-20 truncate -top-0.5 ${!entry.user_id ? "italic text-muted-foreground/60" : "text-muted-foreground"}`}>
                               {getUserLabel(entry.user_id)}
                             </span>
                             <div
-                              className="absolute top-0 h-6 rounded bg-primary/70 flex items-center justify-center text-[9px] text-primary-foreground font-medium"
+                              className={`absolute top-0 h-6 rounded flex items-center justify-center text-[9px] font-medium ${!entry.user_id ? "bg-muted border border-dashed border-muted-foreground/40 text-muted-foreground" : "bg-primary/70 text-primary-foreground"}`}
                               style={{
                                 left: `max(80px, ${left}%)`,
                                 width: `${Math.max(width, 2)}%`,
