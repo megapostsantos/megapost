@@ -1,78 +1,73 @@
 
 
-## Analysis
+## Plan: Fix Escala Save, Open Shifts, and Alert Logic
 
-The current auth system uses the Lovable Cloud Supabase client (`src/integrations/supabase/client.ts`) for everything: authentication AND data queries. The user wants to split this so that **auth goes through their own Supabase** (`tcajkhmwmmnltzfshugh.supabase.co`) while **data queries continue using the Cloud client**.
+### Problem Analysis
 
-### Critical blocker
+1. **Save error**: The `staff_schedules.user_id` column is `NOT NULL`. When creating a shift, if no user is selected, an empty string `""` is sent as `user_id`, which fails as an invalid UUID. Even with a user selected, the UUID format must be valid.
 
-The user has not provided the **anon key** for their Supabase project. The URL alone is not sufficient to create a client. We need:
-- `SUPABASE_URL`: `https://tcajkhmwmmnltzfshugh.supabase.co` (provided)
-- `SUPABASE_ANON_KEY`: **missing**
+2. **No open shifts**: The DB requires `user_id`, so unassigned shifts are impossible.
 
-Additionally, their Supabase project must have:
-- Users created in `auth.users`
-- A `public.user_roles` table with `user_id` and `role` columns
-- RLS policies that allow authenticated users to read their own role
-
-### Important architectural consideration
-
-Even after creating a separate auth client, the **data client** (Cloud) will still use its own JWT for RLS. Since all tables have RLS policies using `has_role(auth.uid(), ...)`, and `auth.uid()` comes from the Cloud Supabase session, **data access will break** if users are only authenticated against the external Supabase.
-
-This means either:
-1. The same user must exist in **both** Supabase instances (Cloud + external), OR
-2. All RLS policies on the Cloud database must be rewritten to not depend on `auth.uid()`, OR
-3. All data must also move to the external Supabase (defeating the purpose of Cloud)
-
-This is a fundamental constraint, not a code limitation.
+3. **Alert noise**: The `escalaVsPonto` logic in `AdminFinanceiro.tsx` (lines 201-223) iterates ALL schedules in the month without filtering by date. Future shifts and unassigned shifts generate false "sem ponto" alerts.
 
 ---
 
-## Proposed plan (contingent on resolving the above)
+### Changes
 
-### Step 1 — Get the anon key
-Ask the user for their Supabase anon key.
+#### 1. Database Migration
 
-### Step 2 — Create `src/lib/customSupabase.ts`
-A second Supabase client pointing to `tcajkhmwmmnltzfshugh.supabase.co` with the provided anon key, used exclusively for auth operations.
+Make `user_id` nullable on `staff_schedules`:
 
-### Step 3 — Update `useAuth.tsx`
-Replace all `supabase.auth.*` calls with `customSupabase.auth.*`. The `user_roles` query must also go through `customSupabase` (since the roles table lives on the external Supabase).
+```sql
+ALTER TABLE public.staff_schedules ALTER COLUMN user_id DROP NOT NULL;
+```
 
-### Step 4 — Update login pages
-No changes needed — they already use `useAuth` which will be rewired internally.
+#### 2. Fix Save Flow in `AdminEscala.tsx`
 
-### Step 5 — ProtectedRoute
-No changes needed — it already uses `useAuth`.
+- In the `saveMutation` (line 244-279):
+  - Set `user_id` to `formUserId || null` instead of `formUserId` (empty string)
+  - Add better error messages: parse the Supabase error and show specific feedback (e.g., "Data obrigatória", "Horário inválido")
+- In the save button disabled logic (line 773-776): remove `!formUserId` requirement for new entries — allow saving without user
 
-### Step 6 — Admin user management page
-Create `/admin/usuarios` page allowing admins to:
-- List users (via edge function on external Supabase using service role key)
-- Create operator accounts
-- Assign/change roles
-- Enable/disable access
+#### 3. Open Shifts UI in `AdminEscala.tsx`
 
-### Step 7 — Logout in sidebar components
-Update `AdminLayout` and `OpLayout` signOut calls (already go through `useAuth`, so no change needed).
+- **Weekly view** (lines 399-457): Group open shifts (where `user_id` is null) separately at the bottom with a distinct visual — dashed border, "Turno em aberto" label
+- **Daily view** (lines 486-544): Show unassigned shifts with a different badge style ("Não alocado") and lighter color scheme
+- **Timeline** (lines 570-595): Show open shifts with a striped/muted bar pattern
+- **Edit dialog** (lines 700-704): When editing an open shift, show the employee selector so admin can assign someone
+- **`scheduledUserIds`** (line 209-211): Also include a virtual "unassigned" group for entries with null `user_id`
+- **`getUserLabel`**: Return "Turno em aberto" when uid is null
 
----
+#### 4. Fix Alert Logic in `AdminFinanceiro.tsx`
 
-## What blocks this migration
+In the `escalaVsPonto` memo (lines 201-223):
 
-**RLS on the Cloud database**: Every table (`drivers`, `rotas`, `dias`, `estoque`, `finance_entries`, etc.) uses `has_role(auth.uid(), ...)` which requires the user to be authenticated against the **Cloud** Supabase. If auth moves to an external instance, `auth.uid()` on the Cloud instance will be `null` and all data queries will return empty or fail with permission errors.
+- Add date filter: only process schedules where `sched.date < today` (past shifts only)
+- Skip today's shifts that haven't ended yet (compare `shift_end_time` with current time)
+- Skip schedules with no `user_id` (unassigned shifts)
+- Keep existing checks for: missing timecard, missing clock-out, late check-in, excessive overtime
 
-**Options to resolve:**
-- A) Create matching users in both instances (complex, fragile)
-- B) Disable RLS on all Cloud tables (insecure)
-- C) Migrate all data to the external Supabase (large effort, loses Cloud benefits)
-- D) Keep auth on Cloud and create users there via admin tooling (simplest)
+```typescript
+const today = format(new Date(), "yyyy-MM-dd");
+const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
 
-I recommend **option D**: keep using Cloud auth but build an admin page to manage users (create operators, assign roles) directly in the Cloud Supabase. This gives you full control over who can log in without needing an external instance.
+scheds.forEach(sched => {
+  if (sched.status !== "trabalho") return;
+  if (!sched.user_id) return; // skip unassigned
+  if (sched.date > today) return; // skip future
+  if (sched.date === today && sched.shift_end_time) {
+    const endMin = timeToMinutes(sched.shift_end_time);
+    if (endMin > nowMinutes) return; // shift not finished yet
+  }
+  // ... existing alert checks
+});
+```
 
----
+#### 5. Files Changed
 
-## Before proceeding, I need:
-
-1. Your **anon key** for `tcajkhmwmmnltzfshugh.supabase.co`
-2. Your decision on the RLS problem described above — which option (A/B/C/D) do you prefer?
+| File | Change |
+|------|--------|
+| `staff_schedules` (migration) | Make `user_id` nullable |
+| `src/pages/admin/AdminEscala.tsx` | Fix save payload, allow open shifts, visual distinction for unassigned |
+| `src/pages/admin/AdminFinanceiro.tsx` | Filter alerts to past-only, skip unassigned |
 
