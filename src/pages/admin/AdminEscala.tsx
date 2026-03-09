@@ -1,9 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/customSupabase";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -16,13 +18,35 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Loader2, Plus, Trash2, UserPlus } from "lucide-react";
-import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from "date-fns";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Plus,
+  Trash2,
+  UserPlus,
+  Clock,
+  CalendarDays,
+  BarChart3,
+  Edit2,
+} from "lucide-react";
+import {
+  format,
+  startOfWeek,
+  addDays,
+  addWeeks,
+  subWeeks,
+  isSameDay,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+
+/* ------------------------------------------------------------------ */
+/*  TYPES                                                              */
+/* ------------------------------------------------------------------ */
 
 type ScheduleEntry = {
   id: string;
@@ -31,6 +55,8 @@ type ScheduleEntry = {
   shift: string;
   status: string;
   notes: string | null;
+  shift_start_time: string | null;
+  shift_end_time: string | null;
 };
 
 type AppUser = {
@@ -41,16 +67,15 @@ type AppUser = {
   is_active: boolean;
 };
 
-const SHIFTS = [
-  { value: "manha", label: "Manhã" },
-  { value: "tarde", label: "Tarde" },
-];
+/* ------------------------------------------------------------------ */
+/*  CONSTANTS                                                          */
+/* ------------------------------------------------------------------ */
 
 const STATUS_OPTIONS = [
-  { value: "trabalho", label: "Trabalho", color: "bg-emerald-500/20 text-emerald-700 border-emerald-300" },
-  { value: "folga", label: "Folga", color: "bg-amber-500/20 text-amber-700 border-amber-300" },
-  { value: "ferias", label: "Férias", color: "bg-blue-500/20 text-blue-700 border-blue-300" },
-  { value: "falta", label: "Falta", color: "bg-red-500/20 text-red-700 border-red-300" },
+  { value: "trabalho", label: "Trabalho", color: "bg-emerald-500/20 text-emerald-700 border-emerald-300", dot: "bg-emerald-500" },
+  { value: "folga", label: "Folga", color: "bg-amber-500/20 text-amber-700 border-amber-300", dot: "bg-amber-500" },
+  { value: "ferias", label: "Férias", color: "bg-blue-500/20 text-blue-700 border-blue-300", dot: "bg-blue-500" },
+  { value: "falta", label: "Falta", color: "bg-red-500/20 text-red-700 border-red-300", dot: "bg-red-500" },
 ];
 
 const getStatusStyle = (status: string) =>
@@ -59,21 +84,82 @@ const getStatusStyle = (status: string) =>
 const getStatusLabel = (status: string) =>
   STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
 
+const getStatusDot = (status: string) =>
+  STATUS_OPTIONS.find((s) => s.value === status)?.dot ?? "bg-muted";
+
+const DEFAULT_START = "08:00";
+const DEFAULT_END = "14:00";
+const TIMELINE_START = 6; // 06:00
+const TIMELINE_END = 22; // 22:00
+const TIMELINE_HOURS = TIMELINE_END - TIMELINE_START;
+
+function parseTime(t: string | null, fallback: string): string {
+  if (!t) return fallback;
+  return t.slice(0, 5); // "HH:MM"
+}
+
+function hoursDiff(start: string, end: string): number {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  return Math.max(0, (eh * 60 + em - sh * 60 - sm) / 60);
+}
+
+function timeToFraction(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h + m / 60;
+}
+
+/* ------------------------------------------------------------------ */
+/*  MAIN COMPONENT                                                     */
+/* ------------------------------------------------------------------ */
+
 const AdminEscala = () => {
   const { isAdmin } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string>("");
 
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  const [weekStart, setWeekStart] = useState(() =>
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+  const [activeTab, setActiveTab] = useState("semana");
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(
+    () => {
+      const today = new Date();
+      const ws = startOfWeek(today, { weekStartsOn: 1 });
+      const diff = Math.floor((today.getTime() - ws.getTime()) / 86400000);
+      return Math.min(Math.max(diff, 0), 6);
+    }
+  );
+
+  // Shift dialog
+  const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<ScheduleEntry | null>(null);
+  const [formUserId, setFormUserId] = useState("");
+  const [formDate, setFormDate] = useState("");
+  const [formStart, setFormStart] = useState(DEFAULT_START);
+  const [formEnd, setFormEnd] = useState(DEFAULT_END);
+  const [formStatus, setFormStatus] = useState("trabalho");
+  const [formNotes, setFormNotes] = useState("");
+
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart]
+  );
+  const selectedDay = weekDays[selectedDayIndex];
+
   const dateRange = {
     from: format(weekDays[0], "yyyy-MM-dd"),
     to: format(weekDays[6], "yyyy-MM-dd"),
   };
 
-  const { data: allUsers = [], isLoading: loadingUsers, isError: usersError } = useQuery({
+  /* ---------- QUERIES ---------- */
+
+  // Users – loaded eagerly but non-blocking
+  const {
+    data: allUsers = [],
+    isLoading: loadingUsers,
+    isError: usersError,
+  } = useQuery({
     queryKey: ["escala-app-users"],
     queryFn: async () => {
       const session = (await supabase.auth.getSession()).data.session;
@@ -87,12 +173,10 @@ const AdminEscala = () => {
       if (!res.ok) throw new Error("Falha ao carregar usuários");
       return (await res.json()) as AppUser[];
     },
-    enabled: addDialogOpen,
     retry: 1,
-    staleTime: 30_000,
+    staleTime: 60_000,
   });
 
-  // Fetch schedule entries for the week
   const { data: entries = [], isLoading: loadingEntries } = useQuery({
     queryKey: ["staff-schedules", dateRange.from, dateRange.to],
     queryFn: async () => {
@@ -106,115 +190,156 @@ const AdminEscala = () => {
     },
   });
 
-  // Users that have entries this week
-  const scheduledUserIds = useMemo(() => {
-    const ids = new Set(entries.map((e) => e.user_id));
-    return Array.from(ids);
-  }, [entries]);
+  /* ---------- DERIVED DATA ---------- */
 
-  const scheduledUsers = useMemo(() => {
-    return scheduledUserIds.map((uid) => {
-      const found = allUsers.find((u) => u.user_id === uid);
-      return found ?? { user_id: uid, email: uid.slice(0, 8) + "…", display_name: null, role: "", is_active: true };
-    });
-  }, [allUsers, scheduledUserIds]);
+  const userMap = useMemo(() => {
+    const m = new Map<string, AppUser>();
+    allUsers.forEach((u) => m.set(u.user_id, u));
+    return m;
+  }, [allUsers]);
 
-  const availableUsers = useMemo(
-    () => allUsers.filter((u) => !scheduledUserIds.includes(u.user_id)),
-    [allUsers, scheduledUserIds]
+  const getUserLabel = useCallback(
+    (uid: string) => {
+      const u = userMap.get(uid);
+      return u?.display_name || u?.email || uid.slice(0, 8) + "…";
+    },
+    [userMap]
   );
 
-  const getUserLabel = (u: AppUser) => u.display_name || u.email;
+  const scheduledUserIds = useMemo(() => {
+    return Array.from(new Set(entries.map((e) => e.user_id)));
+  }, [entries]);
 
-  // Add employee to schedule (insert all shifts for the week as "trabalho")
-  const addUserMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const rows = weekDays.flatMap((day) =>
-        SHIFTS.map((shift) => ({
-          user_id: userId,
-          date: format(day, "yyyy-MM-dd"),
-          shift: shift.value,
-          status: "trabalho",
-        }))
-      );
-      const { error } = await supabase.from("staff_schedules").insert(rows);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["staff-schedules"] });
-      setAddDialogOpen(false);
-      setSelectedUserId("");
-      toast({ title: "Funcionário adicionado à escala" });
-    },
-    onError: () => {
-      toast({ title: "Erro ao adicionar funcionário", variant: "destructive" });
-    },
-  });
+  const dayEntries = useMemo(() => {
+    const dayStr = format(selectedDay, "yyyy-MM-dd");
+    return entries
+      .filter((e) => e.date === dayStr)
+      .sort((a, b) => {
+        const as = parseTime(a.shift_start_time, "08:00");
+        const bs = parseTime(b.shift_start_time, "08:00");
+        return as.localeCompare(bs);
+      });
+  }, [entries, selectedDay]);
 
-  // Remove employee from this week's schedule
-  const removeUserMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from("staff_schedules")
-        .delete()
-        .eq("user_id", userId)
-        .gte("date", dateRange.from)
-        .lte("date", dateRange.to);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["staff-schedules"] });
-      toast({ title: "Funcionário removido da escala" });
-    },
-    onError: () => {
-      toast({ title: "Erro ao remover funcionário", variant: "destructive" });
-    },
-  });
+  // Coverage analysis for selected day
+  const coverageSegments = useMemo(() => {
+    const workingEntries = dayEntries.filter((e) => e.status === "trabalho");
+    const segments: { hour: number; count: number }[] = [];
+    for (let h = TIMELINE_START; h < TIMELINE_END; h++) {
+      const hStr = String(h).padStart(2, "0") + ":00";
+      const hEnd = String(h + 1).padStart(2, "0") + ":00";
+      let count = 0;
+      for (const e of workingEntries) {
+        const s = parseTime(e.shift_start_time, DEFAULT_START);
+        const end = parseTime(e.shift_end_time, DEFAULT_END);
+        if (s < hEnd && end > hStr) count++;
+      }
+      segments.push({ hour: h, count });
+    }
+    return segments;
+  }, [dayEntries]);
 
-  // Update a single cell status
-  const updateStatusMutation = useMutation({
-    mutationFn: async (params: { user_id: string; date: string; shift: string; status: string }) => {
-      const existing = entries.find(
-        (e) => e.user_id === params.user_id && e.date === params.date && e.shift === params.shift
-      );
-      if (existing) {
+  /* ---------- MUTATIONS ---------- */
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        user_id: formUserId,
+        date: formDate,
+        shift: "custom",
+        shift_start_time: formStart + ":00",
+        shift_end_time: formEnd + ":00",
+        status: formStatus,
+        notes: formNotes || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (editingEntry) {
         const { error } = await supabase
           .from("staff_schedules")
-          .update({ status: params.status, updated_at: new Date().toISOString() })
-          .eq("id", existing.id);
+          .update(payload)
+          .eq("id", editingEntry.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("staff_schedules")
-          .insert({ user_id: params.user_id, date: params.date, shift: params.shift, status: params.status });
+          .insert(payload);
         if (error) throw error;
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["staff-schedules"] });
+      setShiftDialogOpen(false);
+      resetForm();
+      toast({ title: editingEntry ? "Turno atualizado" : "Turno adicionado" });
     },
     onError: () => {
-      toast({ title: "Erro ao salvar escala", variant: "destructive" });
+      toast({ title: "Erro ao salvar turno", variant: "destructive" });
     },
   });
 
-  const getEntry = (userId: string, date: Date, shift: string) =>
-    entries.find(
-      (e) => e.user_id === userId && e.date === format(date, "yyyy-MM-dd") && e.shift === shift
-    );
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("staff_schedules")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff-schedules"] });
+      toast({ title: "Turno removido" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao remover turno", variant: "destructive" });
+    },
+  });
+
+  /* ---------- FORM HELPERS ---------- */
+
+  const resetForm = () => {
+    setEditingEntry(null);
+    setFormUserId("");
+    setFormDate(format(selectedDay, "yyyy-MM-dd"));
+    setFormStart(DEFAULT_START);
+    setFormEnd(DEFAULT_END);
+    setFormStatus("trabalho");
+    setFormNotes("");
+  };
+
+  const openAddDialog = () => {
+    resetForm();
+    setFormDate(format(selectedDay, "yyyy-MM-dd"));
+    setShiftDialogOpen(true);
+  };
+
+  const openEditDialog = (entry: ScheduleEntry) => {
+    setEditingEntry(entry);
+    setFormUserId(entry.user_id);
+    setFormDate(entry.date);
+    setFormStart(parseTime(entry.shift_start_time, DEFAULT_START));
+    setFormEnd(parseTime(entry.shift_end_time, DEFAULT_END));
+    setFormStatus(entry.status);
+    setFormNotes(entry.notes ?? "");
+    setShiftDialogOpen(true);
+  };
+
+  /* ---------- RENDER ---------- */
 
   const loading = loadingEntries;
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-foreground">Escala Semanal</h1>
+        <h1 className="text-xl font-bold text-foreground">Escala Operacional</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => setWeekStart(subWeeks(weekStart, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm font-medium min-w-[180px] text-center">
-            {format(weekDays[0], "dd MMM", { locale: ptBR })} – {format(weekDays[6], "dd MMM yyyy", { locale: ptBR })}
+            {format(weekDays[0], "dd MMM", { locale: ptBR })} –{" "}
+            {format(weekDays[6], "dd MMM yyyy", { locale: ptBR })}
           </span>
           <Button variant="outline" size="icon" onClick={() => setWeekStart(addWeeks(weekStart, 1))}>
             <ChevronRight className="h-4 w-4" />
@@ -222,227 +347,446 @@ const AdminEscala = () => {
         </div>
       </div>
 
-      {/* Legend + Add button */}
-      <div className="flex flex-wrap items-center gap-2">
-        {STATUS_OPTIONS.map((s) => (
-          <Badge key={s.value} variant="outline" className={`${s.color} text-xs`}>
-            {s.label}
-          </Badge>
-        ))}
-        <div className="ml-auto">
-          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" disabled={!isAdmin}>
-                <UserPlus className="h-4 w-4 mr-1" />
-                Adicionar Funcionário
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Adicionar Funcionário à Escala</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                {loadingUsers ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-sm text-muted-foreground">Carregando funcionários...</span>
-                  </div>
-                ) : usersError ? (
-                  <div className="text-center py-6 text-sm text-destructive">
-                    Não foi possível carregar a lista de funcionários. Tente novamente.
-                  </div>
-                ) : availableUsers.length === 0 ? (
-                  <div className="text-center py-6 text-sm text-muted-foreground">
-                    Todos os funcionários já estão na escala desta semana.
-                  </div>
-                ) : (
-                  <>
-                    <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um funcionário" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableUsers.map((u) => (
-                          <SelectItem key={u.user_id} value={u.user_id}>
-                            <span>{getUserLabel(u)}</span>
-                            {u.email && u.display_name && (
-                              <span className="ml-2 text-xs text-muted-foreground">{u.email}</span>
-                            )}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      O funcionário será adicionado com status "Trabalho" em todos os dias e turnos da semana.
-                    </p>
-                    <Button
-                      className="w-full"
-                      disabled={!selectedUserId || addUserMutation.isPending}
-                      onClick={() => addUserMutation.mutate(selectedUserId)}
-                    >
-                      {addUserMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                      ) : (
-                        <Plus className="h-4 w-4 mr-1" />
-                      )}
-                      Adicionar
-                    </Button>
-                  </>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:justify-between">
+          <TabsList>
+            <TabsTrigger value="semana" className="gap-1">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Semana
+            </TabsTrigger>
+            <TabsTrigger value="dia" className="gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              Dia
+            </TabsTrigger>
+            <TabsTrigger value="cobertura" className="gap-1">
+              <BarChart3 className="h-3.5 w-3.5" />
+              Cobertura
+            </TabsTrigger>
+          </TabsList>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          {isAdmin && (
+            <Button size="sm" onClick={openAddDialog}>
+              <Plus className="h-4 w-4 mr-1" />
+              Adicionar Turno
+            </Button>
+          )}
         </div>
-      ) : scheduledUsers.length === 0 ? (
-        <Card className="p-8 text-center text-muted-foreground">
-          <UserPlus className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>Nenhum funcionário na escala desta semana.</p>
-          <p className="text-xs mt-1">Use o botão "Adicionar Funcionário" para começar.</p>
-        </Card>
-      ) : (
-        <>
-          {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 px-3 font-medium text-muted-foreground w-48">Funcionário</th>
-                  {weekDays.map((day) => (
-                    <th key={day.toISOString()} className={`text-center py-2 px-1 font-medium ${isSameDay(day, new Date()) ? "text-primary" : "text-muted-foreground"}`}>
-                      <div>{format(day, "EEE", { locale: ptBR })}</div>
-                      <div className="text-xs">{format(day, "dd/MM")}</div>
-                    </th>
-                  ))}
-                  <th className="w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {scheduledUsers.map((user) => (
-                  <tr key={user.user_id} className="border-b border-border/50 hover:bg-muted/30">
-                    <td className="py-2 px-3 font-medium truncate max-w-[200px]">{getUserLabel(user)}</td>
-                    {weekDays.map((day) => (
-                      <td key={day.toISOString()} className="py-1 px-1 text-center">
-                        <div className="flex flex-col gap-0.5">
-                          {SHIFTS.map((shift) => {
-                            const entry = getEntry(user.user_id, day, shift.value);
-                            const currentStatus = entry?.status ?? "trabalho";
+
+        {/* Legend */}
+        <div className="flex flex-wrap gap-2 mt-2">
+          {STATUS_OPTIONS.map((s) => (
+            <Badge key={s.value} variant="outline" className={`${s.color} text-xs`}>
+              {s.label}
+            </Badge>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            {/* ==================== WEEKLY VIEW ==================== */}
+            <TabsContent value="semana" className="mt-4">
+              {scheduledUserIds.length === 0 ? (
+                <Card className="p-8 text-center text-muted-foreground">
+                  <UserPlus className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>Nenhum turno cadastrado esta semana.</p>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {scheduledUserIds.map((uid) => {
+                    const userEntries = entries.filter((e) => e.user_id === uid);
+                    return (
+                      <Card key={uid} className="p-3">
+                        <p className="font-semibold text-sm mb-2">{getUserLabel(uid)}</p>
+                        <div className="grid grid-cols-7 gap-1">
+                          {weekDays.map((day) => {
+                            const dayStr = format(day, "yyyy-MM-dd");
+                            const dayE = userEntries.filter((e) => e.date === dayStr);
+                            const isToday = isSameDay(day, new Date());
                             return (
-                              <Select
-                                key={shift.value}
-                                value={currentStatus}
-                                disabled={!isAdmin || updateStatusMutation.isPending}
-                                onValueChange={(val) =>
-                                  updateStatusMutation.mutate({
-                                    user_id: user.user_id,
-                                    date: format(day, "yyyy-MM-dd"),
-                                    shift: shift.value,
-                                    status: val,
-                                  })
-                                }
+                              <div
+                                key={dayStr}
+                                className={`text-center rounded p-1 ${isToday ? "ring-1 ring-primary/50" : ""}`}
                               >
-                                <SelectTrigger
-                                  className={`h-auto px-1.5 py-0.5 text-[11px] font-medium border ${getStatusStyle(currentStatus)} ${isAdmin ? "cursor-pointer" : "cursor-default"}`}
-                                >
-                                  <span>{shift.label[0]} {getStatusLabel(currentStatus)}</span>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {STATUS_OPTIONS.map((s) => (
-                                    <SelectItem key={s.value} value={s.value}>
-                                      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${s.color.split(" ")[0]}`} />
-                                      {s.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                <p className={`text-[10px] font-medium ${isToday ? "text-primary" : "text-muted-foreground"}`}>
+                                  {format(day, "EEE", { locale: ptBR })}
+                                </p>
+                                <p className="text-[9px] text-muted-foreground mb-0.5">
+                                  {format(day, "dd/MM")}
+                                </p>
+                                {dayE.length === 0 ? (
+                                  <span className="text-[9px] text-muted-foreground">—</span>
+                                ) : (
+                                  dayE.map((e) => {
+                                    if (e.status !== "trabalho") {
+                                      return (
+                                        <div
+                                          key={e.id}
+                                          className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${getStatusStyle(e.status)} ${isAdmin ? "cursor-pointer" : ""}`}
+                                          onClick={() => isAdmin && openEditDialog(e)}
+                                        >
+                                          {getStatusLabel(e.status)}
+                                        </div>
+                                      );
+                                    }
+                                    const s = parseTime(e.shift_start_time, DEFAULT_START);
+                                    const end = parseTime(e.shift_end_time, DEFAULT_END);
+                                    return (
+                                      <div
+                                        key={e.id}
+                                        className={`rounded text-[9px] py-0.5 px-0.5 mb-0.5 border ${getStatusStyle("trabalho")} ${isAdmin ? "cursor-pointer" : ""}`}
+                                        onClick={() => isAdmin && openEditDialog(e)}
+                                      >
+                                        {s}–{end}
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
                             );
                           })}
                         </div>
-                      </td>
-                    ))}
-                    <td className="py-1 px-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        disabled={!isAdmin || removeUserMutation.isPending}
-                        onClick={() => {
-                          if (confirm(`Remover ${getUserLabel(user)} da escala desta semana?`)) {
-                            removeUserMutation.mutate(user.user_id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile cards */}
-          <div className="md:hidden space-y-3">
-            {scheduledUsers.map((user) => (
-              <Card key={user.user_id} className="p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-medium text-sm truncate">{getUserLabel(user)}</p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-                    disabled={!isAdmin || removeUserMutation.isPending}
-                    onClick={() => {
-                      if (confirm(`Remover ${getUserLabel(user)} da escala desta semana?`)) {
-                        removeUserMutation.mutate(user.user_id);
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                      </Card>
+                    );
+                  })}
                 </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {weekDays.map((day) => (
-                    <div key={day.toISOString()} className="text-center">
-                      <p className={`text-[10px] font-medium mb-0.5 ${isSameDay(day, new Date()) ? "text-primary" : "text-muted-foreground"}`}>
-                        {format(day, "EEE", { locale: ptBR })[0].toUpperCase()}
-                      </p>
-                      {SHIFTS.map((shift) => {
-                        const entry = getEntry(user.user_id, day, shift.value);
-                        const currentStatus = entry?.status ?? "trabalho";
+              )}
+            </TabsContent>
+
+            {/* ==================== DAILY VIEW ==================== */}
+            <TabsContent value="dia" className="mt-4 space-y-4">
+              {/* Day selector */}
+              <div className="flex gap-1 overflow-x-auto pb-1">
+                {weekDays.map((day, i) => (
+                  <Button
+                    key={i}
+                    variant={selectedDayIndex === i ? "default" : "outline"}
+                    size="sm"
+                    className="shrink-0 text-xs"
+                    onClick={() => setSelectedDayIndex(i)}
+                  >
+                    {format(day, "EEE dd/MM", { locale: ptBR })}
+                  </Button>
+                ))}
+              </div>
+
+              <h2 className="text-lg font-semibold">
+                {format(selectedDay, "EEEE – dd MMM", { locale: ptBR })}
+              </h2>
+
+              {dayEntries.length === 0 ? (
+                <Card className="p-6 text-center text-muted-foreground">
+                  <p>Nenhum turno cadastrado neste dia.</p>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {dayEntries.map((entry) => {
+                    const s = parseTime(entry.shift_start_time, DEFAULT_START);
+                    const e = parseTime(entry.shift_end_time, DEFAULT_END);
+                    const hours = hoursDiff(s, e);
+                    return (
+                      <Card key={entry.id} className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getStatusDot(entry.status)}`} />
+                              <p className="font-semibold text-sm truncate">
+                                {getUserLabel(entry.user_id)}
+                              </p>
+                              <Badge variant="outline" className={`text-[10px] ${getStatusStyle(entry.status)}`}>
+                                {getStatusLabel(entry.status)}
+                              </Badge>
+                            </div>
+                            {entry.status === "trabalho" ? (
+                              <div className="flex items-center gap-3 text-sm text-muted-foreground ml-4">
+                                <span className="font-mono">{s} – {e}</span>
+                                <span className="text-xs">({hours.toFixed(1)}h)</span>
+                              </div>
+                            ) : null}
+                            {entry.notes && (
+                              <p className="text-xs text-muted-foreground ml-4 mt-1 italic">
+                                {entry.notes}
+                              </p>
+                            )}
+                          </div>
+                          {isAdmin && (
+                            <div className="flex gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => openEditDialog(entry)}
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                disabled={deleteMutation.isPending}
+                                onClick={() => {
+                                  if (confirm("Remover este turno?")) {
+                                    deleteMutation.mutate(entry.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Timeline */}
+              {dayEntries.filter((e) => e.status === "trabalho").length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Timeline</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 overflow-x-auto">
+                    {/* Hour ruler */}
+                    <div className="relative h-5 min-w-[500px]">
+                      {Array.from({ length: TIMELINE_HOURS + 1 }, (_, i) => {
+                        const pct = (i / TIMELINE_HOURS) * 100;
                         return (
-                          <button
-                            key={shift.value}
-                            disabled={!isAdmin || updateStatusMutation.isPending}
-                            onClick={() => {
-                              const idx = STATUS_OPTIONS.findIndex((s) => s.value === currentStatus);
-                              const next = STATUS_OPTIONS[(idx + 1) % STATUS_OPTIONS.length].value;
-                              updateStatusMutation.mutate({
-                                user_id: user.user_id,
-                                date: format(day, "yyyy-MM-dd"),
-                                shift: shift.value,
-                                status: next,
-                              });
-                            }}
-                            className={`w-full rounded text-[9px] py-0.5 font-medium border mb-0.5 ${getStatusStyle(currentStatus)} ${isAdmin ? "cursor-pointer" : "cursor-default"}`}
+                          <span
+                            key={i}
+                            className="absolute text-[9px] text-muted-foreground -translate-x-1/2"
+                            style={{ left: `${pct}%` }}
                           >
-                            {getStatusLabel(currentStatus)[0]}
-                          </button>
+                            {String(TIMELINE_START + i).padStart(2, "0")}
+                          </span>
                         );
                       })}
                     </div>
+                    {dayEntries
+                      .filter((e) => e.status === "trabalho")
+                      .map((entry) => {
+                        const s = parseTime(entry.shift_start_time, DEFAULT_START);
+                        const e = parseTime(entry.shift_end_time, DEFAULT_END);
+                        const startFrac = timeToFraction(s);
+                        const endFrac = timeToFraction(e);
+                        const left = ((startFrac - TIMELINE_START) / TIMELINE_HOURS) * 100;
+                        const width = ((endFrac - startFrac) / TIMELINE_HOURS) * 100;
+                        return (
+                          <div key={entry.id} className="relative h-7 min-w-[500px]">
+                            <span className="absolute left-0 text-[10px] text-muted-foreground w-20 truncate -top-0.5">
+                              {getUserLabel(entry.user_id)}
+                            </span>
+                            <div
+                              className="absolute top-0 h-6 rounded bg-primary/70 flex items-center justify-center text-[9px] text-primary-foreground font-medium"
+                              style={{
+                                left: `max(80px, ${left}%)`,
+                                width: `${Math.max(width, 2)}%`,
+                              }}
+                            >
+                              {s}–{e}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* ==================== COVERAGE VIEW ==================== */}
+            <TabsContent value="cobertura" className="mt-4 space-y-4">
+              {/* Day selector */}
+              <div className="flex gap-1 overflow-x-auto pb-1">
+                {weekDays.map((day, i) => (
+                  <Button
+                    key={i}
+                    variant={selectedDayIndex === i ? "default" : "outline"}
+                    size="sm"
+                    className="shrink-0 text-xs"
+                    onClick={() => setSelectedDayIndex(i)}
+                  >
+                    {format(day, "EEE dd/MM", { locale: ptBR })}
+                  </Button>
+                ))}
+              </div>
+
+              <h2 className="text-lg font-semibold">
+                Cobertura – {format(selectedDay, "EEEE dd MMM", { locale: ptBR })}
+              </h2>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {coverageSegments.map((seg) => {
+                  const color =
+                    seg.count >= 2
+                      ? "bg-emerald-500/20 border-emerald-300 text-emerald-700"
+                      : seg.count === 1
+                      ? "bg-amber-500/20 border-amber-300 text-amber-700"
+                      : "bg-red-500/20 border-red-300 text-red-700";
+                  return (
+                    <div
+                      key={seg.hour}
+                      className={`rounded-lg border p-2 text-center ${color}`}
+                    >
+                      <p className="text-xs font-mono font-semibold">
+                        {String(seg.hour).padStart(2, "0")}:00 –{" "}
+                        {String(seg.hour + 1).padStart(2, "0")}:00
+                      </p>
+                      <p className="text-lg font-bold">{seg.count}</p>
+                      <p className="text-[10px]">
+                        {seg.count === 0
+                          ? "Sem cobertura"
+                          : seg.count === 1
+                          ? "Atenção"
+                          : "OK"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </TabsContent>
+          </>
+        )}
+      </Tabs>
+
+      {/* ==================== ADD/EDIT SHIFT DIALOG ==================== */}
+      <Dialog open={shiftDialogOpen} onOpenChange={setShiftDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editingEntry ? "Editar Turno" : "Adicionar Turno"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {/* Employee */}
+            {!editingEntry && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Funcionário</label>
+                {loadingUsers ? (
+                  <div className="flex items-center gap-2 py-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Carregando...</span>
+                  </div>
+                ) : usersError ? (
+                  <p className="text-sm text-destructive">
+                    Erro ao carregar funcionários.
+                  </p>
+                ) : (
+                  <Select value={formUserId} onValueChange={setFormUserId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allUsers.map((u) => (
+                        <SelectItem key={u.user_id} value={u.user_id}>
+                          {u.display_name || u.email}
+                          {u.display_name && (
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {u.email}
+                            </span>
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
+
+            {editingEntry && (
+              <p className="text-sm font-medium">
+                {getUserLabel(editingEntry.user_id)}
+              </p>
+            )}
+
+            {/* Date */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Data</label>
+              <Input
+                type="date"
+                value={formDate}
+                onChange={(e) => setFormDate(e.target.value)}
+              />
+            </div>
+
+            {/* Times */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Início</label>
+                <Input
+                  type="time"
+                  value={formStart}
+                  onChange={(e) => setFormStart(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Fim</label>
+                <Input
+                  type="time"
+                  value={formEnd}
+                  onChange={(e) => setFormEnd(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Status */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Status</label>
+              <Select value={formStatus} onValueChange={setFormStatus}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
+                    </SelectItem>
                   ))}
-                </div>
-              </Card>
-            ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Observações</label>
+              <Textarea
+                value={formNotes}
+                onChange={(e) => setFormNotes(e.target.value)}
+                placeholder="Opcional..."
+                rows={2}
+              />
+            </div>
+
+            {/* Hours preview */}
+            {formStatus === "trabalho" && formStart && formEnd && (
+              <p className="text-xs text-muted-foreground">
+                Total: {hoursDiff(formStart, formEnd).toFixed(1)} horas
+              </p>
+            )}
+
+            <Button
+              className="w-full"
+              disabled={
+                saveMutation.isPending ||
+                (!editingEntry && !formUserId) ||
+                !formDate
+              }
+              onClick={() => saveMutation.mutate()}
+            >
+              {saveMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <Plus className="h-4 w-4 mr-1" />
+              )}
+              {editingEntry ? "Salvar" : "Adicionar"}
+            </Button>
           </div>
-        </>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

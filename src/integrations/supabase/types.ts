@@ -844,6 +844,8 @@ export type Database = {
           id: string
           notes: string | null
           shift: string
+          shift_end_time: string | null
+          shift_start_time: string | null
           status: string
           updated_at: string
           user_id: string
@@ -854,6 +856,8 @@ export type Database = {
           id?: string
           notes?: string | null
           shift?: string
+          shift_end_time?: string | null
+          shift_start_time?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -864,6 +868,8 @@ export type Database = {
           id?: string
           notes?: string | null
           shift?: string
+          shift_end_time?: string | null
+          shift_start_time?: string | null
           status?: string
           updated_at?: string
           user_id?: string
