@@ -113,7 +113,7 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
         toast.success("Ponto atualizado!");
       } else {
         const { error } = await supabase.from("timecards").insert({
-          user_id: userId, date: todayStr, clock_in: clockInISO, clock_out: clockOutISO,
+          user_id: userId, date: selectedDate, clock_in: clockInISO, clock_out: clockOutISO,
           worked_hours: workedHours, extra_hours: extraHours, daily_payment: dailyPayment, notes: notes || null,
         });
         if (error) throw error;
