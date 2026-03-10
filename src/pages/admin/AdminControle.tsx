@@ -252,10 +252,6 @@ const AdminControle = () => {
             <AlertTriangle className="h-3.5 w-3.5 hidden sm:inline" />
             Ocorrências
           </TabsTrigger>
-          <TabsTrigger value="fora-rota" className="text-xs sm:text-sm py-2 gap-1">
-            <MapPinOff className="h-3.5 w-3.5 hidden sm:inline" />
-            Fora de Rota
-          </TabsTrigger>
           <TabsTrigger value="divergencias" className="text-xs sm:text-sm py-2 gap-1">
             <GitCompare className="h-3.5 w-3.5 hidden sm:inline" />
             Divergências
@@ -267,9 +263,6 @@ const AdminControle = () => {
         </TabsContent>
         <TabsContent value="ocorrencias" className="mt-4">
           <AdminOcorrencias />
-        </TabsContent>
-        <TabsContent value="fora-rota" className="mt-4">
-          <ForaDeRotaSection />
         </TabsContent>
         <TabsContent value="divergencias" className="mt-4">
           <DivergenciasSection />

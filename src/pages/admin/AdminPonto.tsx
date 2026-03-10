@@ -152,13 +152,8 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Clock className="h-4 w-4 text-primary" />
-              Registro de Hoje
+              Registro — {format(new Date(selectedDate + "T12:00:00"), "dd/MM/yyyy")}
             </CardTitle>
-            {showSummary && (
-              <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => setEditing(true)}>
-                <Pencil className="h-3 w-3" /> Editar
-              </Button>
-            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
