@@ -138,8 +138,13 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-foreground">Ponto</h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+          {format(new Date(selectedDate + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
         </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Data</Label>
+        <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} max={format(new Date(), "yyyy-MM-dd")} />
       </div>
 
       <Card>
