@@ -1,32 +1,78 @@
 
 
-## Root Cause Analysis
+## Analysis
 
-The driver creation form uses `<input type="file" capture="environment">` (line 340). On mobile devices, this opens the native camera app. When the camera app opens, Android/iOS may **kill the browser tab to free memory**. When the user returns after taking the photo, the entire page reloads from scratch, destroying all React state (nome, telefone, placa, etc.).
+The current auth system uses the Lovable Cloud Supabase client (`src/integrations/supabase/client.ts`) for everything: authentication AND data queries. The user wants to split this so that **auth goes through their own Supabase** (`tcajkhmwmmnltzfshugh.supabase.co`) while **data queries continue using the Cloud client**.
 
-Secondary issue: the form relies on `fileInputRef.current?.files?.[0]` which is also lost on page reload.
+### Critical blocker
 
-## Plan
+The user has not provided the **anon key** for their Supabase project. The URL alone is not sufficient to create a client. We need:
+- `SUPABASE_URL`: `https://tcajkhmwmmnltzfshugh.supabase.co` (provided)
+- `SUPABASE_ANON_KEY`: **missing**
 
-### Single file changed: `src/pages/admin/AdminDrivers.tsx`
+Additionally, their Supabase project must have:
+- Users created in `auth.users`
+- A `public.user_roles` table with `user_id` and `role` columns
+- RLS policies that allow authenticated users to read their own role
 
-**Fix 1 — Remove `capture="environment"`** from the file input. Let the OS prompt the user to choose camera or gallery. This avoids forcing the native camera app which causes the memory-kill reload on many Android devices.
+### Important architectural consideration
 
-**Fix 2 — Store photo in state, not just in ref.** Add `const [photoFile, setPhotoFile] = useState<File | null>(null)` and `const [photoPreview, setPhotoPreview] = useState<string | null>(null)`. On file input `onChange`, read the file into state and create an object URL for preview. This way if the component survives, the preview is visible.
+Even after creating a separate auth client, the **data client** (Cloud) will still use its own JWT for RLS. Since all tables have RLS policies using `has_role(auth.uid(), ...)`, and `auth.uid()` comes from the Cloud Supabase session, **data access will break** if users are only authenticated against the external Supabase.
 
-**Fix 3 — Persist form data in sessionStorage.** On every field change, save form values to `sessionStorage`. On mount, restore them. This survives the camera-induced page reload. Clear sessionStorage on successful save or form close.
+This means either:
+1. The same user must exist in **both** Supabase instances (Cloud + external), OR
+2. All RLS policies on the Cloud database must be rewritten to not depend on `auth.uid()`, OR
+3. All data must also move to the external Supabase (defeating the purpose of Cloud)
 
-**Fix 4 — Use state-based photoFile in `handleCreate`** instead of `fileInputRef.current?.files?.[0]`. If photo is lost (page reloaded and file can't be restored), allow saving without photo and show a warning toast that the photo was lost and they should edit the driver to add it.
+This is a fundamental constraint, not a code limitation.
 
-**Fix 5 — Add proper error handling and loading states.** Wrap the upload + insert in try/catch. If upload fails, still save the driver without photo and show an error toast. Add uploading state indicator.
+---
 
-**Fix 6 — Also remove `capture="environment"` from the inline edit photo button** (line 415) for consistency.
+## Proposed plan (contingent on resolving the above)
 
-### Summary of changes:
-- Remove `capture="environment"` from both file inputs
-- Add `photoFile` / `photoPreview` state
-- Persist form fields in sessionStorage, restore on mount
-- Use state-based photo in handleCreate instead of ref
-- If photo lost after camera, allow save without photo
-- Better error handling for upload failures
+### Step 1 — Get the anon key
+Ask the user for their Supabase anon key.
+
+### Step 2 — Create `src/lib/customSupabase.ts`
+A second Supabase client pointing to `tcajkhmwmmnltzfshugh.supabase.co` with the provided anon key, used exclusively for auth operations.
+
+### Step 3 — Update `useAuth.tsx`
+Replace all `supabase.auth.*` calls with `customSupabase.auth.*`. The `user_roles` query must also go through `customSupabase` (since the roles table lives on the external Supabase).
+
+### Step 4 — Update login pages
+No changes needed — they already use `useAuth` which will be rewired internally.
+
+### Step 5 — ProtectedRoute
+No changes needed — it already uses `useAuth`.
+
+### Step 6 — Admin user management page
+Create `/admin/usuarios` page allowing admins to:
+- List users (via edge function on external Supabase using service role key)
+- Create operator accounts
+- Assign/change roles
+- Enable/disable access
+
+### Step 7 — Logout in sidebar components
+Update `AdminLayout` and `OpLayout` signOut calls (already go through `useAuth`, so no change needed).
+
+---
+
+## What blocks this migration
+
+**RLS on the Cloud database**: Every table (`drivers`, `rotas`, `dias`, `estoque`, `finance_entries`, etc.) uses `has_role(auth.uid(), ...)` which requires the user to be authenticated against the **Cloud** Supabase. If auth moves to an external instance, `auth.uid()` on the Cloud instance will be `null` and all data queries will return empty or fail with permission errors.
+
+**Options to resolve:**
+- A) Create matching users in both instances (complex, fragile)
+- B) Disable RLS on all Cloud tables (insecure)
+- C) Migrate all data to the external Supabase (large effort, loses Cloud benefits)
+- D) Keep auth on Cloud and create users there via admin tooling (simplest)
+
+I recommend **option D**: keep using Cloud auth but build an admin page to manage users (create operators, assign roles) directly in the Cloud Supabase. This gives you full control over who can log in without needing an external instance.
+
+---
+
+## Before proceeding, I need:
+
+1. Your **anon key** for `tcajkhmwmmnltzfshugh.supabase.co`
+2. Your decision on the RLS problem described above — which option (A/B/C/D) do you prefer?
 

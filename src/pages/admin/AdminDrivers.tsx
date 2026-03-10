@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/customSupabase";
-import { Users, Plus, Search, Edit2, Check, X, Power, Camera, ChevronDown, ChevronUp, Flag, AlertTriangle, MessageCircle, Trash2 } from "lucide-react";
+import { Users, Plus, Search, Edit2, Check, X, Power, Camera, ChevronDown, ChevronUp, Flag, AlertTriangle, MessageCircle, Trash2, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   AlertDialog,
@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format, endOfMonth } from "date-fns";
+
+const STORAGE_KEY = "megapost_driver_form";
 
 const farolOptions = [
   { value: "VERDE", label: "Verde", color: "bg-green-500" },
@@ -40,7 +42,7 @@ const AdminDrivers = () => {
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
 
-  // Create form
+  // Create form — restored from sessionStorage on mount
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [placa, setPlaca] = useState("");
@@ -49,6 +51,11 @@ const AdminDrivers = () => {
   const [farol, setFarol] = useState("VERDE");
   const [observacao, setObservacao] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  // Photo state (instead of relying on ref)
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit form
@@ -66,6 +73,47 @@ const AdminDrivers = () => {
   const [driverMetrics, setDriverMetrics] = useState<any>(null);
   const [metricsMonth, setMetricsMonth] = useState(format(new Date(), "yyyy-MM"));
 
+  // === Fix 3: Restore form from sessionStorage on mount ===
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.nome) setNome(data.nome);
+        if (data.telefone) setTelefone(data.telefone);
+        if (data.placa) setPlaca(data.placa);
+        if (data.tipo) setTipo(data.tipo);
+        if (data.transportadoraNome) setTransportadoraNome(data.transportadoraNome);
+        if (data.farol) setFarol(data.farol);
+        if (data.observacao) setObservacao(data.observacao);
+        // If we had saved data, the form was open
+        if (data.nome || data.telefone) {
+          setShowForm(true);
+        }
+      }
+    } catch {}
+  }, []);
+
+  // === Fix 3: Persist form fields to sessionStorage on change ===
+  useEffect(() => {
+    if (showForm) {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+          nome, telefone, placa, tipo, transportadoraNome, farol, observacao,
+        }));
+      } catch {}
+    }
+  }, [nome, telefone, placa, tipo, transportadoraNome, farol, observacao, showForm]);
+
+  const clearFormAndStorage = () => {
+    setNome(""); setTelefone(""); setPlaca(""); setTipo("ENVIOS_EXTRA");
+    setTransportadoraNome(""); setFarol("VERDE"); setObservacao("");
+    setPhotoFile(null); setPhotoPreview(null);
+    setShowForm(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
+  };
+
   useEffect(() => { loadDrivers(); }, []);
 
   const loadDrivers = async () => {
@@ -74,58 +122,84 @@ const AdminDrivers = () => {
     setLoading(false);
   };
 
+  // === Fix 2: Handle file selection into state ===
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    // Create preview URL
+    const url = URL.createObjectURL(file);
+    setPhotoPreview(url);
+  };
+
   const uploadPhoto = async (file: File, driverId: string): Promise<string | null> => {
     try {
-      const ext = file.name.split(".").pop();
+      setUploading(true);
+      const ext = file.name.split(".").pop() || "jpg";
       const path = `${driverId}.${ext}`;
       const { error } = await supabase.storage.from("driver-photos").upload(path, file, { upsert: true });
       if (error) throw error;
       const { data: urlData } = supabase.storage.from("driver-photos").getPublicUrl(path);
       return urlData.publicUrl + "?t=" + Date.now();
     } catch (err: any) {
+      console.error("Upload error:", err);
       toast.error("Erro no upload da foto: " + err.message);
       return null;
+    } finally {
+      setUploading(false);
     }
   };
 
+  // === Fix 4 & 5: Use state-based photoFile, graceful error handling ===
   const handleCreate = async () => {
     if (!nome.trim()) { toast.error("Nome é obrigatório."); return; }
     if (!telefone.trim()) { toast.error("Telefone é obrigatório."); return; }
-    const photoFile = fileInputRef.current?.files?.[0];
-    if (!photoFile) { toast.error("Foto é OBRIGATÓRIA para identificação."); return; }
+    if (!photoFile && !photoPreview) {
+      // Photo was lost (page reload killed it) — warn but allow save
+      const hasRestoredFields = nome.trim() || telefone.trim();
+      if (hasRestoredFields) {
+        toast.warning("A foto foi perdida após o uso da câmera. O motorista será salvo sem foto — edite depois para adicionar.");
+      } else {
+        toast.error("Foto é OBRIGATÓRIA para identificação."); return;
+      }
+    }
     if (tipo === "TRANSPORTADORA" && !transportadoraNome.trim()) { toast.error("Nome da transportadora é obrigatório."); return; }
 
     setSubmitting(true);
-    const { data, error } = await supabase
-      .from("drivers")
-      .insert({
-        nome: nome.trim(),
-        telefone: telefone.trim(),
-        placa: placa.trim() || null,
-        tipo,
-        transportadora_nome: tipo === "TRANSPORTADORA" ? transportadoraNome.trim() : null,
-        farol,
-        observacao: observacao.trim() || null,
-      } as any)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from("drivers")
+        .insert({
+          nome: nome.trim(),
+          telefone: telefone.trim(),
+          placa: placa.trim() || null,
+          tipo,
+          transportadora_nome: tipo === "TRANSPORTADORA" ? transportadoraNome.trim() : null,
+          farol,
+          observacao: observacao.trim() || null,
+        } as any)
+        .select()
+        .single();
 
-    if (error) { toast.error(error.message); setSubmitting(false); return; }
+      if (error) { toast.error("Erro ao salvar: " + error.message); return; }
 
-    if (data) {
-      const url = await uploadPhoto(photoFile, data.id);
-      if (url) {
-        await supabase.from("drivers").update({ foto_url: url } as any).eq("id", data.id);
+      if (data && photoFile) {
+        const url = await uploadPhoto(photoFile, data.id);
+        if (url) {
+          await supabase.from("drivers").update({ foto_url: url } as any).eq("id", data.id);
+        } else {
+          toast.warning("Motorista salvo, mas a foto falhou no upload. Edite o motorista para adicionar a foto.");
+        }
       }
-    }
 
-    toast.success("Motorista cadastrado!");
-    setNome(""); setTelefone(""); setPlaca(""); setTipo("ENVIOS_EXTRA");
-    setTransportadoraNome(""); setFarol("VERDE"); setObservacao("");
-    setShowForm(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    await loadDrivers();
-    setSubmitting(false);
+      toast.success("Motorista cadastrado!");
+      clearFormAndStorage();
+      await loadDrivers();
+    } catch (err: any) {
+      toast.error("Erro inesperado: " + (err?.message || "tente novamente"));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const startEdit = (driver: any) => {
@@ -187,13 +261,11 @@ const AdminDrivers = () => {
   };
 
   const handleDelete = async (driver: any) => {
-    // Check for linked routes
     const { count } = await supabase.from("rotas").select("id", { count: "exact", head: true }).eq("driver_id", driver.id);
     if (count && count > 0) {
       toast.error(`Não é possível excluir: motorista tem ${count} rota(s) vinculada(s).`);
       return;
     }
-    // Delete photo from storage
     if (driver.foto_url) {
       const parts = driver.foto_url.split("/driver-photos/");
       if (parts[1]) {
@@ -212,7 +284,6 @@ const AdminDrivers = () => {
     setExpandedDriver(driverId);
     setDriverMetrics(null);
 
-    // Use v_driver_monthly view for month metrics
     const [{ data: monthData }, { data: allRotas }, { data: allEstoque }] = await Promise.all([
       supabase.from("v_driver_monthly" as any).select("*")
         .eq("driver_id", driverId).eq("month_id", metricsMonth).maybeSingle(),
@@ -220,14 +291,12 @@ const AdminDrivers = () => {
       supabase.from("estoque").select("id, tipo_insucesso, rota_id").eq("origem_driver_id", driverId),
     ]);
 
-    // Get month estoque using dia_ids from dias table
     const monthStart = `${metricsMonth}-01`;
     const monthEnd = format(endOfMonth(new Date(metricsMonth + "-01")), "yyyy-MM-dd");
     const { data: diasDoMes } = await supabase.from("dias").select("id")
       .gte("data", monthStart).lte("data", monthEnd);
     const diaIds = new Set((diasDoMes || []).map(d => d.id));
 
-    // Filter estoque by rota's dia_id (through allRotas)
     const rotaIdToDia = new Map((allRotas || []).map((r: any) => [r.id, r.dia_id]));
     const monthEstoque = (allEstoque || []).filter((e: any) => {
       const rotaDia = rotaIdToDia.get(e.rota_id);
@@ -333,14 +402,26 @@ const AdminDrivers = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Foto * (obrigatória para identificação)</Label>
+              <Label>Foto {photoFile ? "" : "* (obrigatória para identificação)"}</Label>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
+                onChange={handleFileChange}
                 className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:opacity-90"
               />
+              {photoPreview && (
+                <div className="mt-2 flex items-center gap-3">
+                  <img src={photoPreview} alt="Preview" className="h-16 w-16 rounded-lg object-cover border border-border" />
+                  <button
+                    type="button"
+                    onClick={() => { setPhotoFile(null); setPhotoPreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    className="text-xs text-destructive hover:underline"
+                  >
+                    Remover foto
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -348,8 +429,10 @@ const AdminDrivers = () => {
               <Textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Notas sobre o motorista..." rows={2} />
             </div>
 
-            <Button onClick={handleCreate} disabled={submitting} className="w-full">
-              {submitting ? "Salvando..." : "Cadastrar Motorista"}
+            <Button onClick={handleCreate} disabled={submitting || uploading} className="w-full">
+              {submitting || uploading ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {uploading ? "Enviando foto..." : "Salvando..."}</>
+              ) : "Cadastrar Motorista"}
             </Button>
           </CardContent>
         </Card>
@@ -412,7 +495,7 @@ const AdminDrivers = () => {
                       <button
                         onClick={() => {
                           const input = document.createElement("input");
-                          input.type = "file"; input.accept = "image/*"; input.capture = "environment";
+                          input.type = "file"; input.accept = "image/*";
                           input.onchange = (e) => handleEditPhoto(e as any, d.id);
                           input.click();
                         }}
