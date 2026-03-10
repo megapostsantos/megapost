@@ -296,18 +296,19 @@ const AdminPontoView = () => {
   const [dateFilter, setDateFilter] = useState(format(new Date(), "yyyy-MM"));
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const userEmailsRef = useRef<Record<string, string>>({});
+  const [editingRecord, setEditingRecord] = useState<Timecard | null>(null);
+  const [editClockIn, setEditClockIn] = useState("");
+  const [editClockOut, setEditClockOut] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
-  // Load user emails once from manage-users edge function
   useEffect(() => {
     if (!session?.access_token) return;
     const loadEmails = async () => {
       try {
         const res = await fetch(MANAGE_USERS_URL, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({ action: "list" }),
         });
         const data = await res.json();
@@ -317,9 +318,7 @@ const AdminPontoView = () => {
           userEmailsRef.current = map;
           setProfiles((prev) => ({ ...map, ...prev }));
         }
-      } catch {
-        // silent fallback
-      }
+      } catch {}
     };
     loadEmails();
   }, [session?.access_token]);
@@ -329,36 +328,17 @@ const AdminPontoView = () => {
       setLoading(true);
       const startDate = `${dateFilter}-01`;
       const endDate = `${dateFilter}-31`;
-
-      const { data, error } = await supabase
-        .from("timecards")
-        .select("*")
-        .gte("date", startDate)
-        .lte("date", endDate)
-        .order("date", { ascending: false });
+      const { data, error } = await supabase.from("timecards").select("*").gte("date", startDate).lte("date", endDate).order("date", { ascending: false });
       if (error) throw error;
       setRecords((data as Timecard[]) || []);
-
-      // Merge with already-loaded emails
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map((d: any) => d.user_id))];
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("user_id, display_name")
-          .in("user_id", userIds);
+        const { data: profs } = await supabase.from("profiles").select("user_id, display_name").in("user_id", userIds);
         const map: Record<string, string> = { ...userEmailsRef.current };
-        if (profs) {
-          profs.forEach((p: any) => {
-            if (p.display_name) map[p.user_id] = p.display_name;
-          });
-        }
+        if (profs) { profs.forEach((p: any) => { if (p.display_name) map[p.user_id] = p.display_name; }); }
         setProfiles(map);
       }
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: any) { toast.error(err.message); } finally { setLoading(false); }
   }, [dateFilter]);
 
   useEffect(() => { load(); }, [load]);
@@ -369,6 +349,40 @@ const AdminPontoView = () => {
     if (error) { toast.error(error.message); return; }
     toast.success(newStatus === "paid" ? "Marcado como pago" : "Marcado como pendente");
     load();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Remover este registro de ponto?")) return;
+    const { error } = await supabase.from("timecards").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Registro removido.");
+    load();
+  };
+
+  const openEdit = (r: Timecard) => {
+    setEditingRecord(r);
+    setEditClockIn(timeFromISO(r.clock_in));
+    setEditClockOut(timeFromISO(r.clock_out));
+    setEditNotes(r.notes || "");
+  };
+
+  const saveEdit = async () => {
+    if (!editingRecord || !editClockIn) return;
+    setEditSubmitting(true);
+    const dateStr = editingRecord.date;
+    const clockInISO = new Date(`${dateStr}T${editClockIn}:00`).toISOString();
+    const clockOutISO = editClockOut ? new Date(`${dateStr}T${editClockOut}:00`).toISOString() : null;
+    let workedHours = 0, extraHours = 0, dailyPayment = 0;
+    if (editClockIn && editClockOut) {
+      const calc = calcPayment(editClockIn, editClockOut);
+      workedHours = calc.workedHours; extraHours = calc.extraHours; dailyPayment = calc.dailyPayment;
+    }
+    const { error } = await supabase.from("timecards").update({
+      clock_in: clockInISO, clock_out: clockOutISO, worked_hours: workedHours,
+      extra_hours: extraHours, daily_payment: dailyPayment, notes: editNotes || null,
+    }).eq("id", editingRecord.id);
+    if (error) { toast.error(error.message); } else { toast.success("Registro atualizado!"); setEditingRecord(null); load(); }
+    setEditSubmitting(false);
   };
 
   const grouped = records.reduce<Record<string, Timecard[]>>((acc, r) => {
