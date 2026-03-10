@@ -460,6 +460,43 @@ const AdminPontoView = () => {
           );
         })
       )}
+      {/* Edit Dialog */}
+      {editingRecord && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setEditingRecord(null)}>
+          <Card className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Editar Ponto — {format(new Date(editingRecord.date + "T12:00:00"), "dd/MM/yyyy")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Entrada</Label>
+                  <Input type="time" value={editClockIn} onChange={(e) => setEditClockIn(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Saída</Label>
+                  <Input type="time" value={editClockOut} onChange={(e) => setEditClockOut(e.target.value)} />
+                </div>
+              </div>
+              {editClockIn && editClockOut && (
+                <p className="text-xs text-muted-foreground text-center">
+                  {calcPayment(editClockIn, editClockOut).workedHours.toFixed(1)}h → R$ {calcPayment(editClockIn, editClockOut).dailyPayment.toFixed(2)}
+                </p>
+              )}
+              <div className="space-y-1">
+                <Label className="text-xs">Observações</Label>
+                <Textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} className="text-sm" />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setEditingRecord(null)}>Cancelar</Button>
+                <Button className="flex-1" onClick={saveEdit} disabled={editSubmitting}>
+                  {editSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
