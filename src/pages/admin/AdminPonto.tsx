@@ -55,7 +55,7 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
   const [clockOutTime, setClockOutTime] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
   const load = useCallback(async () => {
     try {
@@ -64,7 +64,7 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
         .from("timecards")
         .select("*")
         .eq("user_id", userId)
-        .eq("date", todayStr)
+        .eq("date", selectedDate)
         .maybeSingle();
       if (error) throw error;
       const tc = data as Timecard | null;
@@ -85,7 +85,7 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
     } finally {
       setLoading(false);
     }
-  }, [userId, todayStr]);
+  }, [userId, selectedDate]);
 
   useEffect(() => { load(); }, [load]);
 
