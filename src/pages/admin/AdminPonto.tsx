@@ -439,16 +439,17 @@ const AdminPontoView = () => {
                         <span className="text-foreground">{r.worked_hours.toFixed(1)}h</span>
                         {r.extra_hours > 0 && <span className="text-primary">+{r.extra_hours.toFixed(1)}h</span>}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         <span className="text-xs font-medium">R$ {r.daily_payment.toFixed(0)}</span>
-                        <Button
-                          variant={r.payment_status === "paid" ? "default" : "outline"}
-                          size="sm"
-                          className="h-6 text-[10px] px-2"
-                          onClick={() => togglePayment(r.id, r.payment_status)}
-                        >
+                        <Button variant={r.payment_status === "paid" ? "default" : "outline"} size="sm" className="h-6 text-[10px] px-2" onClick={() => togglePayment(r.id, r.payment_status)}>
                           <DollarSign className="h-3 w-3 mr-0.5" />
                           {r.payment_status === "paid" ? "Pago" : "Pendente"}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(r)}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(r.id)}>
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
