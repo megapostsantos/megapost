@@ -15,7 +15,7 @@ import {
 import { supabase } from "@/lib/customSupabase";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Package, AlertTriangle, MapPinOff, GitCompare,
+  Package, AlertTriangle, GitCompare,
   Plus, CheckCircle, Clock, Search, ClipboardList,
 } from "lucide-react";
 import { format } from "date-fns";
