@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Clock, Save, CalendarDays, DollarSign, Timer, Pencil } from "lucide-react";
+import { Clock, Save, CalendarDays, DollarSign, Timer, Pencil, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -55,7 +55,7 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
   const [clockOutTime, setClockOutTime] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
   const load = useCallback(async () => {
     try {
@@ -64,7 +64,7 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
         .from("timecards")
         .select("*")
         .eq("user_id", userId)
-        .eq("date", todayStr)
+        .eq("date", selectedDate)
         .maybeSingle();
       if (error) throw error;
       const tc = data as Timecard | null;
@@ -85,7 +85,7 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
     } finally {
       setLoading(false);
     }
-  }, [userId, todayStr]);
+  }, [userId, selectedDate]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -93,8 +93,8 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
     if (!clockInTime) { toast.error("Informe o horário de entrada."); return; }
     try {
       setSubmitting(true);
-      const clockInISO = new Date(`${todayStr}T${clockInTime}:00`).toISOString();
-      const clockOutISO = clockOutTime ? new Date(`${todayStr}T${clockOutTime}:00`).toISOString() : null;
+      const clockInISO = new Date(`${selectedDate}T${clockInTime}:00`).toISOString();
+      const clockOutISO = clockOutTime ? new Date(`${selectedDate}T${clockOutTime}:00`).toISOString() : null;
 
       let workedHours = 0, extraHours = 0, dailyPayment = 0;
       if (clockInTime && clockOutTime) {
@@ -113,7 +113,7 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
         toast.success("Ponto atualizado!");
       } else {
         const { error } = await supabase.from("timecards").insert({
-          user_id: userId, date: todayStr, clock_in: clockInISO, clock_out: clockOutISO,
+          user_id: userId, date: selectedDate, clock_in: clockInISO, clock_out: clockOutISO,
           worked_hours: workedHours, extra_hours: extraHours, daily_payment: dailyPayment, notes: notes || null,
         });
         if (error) throw error;
@@ -138,8 +138,13 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-foreground">Ponto</h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+          {format(new Date(selectedDate + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
         </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Data</Label>
+        <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} max={format(new Date(), "yyyy-MM-dd")} />
       </div>
 
       <Card>
@@ -147,7 +152,7 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Clock className="h-4 w-4 text-primary" />
-              Registro de Hoje
+              Registro — {format(new Date(selectedDate + "T12:00:00"), "dd/MM/yyyy")}
             </CardTitle>
             {showSummary && (
               <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => setEditing(true)}>
@@ -291,18 +296,19 @@ const AdminPontoView = () => {
   const [dateFilter, setDateFilter] = useState(format(new Date(), "yyyy-MM"));
   const [profiles, setProfiles] = useState<Record<string, string>>({});
   const userEmailsRef = useRef<Record<string, string>>({});
+  const [editingRecord, setEditingRecord] = useState<Timecard | null>(null);
+  const [editClockIn, setEditClockIn] = useState("");
+  const [editClockOut, setEditClockOut] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
-  // Load user emails once from manage-users edge function
   useEffect(() => {
     if (!session?.access_token) return;
     const loadEmails = async () => {
       try {
         const res = await fetch(MANAGE_USERS_URL, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({ action: "list" }),
         });
         const data = await res.json();
@@ -312,9 +318,7 @@ const AdminPontoView = () => {
           userEmailsRef.current = map;
           setProfiles((prev) => ({ ...map, ...prev }));
         }
-      } catch {
-        // silent fallback
-      }
+      } catch {}
     };
     loadEmails();
   }, [session?.access_token]);
@@ -324,36 +328,17 @@ const AdminPontoView = () => {
       setLoading(true);
       const startDate = `${dateFilter}-01`;
       const endDate = `${dateFilter}-31`;
-
-      const { data, error } = await supabase
-        .from("timecards")
-        .select("*")
-        .gte("date", startDate)
-        .lte("date", endDate)
-        .order("date", { ascending: false });
+      const { data, error } = await supabase.from("timecards").select("*").gte("date", startDate).lte("date", endDate).order("date", { ascending: false });
       if (error) throw error;
       setRecords((data as Timecard[]) || []);
-
-      // Merge with already-loaded emails
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map((d: any) => d.user_id))];
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("user_id, display_name")
-          .in("user_id", userIds);
+        const { data: profs } = await supabase.from("profiles").select("user_id, display_name").in("user_id", userIds);
         const map: Record<string, string> = { ...userEmailsRef.current };
-        if (profs) {
-          profs.forEach((p: any) => {
-            if (p.display_name) map[p.user_id] = p.display_name;
-          });
-        }
+        if (profs) { profs.forEach((p: any) => { if (p.display_name) map[p.user_id] = p.display_name; }); }
         setProfiles(map);
       }
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: any) { toast.error(err.message); } finally { setLoading(false); }
   }, [dateFilter]);
 
   useEffect(() => { load(); }, [load]);
@@ -364,6 +349,40 @@ const AdminPontoView = () => {
     if (error) { toast.error(error.message); return; }
     toast.success(newStatus === "paid" ? "Marcado como pago" : "Marcado como pendente");
     load();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Remover este registro de ponto?")) return;
+    const { error } = await supabase.from("timecards").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Registro removido.");
+    load();
+  };
+
+  const openEdit = (r: Timecard) => {
+    setEditingRecord(r);
+    setEditClockIn(timeFromISO(r.clock_in));
+    setEditClockOut(timeFromISO(r.clock_out));
+    setEditNotes(r.notes || "");
+  };
+
+  const saveEdit = async () => {
+    if (!editingRecord || !editClockIn) return;
+    setEditSubmitting(true);
+    const dateStr = editingRecord.date;
+    const clockInISO = new Date(`${dateStr}T${editClockIn}:00`).toISOString();
+    const clockOutISO = editClockOut ? new Date(`${dateStr}T${editClockOut}:00`).toISOString() : null;
+    let workedHours = 0, extraHours = 0, dailyPayment = 0;
+    if (editClockIn && editClockOut) {
+      const calc = calcPayment(editClockIn, editClockOut);
+      workedHours = calc.workedHours; extraHours = calc.extraHours; dailyPayment = calc.dailyPayment;
+    }
+    const { error } = await supabase.from("timecards").update({
+      clock_in: clockInISO, clock_out: clockOutISO, worked_hours: workedHours,
+      extra_hours: extraHours, daily_payment: dailyPayment, notes: editNotes || null,
+    }).eq("id", editingRecord.id);
+    if (error) { toast.error(error.message); } else { toast.success("Registro atualizado!"); setEditingRecord(null); load(); }
+    setEditSubmitting(false);
   };
 
   const grouped = records.reduce<Record<string, Timecard[]>>((acc, r) => {
@@ -420,16 +439,17 @@ const AdminPontoView = () => {
                         <span className="text-foreground">{r.worked_hours.toFixed(1)}h</span>
                         {r.extra_hours > 0 && <span className="text-primary">+{r.extra_hours.toFixed(1)}h</span>}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
                         <span className="text-xs font-medium">R$ {r.daily_payment.toFixed(0)}</span>
-                        <Button
-                          variant={r.payment_status === "paid" ? "default" : "outline"}
-                          size="sm"
-                          className="h-6 text-[10px] px-2"
-                          onClick={() => togglePayment(r.id, r.payment_status)}
-                        >
+                        <Button variant={r.payment_status === "paid" ? "default" : "outline"} size="sm" className="h-6 text-[10px] px-2" onClick={() => togglePayment(r.id, r.payment_status)}>
                           <DollarSign className="h-3 w-3 mr-0.5" />
                           {r.payment_status === "paid" ? "Pago" : "Pendente"}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(r)}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(r.id)}>
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
@@ -439,6 +459,43 @@ const AdminPontoView = () => {
             </Card>
           );
         })
+      )}
+      {/* Edit Dialog */}
+      {editingRecord && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setEditingRecord(null)}>
+          <Card className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Editar Ponto — {format(new Date(editingRecord.date + "T12:00:00"), "dd/MM/yyyy")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Entrada</Label>
+                  <Input type="time" value={editClockIn} onChange={(e) => setEditClockIn(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Saída</Label>
+                  <Input type="time" value={editClockOut} onChange={(e) => setEditClockOut(e.target.value)} />
+                </div>
+              </div>
+              {editClockIn && editClockOut && (
+                <p className="text-xs text-muted-foreground text-center">
+                  {calcPayment(editClockIn, editClockOut).workedHours.toFixed(1)}h → R$ {calcPayment(editClockIn, editClockOut).dailyPayment.toFixed(2)}
+                </p>
+              )}
+              <div className="space-y-1">
+                <Label className="text-xs">Observações</Label>
+                <Textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} className="text-sm" />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setEditingRecord(null)}>Cancelar</Button>
+                <Button className="flex-1" onClick={saveEdit} disabled={editSubmitting}>
+                  {editSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

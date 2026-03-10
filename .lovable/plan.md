@@ -1,89 +1,78 @@
 
 
-## Plan: 6 Fixes in One Pass
+## Analysis
 
-### 1. Ponto Retroativo + Edição + Exclusão (admin)
-**File: `src/pages/admin/AdminPonto.tsx`**
+The current auth system uses the Lovable Cloud Supabase client (`src/integrations/supabase/client.ts`) for everything: authentication AND data queries. The user wants to split this so that **auth goes through their own Supabase** (`tcajkhmwmmnltzfshugh.supabase.co`) while **data queries continue using the Cloud client**.
 
-**Operator view (`OperatorPonto`):**
-- Replace hardcoded `todayStr` with a date picker (`<Input type="date">`) defaulting to today
-- Allow operator to select any past date and register/edit their own ponto retroactively
+### Critical blocker
 
-**Admin view (`AdminPontoView`):**
-- Add edit capability: clicking a timecard row opens an inline edit form (clock_in, clock_out, notes)
-- Add delete button (Trash2 icon) per row with confirmation, calling `supabase.from("timecards").delete().eq("id", id)`
-- Need DB migration: add DELETE RLS policy for admins on `timecards` table
+The user has not provided the **anon key** for their Supabase project. The URL alone is not sufficient to create a client. We need:
+- `SUPABASE_URL`: `https://tcajkhmwmmnltzfshugh.supabase.co` (provided)
+- `SUPABASE_ANON_KEY`: **missing**
 
-**DB Migration:**
-```sql
-CREATE POLICY "Admins can delete timecards" ON public.timecards
-FOR DELETE TO authenticated
-USING (has_role(auth.uid(), 'admin'::app_role));
-```
+Additionally, their Supabase project must have:
+- Users created in `auth.users`
+- A `public.user_roles` table with `user_id` and `role` columns
+- RLS policies that allow authenticated users to read their own role
 
----
+### Important architectural consideration
 
-### 2. Escala — Excluir Turno
-**File: `src/pages/admin/AdminEscala.tsx`**
+Even after creating a separate auth client, the **data client** (Cloud) will still use its own JWT for RLS. Since all tables have RLS policies using `has_role(auth.uid(), ...)`, and `auth.uid()` comes from the Cloud Supabase session, **data access will break** if users are only authenticated against the external Supabase.
 
-The delete mutation already exists (line 407-422) and is used in the "Dia" view (line 617-621). The "Semana" `WeekDayCard` only has edit (click opens edit dialog).
+This means either:
+1. The same user must exist in **both** Supabase instances (Cloud + external), OR
+2. All RLS policies on the Cloud database must be rewritten to not depend on `auth.uid()`, OR
+3. All data must also move to the external Supabase (defeating the purpose of Cloud)
 
-**Fix:** Add a delete button inside the shift edit dialog (when `editingEntry` is set). This way the user can click a shift in the weekly view, open the dialog, and delete it from there. Add a "Excluir Turno" button at the bottom of the dialog that calls `deleteMutation.mutate(editingEntry.id)` and closes the dialog.
+This is a fundamental constraint, not a code limitation.
 
 ---
 
-### 3. Financeiro — Pagamento mostrando ID ao invés de email/nome
-**File: `src/pages/admin/AdminFinanceiro.tsx`**
+## Proposed plan (contingent on resolving the above)
 
-The `PayrollSection` (line 828) receives `profiles` which maps `user_id → display_name`. On line 852, it falls back to `Usuário ${userId.slice(0, 6)}` when no profile match. The issue is that `profiles` is loaded from the `profiles` table which may not have `display_name` set for all users.
+### Step 1 — Get the anon key
+Ask the user for their Supabase anon key.
 
-**Fix:** In the `PayrollSection`, add a useEffect that loads user emails from the external `app_users` view (same pattern as `AdminPontoView` line 287-320) as a fallback. Merge emails into the profiles map so the name shows email instead of UUID.
+### Step 2 — Create `src/lib/customSupabase.ts`
+A second Supabase client pointing to `tcajkhmwmmnltzfshugh.supabase.co` with the provided anon key, used exclusively for auth operations.
 
----
+### Step 3 — Update `useAuth.tsx`
+Replace all `supabase.auth.*` calls with `customSupabase.auth.*`. The `user_roles` query must also go through `customSupabase` (since the roles table lives on the external Supabase).
 
-### 4. Treinamento — Conteúdo
-The DB has the correct 10 module titles. The user says the content is "still wrong." Since I don't have the exact text the user originally provided, I need clarification on what specific content is wrong.
+### Step 4 — Update login pages
+No changes needed — they already use `useAuth` which will be rewired internally.
 
-**Action:** Ask the user to provide the exact text they want for each module, or specify which modules have incorrect content.
+### Step 5 — ProtectedRoute
+No changes needed — it already uses `useAuth`.
 
----
+### Step 6 — Admin user management page
+Create `/admin/usuarios` page allowing admins to:
+- List users (via edge function on external Supabase using service role key)
+- Create operator accounts
+- Assign/change roles
+- Enable/disable access
 
-### 5. Ajuda — Descrever todas as abas por perfil
-**File: `src/pages/admin/AdminAjuda.tsx`**
-
-Replace current content (which only covers route flow) with a comprehensive guide covering:
-
-**Admin sections:**
-- Dashboard, Rotas, Motoristas, Sellers, Controle Operacional (Estoque + Ocorrências + Divergências), Financeiro (Caixa + Pagamento + Alertas), Escala, Ponto, Treinamento, Histórico, Documentos, Usuários, Configurações, Painel TV
-
-**Operador sections:**
-- Dashboard, Rotas, Motoristas, Sellers, Controle Operacional, Ponto, Minha Escala, Treinamento, Painel TV
-
-Each entry: icon + title + short description of what it does and what the user can do there.
+### Step 7 — Logout in sidebar components
+Update `AdminLayout` and `OpLayout` signOut calls (already go through `useAuth`, so no change needed).
 
 ---
 
-### 6. Controle Operacional — Remover "Fora de Rota"
-**File: `src/pages/admin/AdminControle.tsx`**
+## What blocks this migration
 
-- Remove the `ForaDeRotaSection` component (lines 30-108)
-- Remove the "Fora de Rota" tab trigger and content (lines 336-339, 352-354)
-- Change grid from `grid-cols-4` to `grid-cols-3` on the TabsList
-- Update subtitle text to remove "pacotes fora de rota"
-- Remove `MapPinOff` import
+**RLS on the Cloud database**: Every table (`drivers`, `rotas`, `dias`, `estoque`, `finance_entries`, etc.) uses `has_role(auth.uid(), ...)` which requires the user to be authenticated against the **Cloud** Supabase. If auth moves to an external instance, `auth.uid()` on the Cloud instance will be `null` and all data queries will return empty or fail with permission errors.
+
+**Options to resolve:**
+- A) Create matching users in both instances (complex, fragile)
+- B) Disable RLS on all Cloud tables (insecure)
+- C) Migrate all data to the external Supabase (large effort, loses Cloud benefits)
+- D) Keep auth on Cloud and create users there via admin tooling (simplest)
+
+I recommend **option D**: keep using Cloud auth but build an admin page to manage users (create operators, assign roles) directly in the Cloud Supabase. This gives you full control over who can log in without needing an external instance.
 
 ---
 
-### Summary of files changed
-| File | Change |
-|------|--------|
-| `AdminPonto.tsx` | Date picker for retroactive entry (op+admin), edit/delete for admin |
-| `AdminEscala.tsx` | Delete button in shift edit dialog |
-| `AdminFinanceiro.tsx` | Load user emails as fallback in PayrollSection |
-| `AdminAjuda.tsx` | Full rewrite with all tabs described by profile |
-| `AdminControle.tsx` | Remove "Fora de Rota" tab |
-| DB migration | DELETE policy on timecards for admins |
+## Before proceeding, I need:
 
-### Clarification needed
-- **Treinamento:** The 10 module titles in the database are correct. Can you share the exact content text you want for each module, or tell me which modules have wrong content?
+1. Your **anon key** for `tcajkhmwmmnltzfshugh.supabase.co`
+2. Your decision on the RLS problem described above — which option (A/B/C/D) do you prefer?
 

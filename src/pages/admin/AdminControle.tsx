@@ -15,7 +15,7 @@ import {
 import { supabase } from "@/lib/customSupabase";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  Package, AlertTriangle, MapPinOff, GitCompare,
+  Package, AlertTriangle, GitCompare,
   Plus, CheckCircle, Clock, Search, ClipboardList,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -26,88 +26,7 @@ import { toast } from "sonner";
 import AdminEstoque from "@/pages/admin/AdminEstoque";
 import AdminOcorrencias from "@/pages/admin/AdminOcorrencias";
 
-// ── Pacotes Fora de Rota (filtered estoque view) ──
-const ForaDeRotaSection = () => {
-  const [pacotes, setPacotes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from("estoque")
-      .select("*")
-      .or("motivo.ilike.%fora de rota%,motivo.ilike.%fora_rota%,rota_origem.is.null")
-      .eq("status", "NO_LOCAL")
-      .order("created_at", { ascending: false });
-    setPacotes(data || []);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const filtered = pacotes.filter((p) =>
-    p.codigo_pacote?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (loading) {
-    return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-foreground">Pacotes Fora de Rota</h2>
-          <p className="text-xs text-muted-foreground">Pacotes sem rota atribuída ou identificados como fora de rota</p>
-        </div>
-        <Badge variant="outline" className="text-sm">{filtered.length} pacote(s)</Badge>
-      </div>
-
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar código..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
-      </div>
-
-      {filtered.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <MapPinOff className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Nenhum pacote fora de rota</h3>
-            <p className="text-sm text-muted-foreground">
-              Pacotes sem rota aparecerão aqui automaticamente.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((p) => (
-            <Card key={p.id}>
-              <CardContent className="p-3 sm:p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-mono font-medium text-sm">{p.codigo_pacote}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {p.tipo_insucesso} • Entrada: {format(new Date(p.data_entrada + "T12:00:00"), "dd/MM/yyyy")}
-                    </p>
-                    {p.motivo && <p className="text-xs text-muted-foreground mt-0.5">Motivo: {p.motivo}</p>}
-                  </div>
-                  <Badge variant="secondary" className="shrink-0 text-xs">No local</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
+// ForaDeRotaSection removed — functionality covered by Ocorrências
 // ── Divergências Section ──
 const DivergenciasSection = () => {
   const { user, isAdmin } = useAuth();
@@ -319,12 +238,12 @@ const AdminControle = () => {
           Controle Operacional
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Estoque, ocorrências, pacotes fora de rota e divergências
+          Estoque, ocorrências e divergências
         </p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="w-full grid grid-cols-4 h-auto">
+        <TabsList className="w-full grid grid-cols-3 h-auto">
           <TabsTrigger value="estoque" className="text-xs sm:text-sm py-2 gap-1">
             <Package className="h-3.5 w-3.5 hidden sm:inline" />
             Estoque
@@ -332,10 +251,6 @@ const AdminControle = () => {
           <TabsTrigger value="ocorrencias" className="text-xs sm:text-sm py-2 gap-1">
             <AlertTriangle className="h-3.5 w-3.5 hidden sm:inline" />
             Ocorrências
-          </TabsTrigger>
-          <TabsTrigger value="fora-rota" className="text-xs sm:text-sm py-2 gap-1">
-            <MapPinOff className="h-3.5 w-3.5 hidden sm:inline" />
-            Fora de Rota
           </TabsTrigger>
           <TabsTrigger value="divergencias" className="text-xs sm:text-sm py-2 gap-1">
             <GitCompare className="h-3.5 w-3.5 hidden sm:inline" />
@@ -348,9 +263,6 @@ const AdminControle = () => {
         </TabsContent>
         <TabsContent value="ocorrencias" className="mt-4">
           <AdminOcorrencias />
-        </TabsContent>
-        <TabsContent value="fora-rota" className="mt-4">
-          <ForaDeRotaSection />
         </TabsContent>
         <TabsContent value="divergencias" className="mt-4">
           <DivergenciasSection />

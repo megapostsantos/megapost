@@ -849,21 +849,36 @@ const AdminEscala = () => {
               </p>
             )}
 
-            <Button
-              className="w-full"
-              disabled={
-                saveMutation.isPending ||
-                !formDate
-              }
-              onClick={() => saveMutation.mutate()}
-            >
-              {saveMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
-              ) : (
-                <Plus className="h-4 w-4 mr-1" />
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                disabled={saveMutation.isPending || !formDate}
+                onClick={() => saveMutation.mutate()}
+              >
+                {saveMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-1" />
+                )}
+                {editingEntry ? "Salvar" : "Adicionar"}
+              </Button>
+              {editingEntry && (
+                <Button
+                  variant="destructive"
+                  disabled={deleteMutation.isPending}
+                  onClick={() => {
+                    if (confirm("Remover este turno?")) {
+                      deleteMutation.mutate(editingEntry.id);
+                      setShiftDialogOpen(false);
+                      resetForm();
+                    }
+                  }}
+                >
+                  {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  Excluir
+                </Button>
               )}
-              {editingEntry ? "Salvar" : "Adicionar"}
-            </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
