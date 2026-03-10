@@ -50,8 +50,10 @@ const TIPO_OPTIONS = [
 const PIE_COLORS = ["hsl(var(--primary))", "#ef4444", "#f59e0b", "#10b981", "#6366f1", "#8b5cf6"];
 
 /* ─── Main Component ─── */
+const MANAGE_USERS_URL_MAIN = `https://otfjcpajobmjlwitgnqi.supabase.co/functions/v1/manage-users`;
+
 const AdminFinanceiro = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, session } = useAuth();
   const [mesRef, setMesRef] = useState(format(new Date(), "yyyy-MM"));
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +62,27 @@ const AdminFinanceiro = () => {
   const [timecards, setTimecards] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
+
+  // Load user emails as fallback for profile names
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const loadEmails = async () => {
+      try {
+        const res = await fetch(MANAGE_USERS_URL_MAIN, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ action: "list" }),
+        });
+        const data = await res.json();
+        if (data.users) {
+          const emailMap: Record<string, string> = {};
+          data.users.forEach((u: any) => { emailMap[u.id] = u.email; });
+          setProfiles(prev => ({ ...emailMap, ...prev }));
+        }
+      } catch {}
+    };
+    loadEmails();
+  }, [session?.access_token]);
 
   const mesInicio = `${mesRef}-01`;
   const [y, m] = mesRef.split("-").map(Number);
