@@ -825,10 +825,40 @@ const EntryForm = ({ formDescricao, setFormDescricao, formValor, setFormValor, f
 );
 
 /* ─── Payroll Section ─── */
+const MANAGE_USERS_URL_FIN = `https://otfjcpajobmjlwitgnqi.supabase.co/functions/v1/manage-users`;
+
 const PayrollSection = ({ profiles, syncFinanceEntry, reloadAll }: { profiles: Record<string, string>; syncFinanceEntry: any; reloadAll: () => Promise<void> }) => {
+  const { session } = useAuth();
   const [timecards, setTimecards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [mergedProfiles, setMergedProfiles] = useState<Record<string, string>>(profiles);
+
+  // Load user emails as fallback
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const loadEmails = async () => {
+      try {
+        const res = await fetch(MANAGE_USERS_URL_FIN, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ action: "list" }),
+        });
+        const data = await res.json();
+        if (data.users) {
+          const emailMap: Record<string, string> = {};
+          data.users.forEach((u: any) => { emailMap[u.id] = u.email; });
+          setMergedProfiles(prev => ({ ...emailMap, ...prev }));
+        }
+      } catch {}
+    };
+    loadEmails();
+  }, [session?.access_token]);
+
+  // Merge parent profiles when they change
+  useEffect(() => {
+    setMergedProfiles(prev => ({ ...prev, ...profiles }));
+  }, [profiles]);
 
   const refDate = addWeeks(new Date(), weekOffset);
   const wStart = startOfWeek(refDate, { weekStartsOn: 1 });
@@ -849,7 +879,7 @@ const PayrollSection = ({ profiles, syncFinanceEntry, reloadAll }: { profiles: R
   timecards.forEach(tc => { if (!byUser[tc.user_id]) byUser[tc.user_id] = []; byUser[tc.user_id].push(tc); });
 
   const operators = Object.entries(byUser).map(([userId, cards]) => ({
-    userId, name: profiles[userId] || `Usuário ${userId.slice(0, 6)}`,
+    userId, name: mergedProfiles[userId] || `Usuário ${userId.slice(0, 6)}`,
     days: cards.length, workedHours: cards.reduce((s, c) => s + Number(c.worked_hours || 0), 0),
     extraHours: cards.reduce((s, c) => s + Number(c.extra_hours || 0), 0),
     total: cards.reduce((s, c) => s + Number(c.daily_payment || 0), 0),

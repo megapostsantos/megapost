@@ -1,123 +1,161 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  CalendarPlus, UserCheck, LogOut, Package, AlertTriangle, HelpCircle, Flag, Check,
+  LayoutDashboard, Route, Truck, Store, ClipboardList, DollarSign,
+  CalendarDays, Clock, GraduationCap, History, FileText, Users,
+  Settings, Tv, HelpCircle, Shield, UserCheck,
 } from "lucide-react";
 
-const sections = [
+const adminSections = [
   {
-    icon: CalendarPlus,
-    title: "Fluxo dos 4 Estados da Rota",
-    steps: [
-      "1️⃣ EM ABERTO — Rota criada, sem motorista atribuído.",
-      "2️⃣ CHECK-IN — Motorista atribuído = presença confirmada. Ao atribuir motorista, o status muda automaticamente.",
-      "3️⃣ CARREGANDO — Saída registrada com QR Code da saca + NX (ambos OBRIGATÓRIOS). O motorista está carregando o veículo.",
-      "4️⃣ FINALIZADA — Rota encerrada. Histórico preservado. Ocorrências podem ser registradas mesmo após finalização.",
-    ],
+    icon: LayoutDashboard, title: "Dashboard",
+    desc: "Visão geral do dia: total de rotas, motoristas atribuídos, pacotes em estoque, ocorrências abertas. Cards clicáveis levam direto à lista filtrada.",
   },
   {
-    icon: CalendarPlus,
-    title: "Como criar rotas do dia",
-    steps: [
-      "Acesse a aba Rotas.",
-      "Se não há dia aberto, o formulário 'Criar Rotas do Dia' aparecerá.",
-      "Informe a data, quantidade AM0 e AM1.",
-      "Clique em 'Abrir Dia e Criar Rotas'.",
-      "Para adicionar mais rotas depois, use o botão '+ Mais Rotas'.",
-    ],
+    icon: Route, title: "Rotas",
+    desc: "Criar dia operacional (AM0/AM1), criar e gerenciar rotas, atribuir motoristas (check-in), registrar saída com QR Code + NX, finalizar rotas. Cada rota passa pelos estados: Em Aberto → Check-in → Carregando → Finalizada. Registrar avarias, faltantes e tentativas dentro da rota expandida.",
   },
   {
-    icon: UserCheck,
-    title: "Como atribuir motorista (Check-in)",
-    steps: [
-      "Na rota EM ABERTO, clique no botão 'Motorista'.",
-      "Selecione o motorista na lista — motoristas bloqueados (vermelho) não aparecem.",
-      "Se o motorista não existe, clique em '+ Cadastrar novo motorista' para ir à tela de Motoristas.",
-      "Ao confirmar, o status muda para CHECK-IN automaticamente.",
-    ],
+    icon: Truck, title: "Motoristas",
+    desc: "Cadastro completo de motoristas: nome, telefone, placa, tipo (Envios Extra / Entrega), transportadora, observações e foto. Sistema de farol: Verde (liberado), Amarelo (alerta ao atribuir), Vermelho (bloqueado — não aparece na lista de rotas). Ativar/desativar motoristas.",
   },
   {
-    icon: LogOut,
-    title: "Como registrar saída (QR + NX obrigatórios)",
-    steps: [
-      "Na rota em CHECK-IN, clique no botão 'Saída'.",
-      "Escaneie ou digite o QR Code da saca (OBRIGATÓRIO).",
-      "Informe o código NX (OBRIGATÓRIO).",
-      "Clique em 'Registrar Saída'. O status muda para CARREGANDO.",
-      "O QR Code pode se repetir entre rotas, mas o NX diferencia.",
-    ],
+    icon: Store, title: "Sellers",
+    desc: "Cadastro de vendedores parceiros: nome, telefone, cidade, CNPJ e observações. Ativar/desativar sellers.",
   },
   {
-    icon: Check,
-    title: "Como finalizar rota",
-    steps: [
-      "Na rota em CARREGANDO, clique no botão 'Finalizar'.",
-      "A rota será finalizada e o tempo total calculado automaticamente.",
-    ],
+    icon: ClipboardList, title: "Controle Operacional",
+    desc: "Três abas: Estoque (pacotes de insucesso/avaria com filtros e status), Ocorrências (registro e acompanhamento de ocorrências operacionais) e Divergências (registro de contagens erradas, pacotes trocados, etc.).",
   },
   {
-    icon: Package,
-    title: "Onde registrar insucesso / faltante / avaria",
-    steps: [
-      "Expanda o detalhe da rota (clique na seta ↓).",
-      "Use '+ Avaria/Tentativa' para registrar insucesso com código do pacote.",
-      "Use '+ Faltante (Baixa)' para registrar faltantes solicitados pelo galpão.",
-      "⚠️ IMPORTANTE: Os botões de ocorrências continuam visíveis MESMO APÓS FINALIZAÇÃO.",
-      "Motivo: motorista pode voltar no fim do dia com insucessos ou avarias.",
-    ],
+    icon: DollarSign, title: "Financeiro",
+    desc: "Três abas: Caixa (receitas previstas/confirmadas, despesas, gráficos de custo semanal e distribuição), Pagamento (pagamento semanal dos operadores com base no ponto — base 6h + extras — marcar pago sincroniza no caixa) e Alertas (comparação escala × ponto: faltas, atrasos, horas extras).",
   },
   {
-    icon: Flag,
-    title: "Sistema de Farol dos Motoristas",
-    steps: [
-      "🟢 VERDE — Motorista liberado, sem restrições.",
-      "🟡 AMARELO — Alerta: ao atribuir, o sistema mostrará aviso antes de confirmar.",
-      "🔴 VERMELHO — Bloqueado: não aparece na lista de atribuição de rotas.",
-      "O farol é definido no cadastro de Motoristas e pode ser editado a qualquer momento.",
-    ],
+    icon: CalendarDays, title: "Escala",
+    desc: "Planejamento de turnos: visão Semana (cards por dia com todos os turnos), Dia (detalhamento com timeline de sobreposição) e Cobertura (análise hora a hora — verde 2+, amarelo 1, vermelho 0). Criar turnos em aberto (não alocados) ou atribuídos. Editar e excluir turnos.",
   },
   {
-    icon: AlertTriangle,
-    title: "Estoque e Ocorrências (monitoramento)",
-    steps: [
-      "As abas Estoque e Ocorrências no menu são para MONITORAMENTO (listas e filtros).",
-      "A origem dos registros é sempre dentro da rota (expandir e usar os botões).",
-      "Pacotes parados há mais de X dias aparecerão com alerta no Dashboard.",
-    ],
+    icon: Clock, title: "Ponto",
+    desc: "Gestão de ponto dos operadores: ver registros por mês, agrupar por operador, editar entrada/saída/observações, excluir registros, marcar pagamento. Pode registrar ponto retroativo (data passada).",
+  },
+  {
+    icon: GraduationCap, title: "Treinamento",
+    desc: "Manual de operação com 10 módulos: postura profissional, uso de celular, pickups, envios, devoluções, trocas, operação NEX, regras críticas. Administradores podem editar o conteúdo de cada módulo diretamente na interface.",
+  },
+  {
+    icon: History, title: "Histórico",
+    desc: "Consulta de dias operacionais passados com todas as rotas finalizadas, motoristas atribuídos e métricas. Relatórios mensais de performance.",
+  },
+  {
+    icon: FileText, title: "Documentos",
+    desc: "Upload e gerenciamento de documentos: notas fiscais, comprovantes, contratos. Vincular documentos a entradas/saídas financeiras. Filtrar por tipo e status.",
+  },
+  {
+    icon: Users, title: "Usuários",
+    desc: "Gerenciar contas do sistema: criar operadores, atribuir perfil (admin ou operador), ativar/desativar acesso. Controle total de quem pode acessar o sistema.",
+  },
+  {
+    icon: Settings, title: "Configurações",
+    desc: "Configurações gerais do sistema: textos do site público, logotipo, informações de contato. Ferramentas administrativas avançadas (reset de dados, exclusão em massa).",
+  },
+  {
+    icon: Tv, title: "Painel TV",
+    desc: "Visão em tela cheia para monitor/TV na operação: exibe rotas do dia em tempo real com status, motorista, horários e contadores atualizados automaticamente.",
+  },
+];
+
+const opSections = [
+  {
+    icon: LayoutDashboard, title: "Dashboard",
+    desc: "Resumo do dia: rotas ativas, pacotes em estoque, ocorrências abertas. Acesso rápido às funcionalidades do operador.",
+  },
+  {
+    icon: Route, title: "Rotas",
+    desc: "Operar as rotas do dia: atribuir motoristas, registrar saída (QR + NX), finalizar rotas, registrar avarias/faltantes/tentativas. Mesmo fluxo de 4 estados do admin.",
+  },
+  {
+    icon: Truck, title: "Motoristas",
+    desc: "Visualizar e cadastrar motoristas. Consultar farol, placa e dados de contato. Cadastro de novos motoristas com foto.",
+  },
+  {
+    icon: Store, title: "Sellers",
+    desc: "Visualizar vendedores parceiros. Consultar dados de contato e status.",
+  },
+  {
+    icon: ClipboardList, title: "Controle Operacional",
+    desc: "Monitorar estoque (pacotes de insucesso/avaria), ocorrências e divergências. Registrar novas divergências encontradas na operação.",
+  },
+  {
+    icon: Clock, title: "Ponto",
+    desc: "Registrar entrada e saída do dia. Pode selecionar datas anteriores para ponto retroativo. Editar registros existentes. Visualizar histórico dos últimos 7 dias.",
+  },
+  {
+    icon: CalendarDays, title: "Minha Escala",
+    desc: "Visualizar seus turnos planejados para a semana: horários, status (trabalho, folga, férias, falta).",
+  },
+  {
+    icon: GraduationCap, title: "Treinamento",
+    desc: "Manual de operação com 10 módulos obrigatórios. Progresso é rastreado automaticamente. Marcar módulos como concluídos.",
+  },
+  {
+    icon: Tv, title: "Painel TV",
+    desc: "Visão em tela cheia das rotas do dia para acompanhamento em tempo real.",
   },
 ];
 
 const AdminAjuda = () => (
-  <div className="space-y-6 max-w-2xl mx-auto">
+  <div className="space-y-6 max-w-3xl mx-auto">
     <div className="flex items-center gap-3">
       <HelpCircle className="h-7 w-7 text-primary" />
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Manual de Operação</h1>
-        <p className="text-sm text-muted-foreground">Guia rápido do dia a dia na MegaPost Ops.</p>
+        <h1 className="text-2xl font-bold text-foreground">Ajuda — Guia do Sistema</h1>
+        <p className="text-sm text-muted-foreground">O que cada aba faz, separado por perfil de acesso.</p>
       </div>
     </div>
 
-    {sections.map((section) => (
-      <Card key={section.title}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <section.icon className="h-5 w-5 text-primary" />
-            {section.title}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ol className="space-y-2">
-            {section.steps.map((step, i) => (
-              <li key={i} className="flex gap-3 text-sm text-muted-foreground">
-                <span className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">
-                  {i + 1}
-                </span>
-                <span className="pt-0.5">{step}</span>
-              </li>
-            ))}
-          </ol>
-        </CardContent>
-      </Card>
-    ))}
+    <Tabs defaultValue="admin">
+      <TabsList className="grid grid-cols-2 w-full max-w-xs">
+        <TabsTrigger value="admin" className="gap-1.5 text-xs sm:text-sm">
+          <Shield className="h-3.5 w-3.5" /> Admin
+        </TabsTrigger>
+        <TabsTrigger value="operador" className="gap-1.5 text-xs sm:text-sm">
+          <UserCheck className="h-3.5 w-3.5" /> Operador
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="admin" className="mt-4 space-y-3">
+        {adminSections.map((s) => (
+          <Card key={s.title}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <s.icon className="h-4 w-4 text-primary" />
+                {s.title}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{s.desc}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </TabsContent>
+
+      <TabsContent value="operador" className="mt-4 space-y-3">
+        {opSections.map((s) => (
+          <Card key={s.title}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <s.icon className="h-4 w-4 text-primary" />
+                {s.title}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{s.desc}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </TabsContent>
+    </Tabs>
   </div>
 );
 
