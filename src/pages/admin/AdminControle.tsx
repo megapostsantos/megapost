@@ -238,12 +238,12 @@ const AdminControle = () => {
           Controle Operacional
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Estoque, ocorrências, pacotes fora de rota e divergências
+          Estoque, ocorrências e divergências
         </p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="w-full grid grid-cols-4 h-auto">
+        <TabsList className="w-full grid grid-cols-3 h-auto">
           <TabsTrigger value="estoque" className="text-xs sm:text-sm py-2 gap-1">
             <Package className="h-3.5 w-3.5 hidden sm:inline" />
             Estoque
