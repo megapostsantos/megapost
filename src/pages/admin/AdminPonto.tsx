@@ -93,8 +93,8 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
     if (!clockInTime) { toast.error("Informe o horário de entrada."); return; }
     try {
       setSubmitting(true);
-      const clockInISO = new Date(`${todayStr}T${clockInTime}:00`).toISOString();
-      const clockOutISO = clockOutTime ? new Date(`${todayStr}T${clockOutTime}:00`).toISOString() : null;
+      const clockInISO = new Date(`${selectedDate}T${clockInTime}:00`).toISOString();
+      const clockOutISO = clockOutTime ? new Date(`${selectedDate}T${clockOutTime}:00`).toISOString() : null;
 
       let workedHours = 0, extraHours = 0, dailyPayment = 0;
       if (clockInTime && clockOutTime) {
