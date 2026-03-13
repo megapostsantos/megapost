@@ -698,7 +698,11 @@ const AdminRotas = () => {
     let list = rotas.filter((r) => r.periodo === p);
     if (qrSearch.trim()) {
       const s = qrSearch.trim().toLowerCase();
-      list = list.filter(r => r.qr_codigo && r.qr_codigo.toLowerCase().includes(s));
+      list = list.filter(r =>
+        (r.qr_codigo && r.qr_codigo.toLowerCase().includes(s)) ||
+        (r.nx_codigo && r.nx_codigo.toLowerCase().includes(s)) ||
+        (r.drivers?.nome && r.drivers.nome.toLowerCase().includes(s))
+      );
     }
     return list;
   };
