@@ -997,7 +997,7 @@ const AdminRotas = () => {
       {/* QR search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Buscar por QR da saca…" value={qrSearch} onChange={(e) => setQrSearch(e.target.value)} />
+        <Input className="pl-9" placeholder="Buscar por NX, nome ou QR da saca…" value={qrSearch} onChange={(e) => setQrSearch(e.target.value)} />
       </div>
 
       {/* Status summary tabs */}
