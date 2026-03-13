@@ -698,7 +698,11 @@ const AdminRotas = () => {
     let list = rotas.filter((r) => r.periodo === p);
     if (qrSearch.trim()) {
       const s = qrSearch.trim().toLowerCase();
-      list = list.filter(r => r.qr_codigo && r.qr_codigo.toLowerCase().includes(s));
+      list = list.filter(r =>
+        (r.qr_codigo && r.qr_codigo.toLowerCase().includes(s)) ||
+        (r.nx_codigo && r.nx_codigo.toLowerCase().includes(s)) ||
+        (r.drivers?.nome && r.drivers.nome.toLowerCase().includes(s))
+      );
     }
     return list;
   };
@@ -993,7 +997,7 @@ const AdminRotas = () => {
       {/* QR search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Buscar por QR da saca…" value={qrSearch} onChange={(e) => setQrSearch(e.target.value)} />
+        <Input className="pl-9" placeholder="Buscar por NX, nome ou QR da saca…" value={qrSearch} onChange={(e) => setQrSearch(e.target.value)} />
       </div>
 
       {/* Status summary tabs */}
