@@ -541,6 +541,11 @@ const AdminDrivers = () => {
                       <p className="text-xs text-muted-foreground">
                         {[d.telefone, d.placa].filter(Boolean).join(" • ") || "Sem contato"}
                       </p>
+                      {(d.cidade || d.bairro) && (
+                        <p className="text-[10px] text-muted-foreground">
+                          {[d.cidade, d.bairro].filter(Boolean).join(" — ")}
+                        </p>
+                      )}
                       <p className="text-[10px] text-muted-foreground">
                         {d.tipo === "TRANSPORTADORA" ? `Transportadora: ${d.transportadora_nome || "—"}` : "Envios Extra"}
                         {d.observacao && ` • ${d.observacao}`}
