@@ -90,6 +90,8 @@ const AdminDrivers = () => {
         if (data.transportadoraNome) setTransportadoraNome(data.transportadoraNome);
         if (data.farol) setFarol(data.farol);
         if (data.observacao) setObservacao(data.observacao);
+        if (data.cidade) setCidade(data.cidade);
+        if (data.bairro) setBairro(data.bairro);
         // If we had saved data, the form was open
         if (data.nome || data.telefone) {
           setShowForm(true);
