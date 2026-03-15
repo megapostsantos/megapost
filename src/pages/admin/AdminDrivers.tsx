@@ -243,6 +243,8 @@ const AdminDrivers = () => {
         transportadora_nome: editTipo === "TRANSPORTADORA" ? editTransportadoraNome.trim() : null,
         farol: editFarol,
         observacao: editObservacao.trim() || null,
+        cidade: editCidade.trim() || null,
+        bairro: editBairro.trim() || null,
       } as any)
       .eq("id", editingId);
     if (error) { toast.error(error.message); } else {
