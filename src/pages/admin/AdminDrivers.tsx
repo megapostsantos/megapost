@@ -474,7 +474,11 @@ const AdminDrivers = () => {
                 <Input value={editNome} onChange={(e) => setEditNome(e.target.value)} placeholder="Nome" />
                 <div className="grid grid-cols-2 gap-2">
                   <Input value={editTelefone} onChange={(e) => setEditTelefone(e.target.value)} placeholder="Telefone *" />
-                  <Input value={editPlaca} onChange={(e) => setEditPlaca(e.target.value)} placeholder="Placa" />
+                   <Input value={editPlaca} onChange={(e) => setEditPlaca(e.target.value)} placeholder="Placa" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input value={editCidade} onChange={(e) => setEditCidade(e.target.value)} placeholder="Cidade" />
+                  <Input value={editBairro} onChange={(e) => setEditBairro(e.target.value)} placeholder="Bairro" />
                 </div>
                 <div className="flex gap-3">
                   {tipoOptions.map(t => (
