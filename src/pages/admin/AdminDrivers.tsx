@@ -220,6 +220,8 @@ const AdminDrivers = () => {
     setEditTransportadoraNome(driver.transportadora_nome || "");
     setEditFarol(driver.farol || "VERDE");
     setEditObservacao(driver.observacao || "");
+    setEditCidade(driver.cidade || "");
+    setEditBairro(driver.bairro || "");
   };
 
   const handleSaveEdit = async () => {
