@@ -50,6 +50,8 @@ const AdminDrivers = () => {
   const [transportadoraNome, setTransportadoraNome] = useState("");
   const [farol, setFarol] = useState("VERDE");
   const [observacao, setObservacao] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [bairro, setBairro] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -67,6 +69,8 @@ const AdminDrivers = () => {
   const [editTransportadoraNome, setEditTransportadoraNome] = useState("");
   const [editFarol, setEditFarol] = useState("VERDE");
   const [editObservacao, setEditObservacao] = useState("");
+  const [editCidade, setEditCidade] = useState("");
+  const [editBairro, setEditBairro] = useState("");
 
   // Metrics
   const [expandedDriver, setExpandedDriver] = useState<string | null>(null);
@@ -86,6 +90,8 @@ const AdminDrivers = () => {
         if (data.transportadoraNome) setTransportadoraNome(data.transportadoraNome);
         if (data.farol) setFarol(data.farol);
         if (data.observacao) setObservacao(data.observacao);
+        if (data.cidade) setCidade(data.cidade);
+        if (data.bairro) setBairro(data.bairro);
         // If we had saved data, the form was open
         if (data.nome || data.telefone) {
           setShowForm(true);
@@ -99,7 +105,7 @@ const AdminDrivers = () => {
     if (showForm) {
       try {
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-          nome, telefone, placa, tipo, transportadoraNome, farol, observacao,
+          nome, telefone, placa, tipo, transportadoraNome, farol, observacao, cidade, bairro,
         }));
       } catch {}
     }
@@ -108,6 +114,7 @@ const AdminDrivers = () => {
   const clearFormAndStorage = () => {
     setNome(""); setTelefone(""); setPlaca(""); setTipo("ENVIOS_EXTRA");
     setTransportadoraNome(""); setFarol("VERDE"); setObservacao("");
+    setCidade(""); setBairro("");
     setPhotoFile(null); setPhotoPreview(null);
     setShowForm(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -177,6 +184,8 @@ const AdminDrivers = () => {
           transportadora_nome: tipo === "TRANSPORTADORA" ? transportadoraNome.trim() : null,
           farol,
           observacao: observacao.trim() || null,
+          cidade: cidade.trim() || null,
+          bairro: bairro.trim() || null,
         } as any)
         .select()
         .single();
@@ -211,6 +220,8 @@ const AdminDrivers = () => {
     setEditTransportadoraNome(driver.transportadora_nome || "");
     setEditFarol(driver.farol || "VERDE");
     setEditObservacao(driver.observacao || "");
+    setEditCidade(driver.cidade || "");
+    setEditBairro(driver.bairro || "");
   };
 
   const handleSaveEdit = async () => {
@@ -232,6 +243,8 @@ const AdminDrivers = () => {
         transportadora_nome: editTipo === "TRANSPORTADORA" ? editTransportadoraNome.trim() : null,
         farol: editFarol,
         observacao: editObservacao.trim() || null,
+        cidade: editCidade.trim() || null,
+        bairro: editBairro.trim() || null,
       } as any)
       .eq("id", editingId);
     if (error) { toast.error(error.message); } else {
@@ -369,6 +382,16 @@ const AdminDrivers = () => {
                 <Input value={placa} onChange={(e) => setPlaca(e.target.value)} placeholder="ABC-1234" />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Cidade</Label>
+                <Input value={cidade} onChange={(e) => setCidade(e.target.value)} placeholder="Ex: São Paulo" />
+              </div>
+              <div className="space-y-2">
+                <Label>Bairro</Label>
+                <Input value={bairro} onChange={(e) => setBairro(e.target.value)} placeholder="Ex: Centro" />
+              </div>
+            </div>
 
             <div className="space-y-2">
               <Label>Tipo de Motorista *</Label>
@@ -451,7 +474,11 @@ const AdminDrivers = () => {
                 <Input value={editNome} onChange={(e) => setEditNome(e.target.value)} placeholder="Nome" />
                 <div className="grid grid-cols-2 gap-2">
                   <Input value={editTelefone} onChange={(e) => setEditTelefone(e.target.value)} placeholder="Telefone *" />
-                  <Input value={editPlaca} onChange={(e) => setEditPlaca(e.target.value)} placeholder="Placa" />
+                   <Input value={editPlaca} onChange={(e) => setEditPlaca(e.target.value)} placeholder="Placa" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input value={editCidade} onChange={(e) => setEditCidade(e.target.value)} placeholder="Cidade" />
+                  <Input value={editBairro} onChange={(e) => setEditBairro(e.target.value)} placeholder="Bairro" />
                 </div>
                 <div className="flex gap-3">
                   {tipoOptions.map(t => (
@@ -514,6 +541,11 @@ const AdminDrivers = () => {
                       <p className="text-xs text-muted-foreground">
                         {[d.telefone, d.placa].filter(Boolean).join(" • ") || "Sem contato"}
                       </p>
+                      {(d.cidade || d.bairro) && (
+                        <p className="text-[10px] text-muted-foreground">
+                          {[d.cidade, d.bairro].filter(Boolean).join(" — ")}
+                        </p>
+                      )}
                       <p className="text-[10px] text-muted-foreground">
                         {d.tipo === "TRANSPORTADORA" ? `Transportadora: ${d.transportadora_nome || "—"}` : "Envios Extra"}
                         {d.observacao && ` • ${d.observacao}`}

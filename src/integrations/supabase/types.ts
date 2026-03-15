@@ -221,6 +221,8 @@ export type Database = {
       drivers: {
         Row: {
           ativo: boolean
+          bairro: string | null
+          cidade: string | null
           created_at: string
           farol: string
           foto_url: string | null
@@ -235,6 +237,8 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          bairro?: string | null
+          cidade?: string | null
           created_at?: string
           farol?: string
           foto_url?: string | null
@@ -249,6 +253,8 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          bairro?: string | null
+          cidade?: string | null
           created_at?: string
           farol?: string
           foto_url?: string | null

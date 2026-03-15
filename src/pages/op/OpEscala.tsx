@@ -4,10 +4,24 @@ import { supabase } from "@/lib/customSupabase";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
+
+interface ScheduleEntry {
+  id: string;
+  user_id: string | null;
+  date: string;
+  shift: string;
+  status: string;
+  notes: string | null;
+  shift_start_time: string | null;
+  shift_end_time: string | null;
+  is_open_shift?: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 const STATUS_OPTIONS = [
   { value: "trabalho", label: "Trabalho", color: "bg-emerald-500/20 text-emerald-700 border-emerald-300" },
@@ -27,6 +41,12 @@ const SHIFTS = [
   { value: "tarde", label: "Tarde" },
 ];
 
+const formatTime = (t: string | null) => {
+  if (!t) return null;
+  // t is "HH:MM:SS" or "HH:MM"
+  return t.substring(0, 5);
+};
+
 const OpEscala = () => {
   const { user } = useAuth();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -37,8 +57,8 @@ const OpEscala = () => {
     to: format(weekDays[6], "yyyy-MM-dd"),
   };
 
-  const { data: entries = [], isLoading } = useQuery({
-    queryKey: ["my-schedule", dateRange.from, dateRange.to],
+  const { data: entries = [], isLoading, isError } = useQuery({
+    queryKey: ["my-schedule", user?.id, dateRange.from, dateRange.to],
     enabled: !!user,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -48,12 +68,12 @@ const OpEscala = () => {
         .gte("date", dateRange.from)
         .lte("date", dateRange.to);
       if (error) throw error;
-      return data;
+      return (data || []) as ScheduleEntry[];
     },
   });
 
-  const getEntry = (date: Date, shift: string) =>
-    entries.find(
+  const getEntriesForDay = (date: Date, shift: string) =>
+    entries.filter(
       (e) => e.date === format(date, "yyyy-MM-dd") && e.shift === shift
     );
 
@@ -84,9 +104,15 @@ const OpEscala = () => {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-16">
+        <div className="flex flex-col items-center justify-center py-16 gap-2">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Carregando escala...</p>
         </div>
+      ) : isError ? (
+        <Card className="p-8 text-center space-y-2">
+          <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+          <p className="text-sm text-destructive">Erro ao carregar escala.</p>
+        </Card>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
           {weekDays.map((day) => {
@@ -106,20 +132,45 @@ const OpEscala = () => {
                 </div>
                 <div className="space-y-1">
                   {SHIFTS.map((shift) => {
-                    const entry = getEntry(day, shift.value);
-                    return (
+                    const dayEntries = getEntriesForDay(day, shift.value);
+                    if (dayEntries.length === 0) {
+                      return (
+                        <div
+                          key={shift.value}
+                          className="rounded px-2 py-1.5 text-xs font-medium border bg-muted/40 text-muted-foreground/50 border-transparent"
+                        >
+                          <span className="block text-[10px] opacity-70">{shift.label}</span>
+                          —
+                        </div>
+                      );
+                    }
+                    return dayEntries.map((entry) => (
                       <div
-                        key={shift.value}
+                        key={entry.id}
                         className={`rounded px-2 py-1.5 text-xs font-medium border ${
-                          entry
-                            ? getStatusStyle(entry.status)
-                            : "bg-muted/40 text-muted-foreground/50 border-transparent"
+                          entry.is_open_shift
+                            ? "bg-muted/60 text-muted-foreground border-dashed border-muted-foreground/40"
+                            : getStatusStyle(entry.status)
                         }`}
                       >
                         <span className="block text-[10px] opacity-70">{shift.label}</span>
-                        {entry ? getStatusLabel(entry.status) : "—"}
+                        {entry.is_open_shift ? (
+                          <span className="italic">Turno em aberto</span>
+                        ) : (
+                          getStatusLabel(entry.status)
+                        )}
+                        {(entry.shift_start_time || entry.shift_end_time) && (
+                          <span className="block text-[10px] mt-0.5">
+                            {formatTime(entry.shift_start_time) || "?"} – {formatTime(entry.shift_end_time) || "?"}
+                          </span>
+                        )}
+                        {entry.notes && (
+                          <span className="block text-[10px] mt-0.5 opacity-70 truncate" title={entry.notes}>
+                            {entry.notes}
+                          </span>
+                        )}
                       </div>
-                    );
+                    ));
                   })}
                 </div>
               </Card>
@@ -128,7 +179,7 @@ const OpEscala = () => {
         </div>
       )}
 
-      {!isLoading && entries.length === 0 && (
+      {!isLoading && !isError && entries.length === 0 && (
         <Card className="p-8 text-center text-muted-foreground">
           Nenhuma escala definida para esta semana.
         </Card>

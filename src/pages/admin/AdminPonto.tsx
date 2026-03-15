@@ -355,8 +355,9 @@ const AdminPontoView = () => {
     if (!confirm("Remover este registro de ponto?")) return;
     const { error } = await supabase.from("timecards").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
+    // Optimistically remove from local state immediately
+    setRecords((prev) => prev.filter((r) => r.id !== id));
     toast.success("Registro removido.");
-    load();
   };
 
   const openEdit = (r: Timecard) => {
