@@ -353,9 +353,19 @@ const AdminPontoView = () => {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Remover este registro de ponto?")) return;
-    const { error } = await supabase.from("timecards").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    // Optimistically remove from local state immediately
+    const { data, error } = await supabase
+      .from("timecards")
+      .delete()
+      .eq("id", id)
+      .select("id");
+    if (error) {
+      toast.error("Erro ao remover: " + error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      toast.error("Não foi possível remover o registro. Verifique suas permissões.");
+      return;
+    }
     setRecords((prev) => prev.filter((r) => r.id !== id));
     toast.success("Registro removido.");
   };
