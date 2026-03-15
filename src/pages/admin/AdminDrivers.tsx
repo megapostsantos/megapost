@@ -184,6 +184,8 @@ const AdminDrivers = () => {
           transportadora_nome: tipo === "TRANSPORTADORA" ? transportadoraNome.trim() : null,
           farol,
           observacao: observacao.trim() || null,
+          cidade: cidade.trim() || null,
+          bairro: bairro.trim() || null,
         } as any)
         .select()
         .single();
