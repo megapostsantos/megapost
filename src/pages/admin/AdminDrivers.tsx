@@ -382,6 +382,16 @@ const AdminDrivers = () => {
                 <Input value={placa} onChange={(e) => setPlaca(e.target.value)} placeholder="ABC-1234" />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Cidade</Label>
+                <Input value={cidade} onChange={(e) => setCidade(e.target.value)} placeholder="Ex: São Paulo" />
+              </div>
+              <div className="space-y-2">
+                <Label>Bairro</Label>
+                <Input value={bairro} onChange={(e) => setBairro(e.target.value)} placeholder="Ex: Centro" />
+              </div>
+            </div>
 
             <div className="space-y-2">
               <Label>Tipo de Motorista *</Label>
