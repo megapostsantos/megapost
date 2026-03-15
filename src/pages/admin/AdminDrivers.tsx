@@ -50,6 +50,8 @@ const AdminDrivers = () => {
   const [transportadoraNome, setTransportadoraNome] = useState("");
   const [farol, setFarol] = useState("VERDE");
   const [observacao, setObservacao] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [bairro, setBairro] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
 
