@@ -114,6 +114,7 @@ const AdminDrivers = () => {
   const clearFormAndStorage = () => {
     setNome(""); setTelefone(""); setPlaca(""); setTipo("ENVIOS_EXTRA");
     setTransportadoraNome(""); setFarol("VERDE"); setObservacao("");
+    setCidade(""); setBairro("");
     setPhotoFile(null); setPhotoPreview(null);
     setShowForm(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
