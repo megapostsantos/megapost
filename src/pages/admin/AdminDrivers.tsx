@@ -69,6 +69,8 @@ const AdminDrivers = () => {
   const [editTransportadoraNome, setEditTransportadoraNome] = useState("");
   const [editFarol, setEditFarol] = useState("VERDE");
   const [editObservacao, setEditObservacao] = useState("");
+  const [editCidade, setEditCidade] = useState("");
+  const [editBairro, setEditBairro] = useState("");
 
   // Metrics
   const [expandedDriver, setExpandedDriver] = useState<string | null>(null);
