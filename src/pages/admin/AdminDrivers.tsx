@@ -105,7 +105,7 @@ const AdminDrivers = () => {
     if (showForm) {
       try {
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-          nome, telefone, placa, tipo, transportadoraNome, farol, observacao,
+          nome, telefone, placa, tipo, transportadoraNome, farol, observacao, cidade, bairro,
         }));
       } catch {}
     }
