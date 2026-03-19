@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/customSupabase";
+import { megaFlexClient as supabase } from "@/lib/megaFlexClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, DollarSign } from "lucide-react";
 
