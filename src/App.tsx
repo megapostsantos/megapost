@@ -44,6 +44,15 @@ import AdminEscala from "@/pages/admin/AdminEscala";
 import OpLogin from "@/pages/op/OpLogin";
 import OpLayout from "@/components/op/OpLayout";
 import OpHistorico from "@/pages/op/OpHistorico";
+
+// Mega Flex pages
+import MegaFlexLayout from "@/pages/mega-flex/MegaFlexLayout";
+import MegaFlexDashboard from "@/pages/mega-flex/MegaFlexDashboard";
+import MegaFlexRotas from "@/pages/mega-flex/MegaFlexRotas";
+import MegaFlexMotoristas from "@/pages/mega-flex/MegaFlexMotoristas";
+import MegaFlexFinanceiro from "@/pages/mega-flex/MegaFlexFinanceiro";
+import DriverLogin from "@/pages/mega-flex/DriverLogin";
+import DriverPainel from "@/pages/mega-flex/DriverPainel";
 import OpEscala from "@/pages/op/OpEscala";
 
 const queryClient = new QueryClient();
@@ -132,6 +141,42 @@ const App = () => (
                 <Route path="users" element={<AdminUsers />} />
                 <Route path="configuracoes" element={<AdminSettings />} />
               </Route>
+
+              {/* Mega Flex admin routes */}
+              <Route
+                path="/admin/mega-flex"
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <MegaFlexLayout basePath="/admin/mega-flex" />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<MegaFlexDashboard />} />
+                <Route path="dashboard" element={<MegaFlexDashboard />} />
+                <Route path="rotas" element={<MegaFlexRotas />} />
+                <Route path="motoristas" element={<MegaFlexMotoristas />} />
+                <Route path="financeiro" element={<MegaFlexFinanceiro />} />
+              </Route>
+
+              {/* Mega Flex operator routes */}
+              <Route
+                path="/op/mega-flex"
+                element={
+                  <ProtectedRoute requiredRole="operador">
+                    <MegaFlexLayout basePath="/op/mega-flex" />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<MegaFlexDashboard />} />
+                <Route path="dashboard" element={<MegaFlexDashboard />} />
+                <Route path="rotas" element={<MegaFlexRotas />} />
+                <Route path="motoristas" element={<MegaFlexMotoristas />} />
+                <Route path="financeiro" element={<MegaFlexFinanceiro />} />
+              </Route>
+
+              {/* Driver public routes */}
+              <Route path="/driver" element={<DriverLogin />} />
+              <Route path="/driver/painel" element={<DriverPainel />} />
 
               <Route
                 path="*"
