@@ -142,6 +142,42 @@ const App = () => (
                 <Route path="configuracoes" element={<AdminSettings />} />
               </Route>
 
+              {/* Mega Flex admin routes */}
+              <Route
+                path="/admin/mega-flex"
+                element={
+                  <ProtectedRoute requiredRole="admin">
+                    <MegaFlexLayout basePath="/admin/mega-flex" />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<MegaFlexDashboard />} />
+                <Route path="dashboard" element={<MegaFlexDashboard />} />
+                <Route path="rotas" element={<MegaFlexRotas />} />
+                <Route path="motoristas" element={<MegaFlexMotoristas />} />
+                <Route path="financeiro" element={<MegaFlexFinanceiro />} />
+              </Route>
+
+              {/* Mega Flex operator routes */}
+              <Route
+                path="/op/mega-flex"
+                element={
+                  <ProtectedRoute requiredRole="operador">
+                    <MegaFlexLayout basePath="/op/mega-flex" />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<MegaFlexDashboard />} />
+                <Route path="dashboard" element={<MegaFlexDashboard />} />
+                <Route path="rotas" element={<MegaFlexRotas />} />
+                <Route path="motoristas" element={<MegaFlexMotoristas />} />
+                <Route path="financeiro" element={<MegaFlexFinanceiro />} />
+              </Route>
+
+              {/* Driver public routes */}
+              <Route path="/driver" element={<DriverLogin />} />
+              <Route path="/driver/painel" element={<DriverPainel />} />
+
               <Route
                 path="*"
                 element={
