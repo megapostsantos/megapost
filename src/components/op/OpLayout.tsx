@@ -19,6 +19,7 @@ const navItems = [
   { to: "/op/ponto", label: "Ponto", icon: Clock },
   { to: "/op/escala", label: "Minha Escala", icon: CalendarDays },
   { to: "/op/tv", label: "Painel TV", icon: Tv },
+  { to: "/op/mega-flex", label: "Mega Flex", icon: Zap },
 ];
 
 const OpLayout = () => {
