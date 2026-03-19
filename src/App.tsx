@@ -44,6 +44,15 @@ import AdminEscala from "@/pages/admin/AdminEscala";
 import OpLogin from "@/pages/op/OpLogin";
 import OpLayout from "@/components/op/OpLayout";
 import OpHistorico from "@/pages/op/OpHistorico";
+
+// Mega Flex pages
+import MegaFlexLayout from "@/pages/mega-flex/MegaFlexLayout";
+import MegaFlexDashboard from "@/pages/mega-flex/MegaFlexDashboard";
+import MegaFlexRotas from "@/pages/mega-flex/MegaFlexRotas";
+import MegaFlexMotoristas from "@/pages/mega-flex/MegaFlexMotoristas";
+import MegaFlexFinanceiro from "@/pages/mega-flex/MegaFlexFinanceiro";
+import DriverLogin from "@/pages/mega-flex/DriverLogin";
+import DriverPainel from "@/pages/mega-flex/DriverPainel";
 import OpEscala from "@/pages/op/OpEscala";
 
 const queryClient = new QueryClient();
