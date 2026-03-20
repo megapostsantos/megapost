@@ -8,6 +8,15 @@ import {
   UserCheck, RefreshCw, Truck, Archive, Flag, History, Tv, ClipboardList,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
+
+const normalizeStatus = (status?: string) => {
+  const s = (status || "").toLowerCase();
+  if (s.includes("aberto") || s === "aberta") return "Em aberto";
+  if (s.includes("check")) return "Check-in";
+  if (s.includes("carreg")) return "Carregando";
+  if (s.includes("final")) return "Finalizada";
+  return status || "";
+};
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { useLocation, Link } from "react-router-dom";
