@@ -800,7 +800,7 @@ const AdminRotas = () => {
                 setAssignDriverSearch("");
                 setAssignSnapshot({ driver_id: rota.driver_id, status: rota.status, qr_codigo: rota.qr_codigo, nx_codigo: rota.nx_codigo });
               }}>
-                <UserPlus className="h-3 w-3 mr-1" /> Motorista
+                <UserPlus className="h-3 w-3 mr-1" /> {rota.driver_id ? "Trocar motorista" : "Atribuir motorista"}
               </Button>
             )}
             {rota.status === "Check-in" && (
