@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/customSupabase";
 import {
   ChevronDown, ChevronUp, Route, User, Clock, LogIn, LogOut as LogOutIcon,
-  Flag, Calendar, AlertTriangle,
+  Package, AlertTriangle, Flag, Calendar,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -36,7 +37,6 @@ interface DiaWithRoutes {
 const OpHistorico = () => {
   const [dias, setDias] = useState<DiaWithRoutes[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [expandedDia, setExpandedDia] = useState<string | null>(null);
   const [diaRotas, setDiaRotas] = useState<any[]>([]);
   const [loadingRotas, setLoadingRotas] = useState(false);
@@ -45,65 +45,34 @@ const OpHistorico = () => {
 
   const loadDias = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      // Fetch dias with their route count via a joined select
-      const { data: allDias, error: diasError } = await supabase
+      const { data: allDias } = await supabase
         .from("dias")
         .select("id, data, status")
         .order("data", { ascending: false })
         .limit(60);
 
-      if (diasError) {
-        console.error("Erro ao buscar dias:", diasError);
-        setError("Erro ao carregar histórico.");
-        setLoading(false);
-        return;
-      }
+      if (!allDias || allDias.length === 0) { setDias([]); setLoading(false); return; }
 
-      if (!allDias || allDias.length === 0) {
-        setDias([]);
-        setLoading(false);
-        return;
-      }
-
-      // Get route counts per dia - batch in chunks to avoid URL length issues
+      // Get route counts per dia
       const diaIds = allDias.map(d => d.id);
+      const { data: rotas } = await supabase
+        .from("rotas")
+        .select("dia_id")
+        .in("dia_id", diaIds);
+
       const countMap: Record<string, number> = {};
+      (rotas || []).forEach((r: any) => {
+        countMap[r.dia_id] = (countMap[r.dia_id] || 0) + 1;
+      });
 
-      // Query in chunks of 20 to avoid oversized IN clauses
-      const chunkSize = 20;
-      for (let i = 0; i < diaIds.length; i += chunkSize) {
-        const chunk = diaIds.slice(i, i + chunkSize);
-        const { data: rotas, error: rotasError } = await supabase
-          .from("rotas")
-          .select("dia_id")
-          .in("dia_id", chunk);
+      const diasComRotas = allDias
+        .map(d => ({ ...d, routeCount: countMap[d.id] || 0 }))
+        .filter(d => d.routeCount > 0);
 
-        if (rotasError) {
-          console.error("Erro ao buscar rotas para contagem:", rotasError);
-          // Don't fail completely, just skip this chunk
-          continue;
-        }
-
-        (rotas || []).forEach((r: any) => {
-          countMap[r.dia_id] = (countMap[r.dia_id] || 0) + 1;
-        });
-      }
-
-      // Show all dias - those with routes show the count, those without show 0
-      const diasComRotas = allDias.map(d => ({
-        ...d,
-        routeCount: countMap[d.id] || 0,
-      }));
-
-      // Only show dias that have at least 1 route
-      const diasFiltrados = diasComRotas.filter(d => d.routeCount > 0);
-
-      setDias(diasFiltrados);
+      setDias(diasComRotas);
     } catch (err) {
-      console.error("Erro inesperado ao carregar histórico:", err);
-      setError("Erro ao carregar histórico.");
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -116,12 +85,11 @@ const OpHistorico = () => {
     setExpandedDia(diaId);
     setExpandedRota(null);
     setLoadingRotas(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("rotas")
       .select("*, drivers(id, nome, telefone, placa, farol)")
       .eq("dia_id", diaId)
       .order("rota_codigo");
-    if (error) console.error("Erro ao buscar rotas do dia:", error);
     setDiaRotas(data || []);
     setLoadingRotas(false);
   };
@@ -129,36 +97,18 @@ const OpHistorico = () => {
   const toggleRota = async (rotaId: string) => {
     if (expandedRota === rotaId) { setExpandedRota(null); return; }
     setExpandedRota(rotaId);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("estoque")
       .select("*")
       .eq("rota_id", rotaId)
       .order("created_at", { ascending: false });
-    if (error) console.error("Erro ao buscar estoque da rota:", error);
     setRotaEstoque(data || []);
   };
 
   const formatTime = (iso: string | null) => iso ? format(new Date(iso), "HH:mm") : null;
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-2">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        <p className="text-sm text-muted-foreground">Carregando histórico...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card className="border-destructive/50">
-        <CardContent className="py-12 text-center">
-          <AlertTriangle className="h-12 w-12 mx-auto text-destructive/50 mb-4" />
-          <h3 className="font-semibold text-lg text-foreground mb-2">Erro</h3>
-          <p className="text-sm text-muted-foreground">{error}</p>
-        </CardContent>
-      </Card>
-    );
+    return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
   }
 
   return (
@@ -172,7 +122,7 @@ const OpHistorico = () => {
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
             <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="font-semibold text-lg text-foreground mb-2">Nenhum histórico encontrado</h3>
+            <h3 className="font-semibold text-lg text-foreground mb-2">Nenhum histórico</h3>
             <p className="text-sm text-muted-foreground">Nenhum dia com rotas encontrado.</p>
           </CardContent>
         </Card>

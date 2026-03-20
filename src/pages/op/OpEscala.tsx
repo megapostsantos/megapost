@@ -18,6 +18,7 @@ interface ScheduleEntry {
   notes: string | null;
   shift_start_time: string | null;
   shift_end_time: string | null;
+  is_open_shift?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -35,8 +36,14 @@ const getStatusStyle = (status: string) =>
 const getStatusLabel = (status: string) =>
   STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
 
+const SHIFTS = [
+  { value: "manha", label: "Manhã" },
+  { value: "tarde", label: "Tarde" },
+];
+
 const formatTime = (t: string | null) => {
   if (!t) return null;
+  // t is "HH:MM:SS" or "HH:MM"
   return t.substring(0, 5);
 };
 
@@ -65,15 +72,10 @@ const OpEscala = () => {
     },
   });
 
-  // Get all entries for a given day, sorted by shift_start_time
-  const getEntriesForDay = (date: Date) =>
-    entries
-      .filter((e) => e.date === format(date, "yyyy-MM-dd"))
-      .sort((a, b) => {
-        const aTime = a.shift_start_time || "99:99";
-        const bTime = b.shift_start_time || "99:99";
-        return aTime.localeCompare(bTime);
-      });
+  const getEntriesForDay = (date: Date, shift: string) =>
+    entries.filter(
+      (e) => e.date === format(date, "yyyy-MM-dd") && e.shift === shift
+    );
 
   return (
     <div className="space-y-4">
@@ -115,7 +117,6 @@ const OpEscala = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
           {weekDays.map((day) => {
             const isToday = isSameDay(day, new Date());
-            const dayEntries = getEntriesForDay(day);
             return (
               <Card
                 key={day.toISOString()}
@@ -130,41 +131,47 @@ const OpEscala = () => {
                   </p>
                 </div>
                 <div className="space-y-1">
-                  {dayEntries.length === 0 ? (
-                    <div className="rounded px-2 py-1.5 text-xs font-medium border bg-muted/40 text-muted-foreground/50 border-transparent">
-                      —
-                    </div>
-                  ) : (
-                    dayEntries.map((entry) => {
-                      const isOpen = !entry.user_id;
+                  {SHIFTS.map((shift) => {
+                    const dayEntries = getEntriesForDay(day, shift.value);
+                    if (dayEntries.length === 0) {
                       return (
                         <div
-                          key={entry.id}
-                          className={`rounded px-2 py-1.5 text-xs font-medium border ${
-                            isOpen
-                              ? "bg-muted/60 text-muted-foreground border-dashed border-muted-foreground/40"
-                              : getStatusStyle(entry.status)
-                          }`}
+                          key={shift.value}
+                          className="rounded px-2 py-1.5 text-xs font-medium border bg-muted/40 text-muted-foreground/50 border-transparent"
                         >
-                          {isOpen ? (
-                            <span className="italic">Turno em aberto</span>
-                          ) : (
-                            getStatusLabel(entry.status)
-                          )}
-                          {(entry.shift_start_time || entry.shift_end_time) && (
-                            <span className="block text-[10px] mt-0.5">
-                              {formatTime(entry.shift_start_time) || "?"} – {formatTime(entry.shift_end_time) || "?"}
-                            </span>
-                          )}
-                          {entry.notes && (
-                            <span className="block text-[10px] mt-0.5 opacity-70 truncate" title={entry.notes}>
-                              {entry.notes}
-                            </span>
-                          )}
+                          <span className="block text-[10px] opacity-70">{shift.label}</span>
+                          —
                         </div>
                       );
-                    })
-                  )}
+                    }
+                    return dayEntries.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className={`rounded px-2 py-1.5 text-xs font-medium border ${
+                          entry.is_open_shift
+                            ? "bg-muted/60 text-muted-foreground border-dashed border-muted-foreground/40"
+                            : getStatusStyle(entry.status)
+                        }`}
+                      >
+                        <span className="block text-[10px] opacity-70">{shift.label}</span>
+                        {entry.is_open_shift ? (
+                          <span className="italic">Turno em aberto</span>
+                        ) : (
+                          getStatusLabel(entry.status)
+                        )}
+                        {(entry.shift_start_time || entry.shift_end_time) && (
+                          <span className="block text-[10px] mt-0.5">
+                            {formatTime(entry.shift_start_time) || "?"} – {formatTime(entry.shift_end_time) || "?"}
+                          </span>
+                        )}
+                        {entry.notes && (
+                          <span className="block text-[10px] mt-0.5 opacity-70 truncate" title={entry.notes}>
+                            {entry.notes}
+                          </span>
+                        )}
+                      </div>
+                    ));
+                  })}
                 </div>
               </Card>
             );
