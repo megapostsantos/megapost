@@ -26,6 +26,24 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { useNavigate, useLocation } from "react-router-dom";
 
+// ── Status normalizer ───────────────────────────────────
+const normalizeStatus = (status?: string) => {
+  switch ((status || "").toLowerCase()) {
+    case "aberta":
+    case "em aberto":
+      return "Em aberto";
+    case "check-in":
+    case "checkin":
+      return "Check-in";
+    case "carregando":
+      return "Carregando";
+    case "finalizada":
+      return "Finalizada";
+    default:
+      return status || "";
+  }
+};
+
 // ── Status config ──────────────────────────────────────────
 const statusConfig: Record<string, { color: string; label: string }> = {
   "Em aberto":   { color: "bg-orange-100 text-orange-800 border-orange-200", label: "Em aberto" },
