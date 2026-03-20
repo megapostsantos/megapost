@@ -1051,12 +1051,16 @@ const AdminRotas = () => {
               </button>
             </div>
             {/* Search input */}
-            <Input
-              placeholder="Digite o nome do motorista…"
-              value={assignDriverSearch}
-              onChange={(e) => { setAssignDriverSearch(e.target.value); setAssignDriverId(""); }}
-              autoFocus
-            />
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, placa ou telefone…"
+                value={assignDriverSearch}
+                onChange={(e) => { setAssignDriverSearch(e.target.value); setAssignDriverId(""); }}
+                className="pl-8"
+                autoFocus
+              />
+            </div>
             {/* A–Z quick scroll */}
             {(() => {
               const availableLetters = new Set(
