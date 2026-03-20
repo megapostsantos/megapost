@@ -1088,13 +1088,12 @@ const AdminRotas = () => {
             {/* Driver list */}
             <div className="overflow-y-auto flex-1 space-y-1 min-h-0 max-h-64 border border-border rounded-md p-1">
               {(() => {
-                const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                const norm = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
                 const search = norm(assignDriverSearch.trim());
                 const filtered = drivers
                   .filter(d => d.farol !== "VERMELHO")
-                  .filter(d => !search || norm(d.nome).includes(search))
+                  .filter(d => !search || norm(d.nome).includes(search) || norm(d.placa || "").includes(search) || norm(d.telefone || "").includes(search))
                   .sort((a, b) => {
-                    // Prioritize names that start with the search
                     if (search) {
                       const aStarts = norm(a.nome).startsWith(search);
                       const bStarts = norm(b.nome).startsWith(search);
@@ -1112,7 +1111,8 @@ const AdminRotas = () => {
                     onClick={() => setAssignDriverId(d.id)}
                   >
                     {d.farol === "AMARELO" && <span className="mr-1">⚠️</span>}
-                    {d.nome}
+                    <span className="font-medium">{d.nome}</span>
+                    {d.placa && <span className="text-xs text-muted-foreground ml-2">{d.placa}</span>}
                   </button>
                 ));
               })()}
