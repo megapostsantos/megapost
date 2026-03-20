@@ -762,7 +762,8 @@ const AdminRotas = () => {
 
   // ── Render Route Card ──────────────────────────────────
   const renderRotaCard = (rota: any) => {
-    const cfg = statusConfig[rota.status] || statusConfig["Em aberto"];
+    const currentStatus = normalizeStatus(rota.status);
+    const cfg = statusConfig[currentStatus] || statusConfig["Em aberto"];
     const driver = rota.drivers;
     const isExpanded = expandedRota === rota.id;
     const whatsappUrl = driver ? getWhatsAppUrl(driver.telefone) : null;
