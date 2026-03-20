@@ -698,7 +698,7 @@ const AdminRotas = () => {
   // ── Export queue ───────────────────────────────────────
   const handleExportQueue = () => {
     const checkinRoutes = rotasByPeriodo(activeCiclo)
-      .filter(r => r.status === "Check-in")
+      .filter(r => normalizeStatus(r.status) === "Check-in")
       .sort((a, b) => {
         const ta = a.hora_chegada ? new Date(a.hora_chegada).getTime() : Infinity;
         const tb = b.hora_chegada ? new Date(b.hora_chegada).getTime() : Infinity;
