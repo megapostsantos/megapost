@@ -67,26 +67,29 @@ const OpHistorico = () => {
         return;
       }
 
-      // Get route counts per dia using exact count queries (avoids 1000-row limit)
+      // Get route counts per dia - batch in chunks to avoid URL length issues
+      const diaIds = allDias.map(d => d.id);
       const countMap: Record<string, number> = {};
 
-      // Use parallel HEAD requests with count=exact for each dia
-      const countPromises = allDias.map(async (dia) => {
-        const { count, error: countError } = await supabase
+      // Query in chunks of 20 to avoid oversized IN clauses
+      const chunkSize = 20;
+      for (let i = 0; i < diaIds.length; i += chunkSize) {
+        const chunk = diaIds.slice(i, i + chunkSize);
+        const { data: rotas, error: rotasError } = await supabase
           .from("rotas")
-          .select("id", { count: "exact", head: true })
-          .eq("dia_id", dia.id);
+          .select("dia_id")
+          .in("dia_id", chunk);
 
-        if (countError) {
-          console.error(`Erro ao contar rotas do dia ${dia.data}:`, countError);
-          return;
+        if (rotasError) {
+          console.error("Erro ao buscar rotas para contagem:", rotasError);
+          // Don't fail completely, just skip this chunk
+          continue;
         }
-        if (count != null && count > 0) {
-          countMap[dia.id] = count;
-        }
-      });
 
-      await Promise.all(countPromises);
+        (rotas || []).forEach((r: any) => {
+          countMap[r.dia_id] = (countMap[r.dia_id] || 0) + 1;
+        });
+      }
 
       // Show all dias - those with routes show the count, those without show 0
       const diasComRotas = allDias.map(d => ({
