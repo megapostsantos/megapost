@@ -68,7 +68,8 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               {/* Public site */}
-              <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
+              <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
+              <Route path="/motorista" element={<PublicLayout><Home /></PublicLayout>} />
               <Route path="/como-funciona" element={<PublicLayout><ComoFunciona /></PublicLayout>} />
               <Route path="/suporte" element={<PublicLayout><Suporte /></PublicLayout>} />
               <Route path="/seja-parceiro" element={<PublicLayout><SejaParceiro /></PublicLayout>} />
