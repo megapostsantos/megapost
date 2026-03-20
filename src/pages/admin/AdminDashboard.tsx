@@ -8,6 +8,15 @@ import {
   UserCheck, RefreshCw, Truck, Archive, Flag, History, Tv, ClipboardList,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
+
+const normalizeStatus = (status?: string) => {
+  const s = (status || "").toLowerCase();
+  if (s.includes("aberto") || s === "aberta") return "Em aberto";
+  if (s.includes("check")) return "Check-in";
+  if (s.includes("carreg")) return "Carregando";
+  if (s.includes("final")) return "Finalizada";
+  return status || "";
+};
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { useLocation, Link } from "react-router-dom";
@@ -90,7 +99,7 @@ const AdminDashboard = () => {
       const allRotas = rotas || [];
       const am0 = allRotas.filter((r: any) => r.periodo === "AM0");
       const am1 = allRotas.filter((r: any) => r.periodo === "AM1");
-      const semMotorista = allRotas.filter((r: any) => r.status === "Em aberto").length;
+      const semMotorista = allRotas.filter((r: any) => normalizeStatus(r.status) === "Em aberto").length;
 
       const rotasComTempo = allRotas.filter((r: any) => r.tempo_atendimento_min != null);
       const tempoMedio = rotasComTempo.length > 0
@@ -108,10 +117,10 @@ const AdminDashboard = () => {
 
       setMetrics({
         totalAM0: am0.length, totalAM1: am1.length,
-        emAberto: allRotas.filter((r: any) => r.status === "Em aberto").length,
-        checkin: allRotas.filter((r: any) => r.status === "Check-in").length,
-        carregando: allRotas.filter((r: any) => r.status === "Carregando").length,
-        finalizada: allRotas.filter((r: any) => r.status === "Finalizada").length,
+        emAberto: allRotas.filter((r: any) => normalizeStatus(r.status) === "Em aberto").length,
+        checkin: allRotas.filter((r: any) => normalizeStatus(r.status) === "Check-in").length,
+        carregando: allRotas.filter((r: any) => normalizeStatus(r.status) === "Carregando").length,
+        finalizada: allRotas.filter((r: any) => normalizeStatus(r.status) === "Finalizada").length,
         ocorrenciasAbertas: ocCount, tempoMedio,
         estoqueAtivo: allEstoque.length, estoqueAvarias: avarias,
         estoqueTentativas: tentativas, pacotesParados: parados,
