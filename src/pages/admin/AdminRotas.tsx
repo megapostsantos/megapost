@@ -738,13 +738,17 @@ const AdminRotas = () => {
   };
 
   // Can op edit this route? Only Em aberto / Check-in
-  const canOpEdit = (rota: any) => rota.status === "Em aberto" || rota.status === "Check-in";
+  const canOpEdit = (rota: any) => {
+    const s = normalizeStatus(rota.status);
+    return s === "Em aberto" || s === "Check-in";
+  };
 
   // Can clear driver? Only before saída (no QR/NX)
   const canClearDriver = (rota: any) => {
     if (!rota.driver_id) return false;
     if (rota.qr_codigo || rota.nx_codigo) return false;
-    if (rota.status === "Carregando" || rota.status === "Finalizada") return false;
+    const s = normalizeStatus(rota.status);
+    if (s === "Carregando" || s === "Finalizada") return false;
     return true;
   };
 
