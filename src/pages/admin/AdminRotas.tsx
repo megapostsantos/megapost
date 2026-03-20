@@ -645,7 +645,7 @@ const AdminRotas = () => {
             }
           }
           updates.driver_id = editDriverId;
-          if (editRota.status === "Em aberto") {
+          if (normalizeStatus(editRota.status) === "Em aberto") {
             updates.status = "Check-in";
             updates.hora_chegada = new Date().toISOString();
           }
