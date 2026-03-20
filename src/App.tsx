@@ -7,7 +7,7 @@ import { ContentProvider } from "@/contexts/ContentContext";
 import { AuthProvider } from "@/hooks/useAuth";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import EditToggle from "@/components/EditToggle";
+
 import Home from "@/pages/Home";
 import LandingPage from "@/pages/LandingPage";
 import ComoFunciona from "@/pages/ComoFunciona";
