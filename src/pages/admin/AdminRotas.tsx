@@ -1047,7 +1047,7 @@ const AdminRotas = () => {
             </div>
             {/* Search input */}
             <Input
-              placeholder="Digite o nome do motorista…"
+              placeholder="Buscar por nome, telefone ou placa…"
               value={assignDriverSearch}
               onChange={(e) => { setAssignDriverSearch(e.target.value); setAssignDriverId(""); }}
               autoFocus
