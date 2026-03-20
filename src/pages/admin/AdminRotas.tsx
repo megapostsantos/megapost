@@ -1145,7 +1145,7 @@ const AdminRotas = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAssignRota(null); setAssignDriverSearch(""); setAssignSnapshot(null); }}>Cancelar</Button>
-            <Button onClick={handleAssignDriver} disabled={!assignDriverId || assignSubmitting}>
+            <Button id="assign-driver-confirm-btn" onClick={handleAssignDriver} disabled={!assignDriverId || assignSubmitting}>
               {assignSubmitting ? "Registrando..." : "Atribuir e Check-in"}
             </Button>
           </DialogFooter>
