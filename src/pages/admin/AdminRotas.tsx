@@ -319,8 +319,8 @@ const AdminRotas = () => {
 
   // ── Delete individual route ────────────────────────────
   const canDeleteRoute = (rota: any) => {
-    // Admins can delete any route; operators cannot delete finalized/carregando
-    if (!isAdmin && (rota.status === "Finalizada" || rota.status === "Carregando")) return false;
+    const s = normalizeStatus(rota.status);
+    if (!isAdmin && (s === "Finalizada" || s === "Carregando")) return false;
     return true;
   };
 
