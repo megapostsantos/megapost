@@ -842,7 +842,7 @@ const AdminRotas = () => {
         {isExpanded && (
           <div className="mt-3 pt-3 border-t border-border space-y-3">
             {/* Actions — available on Carregando AND Finalizada (and Check-in) */}
-            {(rota.status === "Carregando" || rota.status === "Finalizada" || rota.status === "Check-in") && (
+            {(currentStatus === "Carregando" || currentStatus === "Finalizada" || currentStatus === "Check-in") && (
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { setAddInsRotaId(rota.id); setShowAddInsucesso(true); setAddInsCodigo(""); setAddInsMotivo(""); setAddInsTipo("TENTATIVA"); }}>
                   <Package className="h-3 w-3 mr-1" /> + Avaria/Tentativa
