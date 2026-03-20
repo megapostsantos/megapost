@@ -800,7 +800,7 @@ const AdminRotas = () => {
                 setAssignDriverSearch("");
                 setAssignSnapshot({ driver_id: rota.driver_id, status: rota.status, qr_codigo: rota.qr_codigo, nx_codigo: rota.nx_codigo });
               }}>
-                <UserPlus className="h-3 w-3 mr-1" /> Motorista
+                <UserPlus className="h-3 w-3 mr-1" /> {rota.driver_id ? "Trocar motorista" : "Atribuir motorista"}
               </Button>
             )}
             {rota.status === "Check-in" && (
@@ -1047,7 +1047,7 @@ const AdminRotas = () => {
             </div>
             {/* Search input */}
             <Input
-              placeholder="Digite o nome do motorista…"
+              placeholder="Buscar por nome, telefone ou placa…"
               value={assignDriverSearch}
               onChange={(e) => { setAssignDriverSearch(e.target.value); setAssignDriverId(""); }}
               autoFocus
@@ -1083,9 +1083,13 @@ const AdminRotas = () => {
                 const search = norm(assignDriverSearch.trim());
                 const filtered = drivers
                   .filter(d => d.farol !== "VERMELHO")
-                  .filter(d => !search || norm(d.nome).includes(search))
+                  .filter(d => {
+                    if (!search) return true;
+                    return norm(d.nome).includes(search) ||
+                      (d.telefone && norm(d.telefone).includes(search)) ||
+                      (d.placa && norm(d.placa).includes(search));
+                  })
                   .sort((a, b) => {
-                    // Prioritize names that start with the search
                     if (search) {
                       const aStarts = norm(a.nome).startsWith(search);
                       const bStarts = norm(b.nome).startsWith(search);
@@ -1099,11 +1103,31 @@ const AdminRotas = () => {
                   <button
                     key={d.id}
                     type="button"
-                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${assignDriverId === d.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
-                    onClick={() => setAssignDriverId(d.id)}
+                    className={`w-full text-left px-3 py-2.5 rounded-md text-sm transition-colors ${assignDriverId === d.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+                    onClick={() => {
+                      if (d.farol === "AMARELO") {
+                        setAssignDriverId(d.id);
+                      } else {
+                        setAssignDriverId(d.id);
+                        // Auto-submit for green drivers
+                        setTimeout(() => {
+                          const btn = document.getElementById("assign-driver-confirm-btn");
+                          if (btn) btn.click();
+                        }, 50);
+                      }
+                    }}
                   >
-                    {d.farol === "AMARELO" && <span className="mr-1">⚠️</span>}
-                    {d.nome}
+                    <div className="flex items-center gap-1">
+                      {d.farol === "AMARELO" && <span className="mr-1">⚠️</span>}
+                      <span className="font-medium">{d.nome}</span>
+                    </div>
+                    {(d.telefone || d.placa) && (
+                      <div className={`text-xs mt-0.5 ${assignDriverId === d.id ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                        {d.telefone && <span>{d.telefone}</span>}
+                        {d.telefone && d.placa && <span> • </span>}
+                        {d.placa && <span>{d.placa}</span>}
+                      </div>
+                    )}
                   </button>
                 ));
               })()}
@@ -1121,7 +1145,7 @@ const AdminRotas = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setAssignRota(null); setAssignDriverSearch(""); setAssignSnapshot(null); }}>Cancelar</Button>
-            <Button onClick={handleAssignDriver} disabled={!assignDriverId || assignSubmitting}>
+            <Button id="assign-driver-confirm-btn" onClick={handleAssignDriver} disabled={!assignDriverId || assignSubmitting}>
               {assignSubmitting ? "Registrando..." : "Atribuir e Check-in"}
             </Button>
           </DialogFooter>
