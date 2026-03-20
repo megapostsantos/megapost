@@ -117,10 +117,10 @@ const AdminDashboard = () => {
 
       setMetrics({
         totalAM0: am0.length, totalAM1: am1.length,
-        emAberto: allRotas.filter((r: any) => r.status === "Em aberto").length,
-        checkin: allRotas.filter((r: any) => r.status === "Check-in").length,
-        carregando: allRotas.filter((r: any) => r.status === "Carregando").length,
-        finalizada: allRotas.filter((r: any) => r.status === "Finalizada").length,
+        emAberto: allRotas.filter((r: any) => normalizeStatus(r.status) === "Em aberto").length,
+        checkin: allRotas.filter((r: any) => normalizeStatus(r.status) === "Check-in").length,
+        carregando: allRotas.filter((r: any) => normalizeStatus(r.status) === "Carregando").length,
+        finalizada: allRotas.filter((r: any) => normalizeStatus(r.status) === "Finalizada").length,
         ocorrenciasAbertas: ocCount, tempoMedio,
         estoqueAtivo: allEstoque.length, estoqueAvarias: avarias,
         estoqueTentativas: tentativas, pacotesParados: parados,
