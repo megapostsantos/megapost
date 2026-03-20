@@ -786,14 +786,8 @@ const AdminRotas = () => {
           </div>
 
           <div className="flex flex-col gap-1 shrink-0">
-            {/* Edit button: op can edit Em aberto/Check-in; admin can always edit */}
-            {(canOpEdit(rota) || isAdmin) && (
-              <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => openEditRota(rota, !canOpEdit(rota) && isAdmin)}>
-                {!canOpEdit(rota) && isAdmin ? <Shield className="h-3 w-3 mr-1" /> : <Pencil className="h-3 w-3 mr-1" />}
-                {!canOpEdit(rota) && isAdmin ? "Corrigir" : "Editar"}
-              </Button>
-            )}
-            {rota.status === "Em aberto" && (
+            {/* Assign driver — primary action for open routes */}
+            {rota.status === "Em aberto" && !rota.driver_id && (
               <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => {
                 setAssignRota(rota);
                 setAssignDriverId("");
@@ -803,12 +797,23 @@ const AdminRotas = () => {
                 <UserPlus className="h-3 w-3 mr-1" /> Motorista
               </Button>
             )}
+            {/* Saída — for checked-in routes */}
             {rota.status === "Check-in" && (
               <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => { setSaidaRota(rota); setSaidaQr(""); setSaidaNx(""); }}>
                 <Truck className="h-3 w-3 mr-1" /> Saída
               </Button>
             )}
-            {/* Carregando status no longer exists — saída already finalizes */}
+            {/* Edit: operators see "Editar" for open/check-in; admins see "Corrigir" for locked statuses */}
+            {canOpEdit(rota) && (
+              <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => openEditRota(rota, false)}>
+                <Pencil className="h-3 w-3 mr-1" /> Editar
+              </Button>
+            )}
+            {!canOpEdit(rota) && isAdmin && (
+              <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => openEditRota(rota, true)}>
+                <Shield className="h-3 w-3 mr-1" /> Corrigir
+              </Button>
+            )}
             <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => loadRotaDetail(rota.id)}>
               {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </Button>
