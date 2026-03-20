@@ -54,7 +54,6 @@ const PublicLayout = ({ children }: { children: React.ReactNode }) => (
     <Header />
     {children}
     <Footer />
-    <EditToggle />
   </div>
 );
 

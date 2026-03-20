@@ -730,10 +730,10 @@ const AdminRotas = () => {
     const list = rotasByPeriodo(p);
     return {
       total: list.length,
-      aberto: list.filter(r => r.status === "Em aberto").length,
-      checkin: list.filter(r => r.status === "Check-in").length,
-      carregando: list.filter(r => r.status === "Carregando").length,
-      finalizada: list.filter(r => r.status === "Finalizada").length,
+      aberto: list.filter(r => normalizeStatus(r.status) === "Em aberto").length,
+      checkin: list.filter(r => normalizeStatus(r.status) === "Check-in").length,
+      carregando: list.filter(r => normalizeStatus(r.status) === "Carregando").length,
+      finalizada: list.filter(r => normalizeStatus(r.status) === "Finalizada").length,
     };
   };
 
