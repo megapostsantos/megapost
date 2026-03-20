@@ -392,7 +392,7 @@ const LandingPage = () => {
             <div>
               <h4 className="font-bold text-sm mb-3 uppercase tracking-wider opacity-60">Links</h4>
               <div className="space-y-2 text-sm opacity-80">
-                <Link to="/" className="block hover:opacity-100 transition-opacity">Área do Motorista</Link>
+                <Link to="/motorista" className="block hover:opacity-100 transition-opacity">Área do Motorista</Link>
                 <Link to="/como-funciona" className="block hover:opacity-100 transition-opacity">Como Funciona</Link>
                 <Link to="/seja-parceiro" className="block hover:opacity-100 transition-opacity">Seja Parceiro</Link>
                 <Link to="/suporte" className="block hover:opacity-100 transition-opacity">Suporte</Link>
