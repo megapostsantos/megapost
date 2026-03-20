@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Route, Users, HelpCircle,
   Menu, X, ChevronLeft, LogOut as LogOutIcon,
-  Store, Tv, ClipboardList, BookOpen, Clock, CalendarDays, Zap,
+  Store, Tv, ClipboardList, BookOpen, Clock, CalendarDays,
 } from "lucide-react";
 
 const navItems = [
@@ -19,7 +19,6 @@ const navItems = [
   { to: "/op/ponto", label: "Ponto", icon: Clock },
   { to: "/op/escala", label: "Minha Escala", icon: CalendarDays },
   { to: "/op/tv", label: "Painel TV", icon: Tv },
-  { to: "/op/mega-flex", label: "Mega Flex", icon: Zap },
 ];
 
 const OpLayout = () => {
