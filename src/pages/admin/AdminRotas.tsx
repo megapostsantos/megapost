@@ -628,7 +628,7 @@ const AdminRotas = () => {
           // Desatribuir motorista → volta para Em aberto
           updates.driver_id = null;
           updates.hora_chegada = null;
-          if (editRota.status === "Check-in") {
+          if (normalizeStatus(editRota.status) === "Check-in") {
             updates.status = "Em aberto";
           }
         } else {
