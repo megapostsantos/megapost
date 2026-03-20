@@ -816,7 +816,7 @@ const AdminRotas = () => {
                 {!canOpEdit(rota) && isAdmin ? "Corrigir" : "Editar"}
               </Button>
             )}
-            {rota.status === "Em aberto" && (
+            {currentStatus === "Em aberto" && (
               <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => {
                 setAssignRota(rota);
                 setAssignDriverId("");
@@ -826,7 +826,7 @@ const AdminRotas = () => {
                 <UserPlus className="h-3 w-3 mr-1" /> {rota.driver_id ? "Trocar motorista" : "Atribuir motorista"}
               </Button>
             )}
-            {rota.status === "Check-in" && (
+            {currentStatus === "Check-in" && (
               <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => { setSaidaRota(rota); setSaidaQr(""); setSaidaNx(""); }}>
                 <Truck className="h-3 w-3 mr-1" /> Saída
               </Button>
