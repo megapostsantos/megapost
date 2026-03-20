@@ -786,15 +786,15 @@ const AdminRotas = () => {
           </div>
 
           <div className="flex flex-col gap-1 shrink-0">
-            {/* Assign driver — primary action for open routes */}
-            {rota.status === "Em aberto" && !rota.driver_id && (
-              <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => {
+            {/* Assign driver — primary action for open routes (available to both admin and operator) */}
+            {rota.status === "Em aberto" && (
+              <Button size="sm" variant="default" className="text-xs h-7 px-2" onClick={() => {
                 setAssignRota(rota);
-                setAssignDriverId("");
+                setAssignDriverId(rota.driver_id || "");
                 setAssignDriverSearch("");
                 setAssignSnapshot({ driver_id: rota.driver_id, status: rota.status, qr_codigo: rota.qr_codigo, nx_codigo: rota.nx_codigo });
               }}>
-                <UserPlus className="h-3 w-3 mr-1" /> Motorista
+                <UserPlus className="h-3 w-3 mr-1" /> {rota.driver_id ? "Trocar motorista" : "Atribuir motorista"}
               </Button>
             )}
             {/* Saída — for checked-in routes */}
