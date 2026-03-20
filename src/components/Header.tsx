@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { label: "Início", path: "/" },
+  { label: "Área do Motorista", path: "/motorista" },
   { label: "Como Funciona", path: "/como-funciona" },
   { label: "Suporte", path: "/suporte" },
   { label: "Seja Parceiro", path: "/seja-parceiro" },
