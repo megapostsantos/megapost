@@ -9,6 +9,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import EditToggle from "@/components/EditToggle";
 import Home from "@/pages/Home";
+import LandingPage from "@/pages/LandingPage";
 import ComoFunciona from "@/pages/ComoFunciona";
 import Suporte from "@/pages/Suporte";
 import SejaParceiro from "@/pages/SejaParceiro";
