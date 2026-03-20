@@ -1104,7 +1104,18 @@ const AdminRotas = () => {
                     key={d.id}
                     type="button"
                     className={`w-full text-left px-3 py-2.5 rounded-md text-sm transition-colors ${assignDriverId === d.id ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
-                    onClick={() => setAssignDriverId(d.id)}
+                    onClick={() => {
+                      if (d.farol === "AMARELO") {
+                        setAssignDriverId(d.id);
+                      } else {
+                        setAssignDriverId(d.id);
+                        // Auto-submit for green drivers
+                        setTimeout(() => {
+                          const btn = document.getElementById("assign-driver-confirm-btn");
+                          if (btn) btn.click();
+                        }, 50);
+                      }
+                    }}
                   >
                     <div className="flex items-center gap-1">
                       {d.farol === "AMARELO" && <span className="mr-1">⚠️</span>}
