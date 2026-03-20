@@ -9,6 +9,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import EditToggle from "@/components/EditToggle";
 import Home from "@/pages/Home";
+import LandingPage from "@/pages/LandingPage";
 import ComoFunciona from "@/pages/ComoFunciona";
 import Suporte from "@/pages/Suporte";
 import SejaParceiro from "@/pages/SejaParceiro";
@@ -67,7 +68,8 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               {/* Public site */}
-              <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
+              <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
+              <Route path="/motorista" element={<PublicLayout><Home /></PublicLayout>} />
               <Route path="/como-funciona" element={<PublicLayout><ComoFunciona /></PublicLayout>} />
               <Route path="/suporte" element={<PublicLayout><Suporte /></PublicLayout>} />
               <Route path="/seja-parceiro" element={<PublicLayout><SejaParceiro /></PublicLayout>} />

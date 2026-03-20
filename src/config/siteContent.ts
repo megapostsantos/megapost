@@ -142,4 +142,98 @@ export const defaultContent: SiteContent = {
   footer_texto: "Mega POST — Operação logística inteligente. Drive thru de carregamento padronizado para máxima eficiência.",
   footer_contato: "Contato: 13 98821-8339",
   footer_copy: "© 2025 Mega POST. Todos os direitos reservados.",
+
+  // === LANDING PAGE INSTITUCIONAL ===
+
+  // HERO
+  lp_hero_titulo: "Poste com mais agilidade. Distribua com mais eficiência. Cresça com a Mega POST.",
+  lp_hero_subtitulo: "Soluções logísticas para sellers, parceiros e operações: Flex, retirada, postagem, devolução, distribuição e suporte operacional em um só lugar.",
+  lp_hero_btn1: "Quero postar com a Mega POST",
+  lp_hero_btn2: "Falar no WhatsApp",
+
+  // FLEX DESTAQUE
+  lp_flex_titulo: "FLEX é o nosso destaque",
+  lp_flex_texto: "A Mega POST oferece estrutura para operações de envio rápido com mais organização, velocidade e suporte operacional. Ideal para quem precisa postar com agilidade e ter uma operação mais fluida no dia a dia.",
+  lp_flex_b1: "Mais agilidade na expedição",
+  lp_flex_b2: "Estrutura operacional",
+  lp_flex_b3: "Melhor organização de fluxo",
+  lp_flex_b4: "Apoio para crescimento da operação",
+  lp_flex_b5: "Mais eficiência no envio rápido",
+  lp_flex_btn: "Quero entender o FLEX",
+
+  // SERVIÇOS
+  lp_servicos_titulo: "Nossos Serviços",
+  lp_srv1_nome: "Retirada (Pick-up)",
+  lp_srv1_desc: "Coletamos ou recebemos volumes com organização e controle operacional.",
+  lp_srv2_nome: "Postagem (Drop-off)",
+  lp_srv2_desc: "Estrutura para postagem prática, rápida e eficiente para sellers e operações.",
+  lp_srv3_nome: "Devolução (Reverse)",
+  lp_srv3_desc: "Fluxo de devolução com mais clareza, apoio operacional e melhor experiência.",
+  lp_srv4_nome: "Flex",
+  lp_srv4_desc: "Solução para envio rápido com foco em agilidade, performance e escala.",
+  lp_srv5_nome: "Delivery Cell",
+  lp_srv5_desc: "Distribuição de pacotes com operação estruturada e suporte logístico.",
+  lp_srv6_nome: "Nex (Envios Extra)",
+  lp_srv6_desc: "Apoio para motoristas e operações conectadas ao app de Envios Extra.",
+
+  // POR QUE MEGA POST
+  lp_porque_titulo: "Por que operar com a Mega POST?",
+  lp_porque1: "Operação organizada",
+  lp_porque2: "Agilidade no fluxo",
+  lp_porque3: "Estrutura física e operacional",
+  lp_porque4: "Atendimento próximo",
+  lp_porque5: "Experiência logística",
+  lp_porque6: "Solução pensada para escala",
+
+  // SELLERS
+  lp_sellers_titulo: "Para quem precisa postar mais e melhor",
+  lp_sellers_texto: "A Mega POST é ideal para sellers, operações e parceiros que precisam de mais eficiência logística no dia a dia.",
+  lp_sellers_p1: "Sellers",
+  lp_sellers_p2: "Pequenas operações",
+  lp_sellers_p3: "E-commerces",
+  lp_sellers_p4: "Parceiros logísticos",
+  lp_sellers_p5: "Operações com demanda de envio rápido",
+
+  // MOTORISTAS / OPERAÇÃO
+  lp_motor_titulo: "Área do motorista e operação",
+  lp_motor_texto: "Já atua com carrinhamento, coletas, rotas ou usa o Nex / Envios Extra? Aqui você encontra a estrutura ideal para apoiar sua operação.",
+  lp_motor_btn1: "Sou motorista",
+  lp_motor_btn2: "Acessar área operacional",
+  lp_motor_btn3: "Saiba mais sobre o Nex",
+
+  // PROCESSO
+  lp_processo_titulo: "Como começar",
+  lp_processo_p1_titulo: "Entre em contato",
+  lp_processo_p1_desc: "Fale conosco pelo WhatsApp ou formulário para entendermos sua necessidade.",
+  lp_processo_p2_titulo: "Entenda a solução ideal",
+  lp_processo_p2_desc: "Apresentamos a melhor estrutura para sua operação logística.",
+  lp_processo_p3_titulo: "Estruture seu fluxo",
+  lp_processo_p3_desc: "Montamos o processo junto com você para garantir eficiência desde o início.",
+  lp_processo_p4_titulo: "Ganhe agilidade",
+  lp_processo_p4_desc: "Comece a operar com mais velocidade, organização e suporte.",
+
+  // DEPOIMENTOS
+  lp_depo_titulo: "O que dizem sobre a Mega POST",
+  lp_depo1_texto: "A operação ficou muito mais fluida depois que começamos com a Mega POST. Recomendo.",
+  lp_depo1_nome: "Carlos Silva",
+  lp_depo1_cargo: "Seller",
+  lp_depo2_texto: "Estrutura excelente para postagem e retirada. Atendimento sempre próximo.",
+  lp_depo2_nome: "Ana Ferreira",
+  lp_depo2_cargo: "E-commerce",
+  lp_depo3_texto: "Desde que comecei a usar o FLEX, minha expedição ganhou velocidade.",
+  lp_depo3_nome: "Roberto Lima",
+  lp_depo3_cargo: "Operação logística",
+
+  // CTA FINAL
+  lp_cta_titulo: "Quer operar com mais agilidade?",
+  lp_cta_texto: "Fale com a Mega POST e descubra a melhor solução para sua necessidade logística.",
+  lp_cta_btn1: "Falar no WhatsApp",
+  lp_cta_btn2: "Quero conhecer os serviços",
+
+  // FOOTER LANDING
+  lp_footer_texto: "Mega POST — Soluções logísticas para sellers, parceiros e operações.",
+  lp_footer_telefone: "13 98821-8339",
+  lp_footer_email: "contato@megapost.com.br",
+  lp_footer_endereco: "Santos / SP",
+  lp_footer_copy: "© 2025 Mega POST. Todos os direitos reservados.",
 };
