@@ -99,7 +99,7 @@ const AdminDashboard = () => {
       const allRotas = rotas || [];
       const am0 = allRotas.filter((r: any) => r.periodo === "AM0");
       const am1 = allRotas.filter((r: any) => r.periodo === "AM1");
-      const semMotorista = allRotas.filter((r: any) => r.status === "Em aberto").length;
+      const semMotorista = allRotas.filter((r: any) => normalizeStatus(r.status) === "Em aberto").length;
 
       const rotasComTempo = allRotas.filter((r: any) => r.tempo_atendimento_min != null);
       const tempoMedio = rotasComTempo.length > 0
