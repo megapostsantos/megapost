@@ -26,6 +26,24 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { useNavigate, useLocation } from "react-router-dom";
 
+// ── Status normalizer ───────────────────────────────────
+const normalizeStatus = (status?: string) => {
+  switch ((status || "").toLowerCase()) {
+    case "aberta":
+    case "em aberto":
+      return "Em aberto";
+    case "check-in":
+    case "checkin":
+      return "Check-in";
+    case "carregando":
+      return "Carregando";
+    case "finalizada":
+      return "Finalizada";
+    default:
+      return status || "";
+  }
+};
+
 // ── Status config ──────────────────────────────────────────
 const statusConfig: Record<string, { color: string; label: string }> = {
   "Em aberto":   { color: "bg-orange-100 text-orange-800 border-orange-200", label: "Em aberto" },
@@ -301,8 +319,8 @@ const AdminRotas = () => {
 
   // ── Delete individual route ────────────────────────────
   const canDeleteRoute = (rota: any) => {
-    // Admins can delete any route; operators cannot delete finalized/carregando
-    if (!isAdmin && (rota.status === "Finalizada" || rota.status === "Carregando")) return false;
+    const s = normalizeStatus(rota.status);
+    if (!isAdmin && (s === "Finalizada" || s === "Carregando")) return false;
     return true;
   };
 
@@ -610,7 +628,7 @@ const AdminRotas = () => {
           // Desatribuir motorista → volta para Em aberto
           updates.driver_id = null;
           updates.hora_chegada = null;
-          if (editRota.status === "Check-in") {
+          if (normalizeStatus(editRota.status) === "Check-in") {
             updates.status = "Em aberto";
           }
         } else {
@@ -627,7 +645,7 @@ const AdminRotas = () => {
             }
           }
           updates.driver_id = editDriverId;
-          if (editRota.status === "Em aberto") {
+          if (normalizeStatus(editRota.status) === "Em aberto") {
             updates.status = "Check-in";
             updates.hora_chegada = new Date().toISOString();
           }
@@ -720,13 +738,17 @@ const AdminRotas = () => {
   };
 
   // Can op edit this route? Only Em aberto / Check-in
-  const canOpEdit = (rota: any) => rota.status === "Em aberto" || rota.status === "Check-in";
+  const canOpEdit = (rota: any) => {
+    const s = normalizeStatus(rota.status);
+    return s === "Em aberto" || s === "Check-in";
+  };
 
   // Can clear driver? Only before saída (no QR/NX)
   const canClearDriver = (rota: any) => {
     if (!rota.driver_id) return false;
     if (rota.qr_codigo || rota.nx_codigo) return false;
-    if (rota.status === "Carregando" || rota.status === "Finalizada") return false;
+    const s = normalizeStatus(rota.status);
+    if (s === "Carregando" || s === "Finalizada") return false;
     return true;
   };
 
@@ -740,7 +762,8 @@ const AdminRotas = () => {
 
   // ── Render Route Card ──────────────────────────────────
   const renderRotaCard = (rota: any) => {
-    const cfg = statusConfig[rota.status] || statusConfig["Em aberto"];
+    const currentStatus = normalizeStatus(rota.status);
+    const cfg = statusConfig[currentStatus] || statusConfig["Em aberto"];
     const driver = rota.drivers;
     const isExpanded = expandedRota === rota.id;
     const whatsappUrl = driver ? getWhatsAppUrl(driver.telefone) : null;
@@ -793,7 +816,7 @@ const AdminRotas = () => {
                 {!canOpEdit(rota) && isAdmin ? "Corrigir" : "Editar"}
               </Button>
             )}
-            {rota.status === "Em aberto" && (
+            {currentStatus === "Em aberto" && (
               <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => {
                 setAssignRota(rota);
                 setAssignDriverId("");
@@ -803,7 +826,7 @@ const AdminRotas = () => {
                 <UserPlus className="h-3 w-3 mr-1" /> {rota.driver_id ? "Trocar motorista" : "Atribuir motorista"}
               </Button>
             )}
-            {rota.status === "Check-in" && (
+            {currentStatus === "Check-in" && (
               <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => { setSaidaRota(rota); setSaidaQr(""); setSaidaNx(""); }}>
                 <Truck className="h-3 w-3 mr-1" /> Saída
               </Button>
@@ -819,7 +842,7 @@ const AdminRotas = () => {
         {isExpanded && (
           <div className="mt-3 pt-3 border-t border-border space-y-3">
             {/* Actions — available on Carregando AND Finalizada (and Check-in) */}
-            {(rota.status === "Carregando" || rota.status === "Finalizada" || rota.status === "Check-in") && (
+            {(currentStatus === "Carregando" || currentStatus === "Finalizada" || currentStatus === "Check-in") && (
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { setAddInsRotaId(rota.id); setShowAddInsucesso(true); setAddInsCodigo(""); setAddInsMotivo(""); setAddInsTipo("TENTATIVA"); }}>
                   <Package className="h-3 w-3 mr-1" /> + Avaria/Tentativa
