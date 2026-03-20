@@ -786,15 +786,15 @@ const AdminRotas = () => {
           </div>
 
           <div className="flex flex-col gap-1 shrink-0">
-            {/* Assign driver — primary action for open routes */}
-            {rota.status === "Em aberto" && !rota.driver_id && (
-              <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => {
+            {/* Assign driver — primary action for open routes (available to both admin and operator) */}
+            {rota.status === "Em aberto" && (
+              <Button size="sm" variant="default" className="text-xs h-7 px-2" onClick={() => {
                 setAssignRota(rota);
-                setAssignDriverId("");
+                setAssignDriverId(rota.driver_id || "");
                 setAssignDriverSearch("");
                 setAssignSnapshot({ driver_id: rota.driver_id, status: rota.status, qr_codigo: rota.qr_codigo, nx_codigo: rota.nx_codigo });
               }}>
-                <UserPlus className="h-3 w-3 mr-1" /> Motorista
+                <UserPlus className="h-3 w-3 mr-1" /> {rota.driver_id ? "Trocar motorista" : "Atribuir motorista"}
               </Button>
             )}
             {/* Saída — for checked-in routes */}
@@ -1051,12 +1051,16 @@ const AdminRotas = () => {
               </button>
             </div>
             {/* Search input */}
-            <Input
-              placeholder="Digite o nome do motorista…"
-              value={assignDriverSearch}
-              onChange={(e) => { setAssignDriverSearch(e.target.value); setAssignDriverId(""); }}
-              autoFocus
-            />
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, placa ou telefone…"
+                value={assignDriverSearch}
+                onChange={(e) => { setAssignDriverSearch(e.target.value); setAssignDriverId(""); }}
+                className="pl-8"
+                autoFocus
+              />
+            </div>
             {/* A–Z quick scroll */}
             {(() => {
               const availableLetters = new Set(
@@ -1084,13 +1088,12 @@ const AdminRotas = () => {
             {/* Driver list */}
             <div className="overflow-y-auto flex-1 space-y-1 min-h-0 max-h-64 border border-border rounded-md p-1">
               {(() => {
-                const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                const norm = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
                 const search = norm(assignDriverSearch.trim());
                 const filtered = drivers
                   .filter(d => d.farol !== "VERMELHO")
-                  .filter(d => !search || norm(d.nome).includes(search))
+                  .filter(d => !search || norm(d.nome).includes(search) || norm(d.placa || "").includes(search) || norm(d.telefone || "").includes(search))
                   .sort((a, b) => {
-                    // Prioritize names that start with the search
                     if (search) {
                       const aStarts = norm(a.nome).startsWith(search);
                       const bStarts = norm(b.nome).startsWith(search);
@@ -1108,7 +1111,8 @@ const AdminRotas = () => {
                     onClick={() => setAssignDriverId(d.id)}
                   >
                     {d.farol === "AMARELO" && <span className="mr-1">⚠️</span>}
-                    {d.nome}
+                    <span className="font-medium">{d.nome}</span>
+                    {d.placa && <span className="text-xs text-muted-foreground ml-2">{d.placa}</span>}
                   </button>
                 ));
               })()}
