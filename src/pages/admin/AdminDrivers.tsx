@@ -141,8 +141,19 @@ const AdminDrivers = () => {
 
   const uploadPhoto = async (file: File, driverId: string): Promise<string | null> => {
     try {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("Apenas imagens JPEG, PNG e WebP são permitidas.");
+        return null;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Imagem muito grande. Máximo 5MB.");
+        return null;
+      }
       setUploading(true);
-      const ext = file.name.split(".").pop() || "jpg";
+      const ext = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/png' ? 'png' : 'webp';
       const path = `${driverId}.${ext}`;
       const { error } = await supabase.storage.from("driver-photos").upload(path, file, { upsert: true });
       if (error) throw error;
