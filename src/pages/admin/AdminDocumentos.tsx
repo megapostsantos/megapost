@@ -52,6 +52,17 @@ const AdminDocumentos = () => {
 
   const uploadFile = async (file: File, docId: string): Promise<{ url: string; name: string } | null> => {
     try {
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("Apenas PDF e imagens são permitidos.");
+        return null;
+      }
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Arquivo muito grande. Máximo 10MB.");
+        return null;
+      }
       const ext = file.name.split(".").pop();
       const path = `${docId}.${ext}`;
       const { error } = await supabase.storage.from("documentos").upload(path, file, { upsert: true });

@@ -5,17 +5,53 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Simple in-memory rate limiting by IP
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  entry.count++;
+  return entry.count > RATE_LIMIT_MAX;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { nome, placa, rota, nx, tipo, descricao } = await req.json();
+    // Rate limiting
+    const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+                     req.headers.get("cf-connecting-ip") || "unknown";
+    if (isRateLimited(clientIP)) {
+      return new Response(
+        JSON.stringify({ error: "Muitas requisições. Tente novamente mais tarde." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const body = await req.json();
+    const { nome, placa, rota, nx, tipo, descricao } = body;
 
     if (!nome || !placa || !rota || !nx || !tipo || !descricao) {
       return new Response(
         JSON.stringify({ error: "Todos os campos são obrigatórios" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate types
+    if (typeof nome !== "string" || typeof placa !== "string" || typeof rota !== "string" ||
+        typeof nx !== "string" || typeof tipo !== "string" || typeof descricao !== "string") {
+      return new Response(
+        JSON.stringify({ error: "Dados inválidos: tipo incorreto" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -52,8 +88,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Registrando ocorrência externa: nome=${nome}, rota=${rota}, rotaId=${rotaId}`);
-
     const insertData: Record<string, unknown> = {
       tipo,
       descricao,
@@ -74,12 +108,11 @@ Deno.serve(async (req) => {
     if (insertError) {
       console.error("Insert error:", insertError);
       return new Response(
-        JSON.stringify({ error: "Erro ao salvar ocorrência: " + insertError.message }),
+        JSON.stringify({ error: "Erro ao salvar ocorrência" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("Ocorrência registrada com sucesso");
     return new Response(
       JSON.stringify({ success: true }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
