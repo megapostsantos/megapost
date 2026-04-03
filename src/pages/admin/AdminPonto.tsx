@@ -327,7 +327,9 @@ const AdminPontoView = () => {
     try {
       setLoading(true);
       const startDate = `${dateFilter}-01`;
-      const endDate = `${dateFilter}-31`;
+      const [fYear, fMonth] = dateFilter.split("-").map(Number);
+      const lastDay = new Date(fYear, fMonth, 0).getDate();
+      const endDate = `${dateFilter}-${String(lastDay).padStart(2, "0")}`;
       const { data, error } = await supabase.from("timecards").select("*").gte("date", startDate).lte("date", endDate).order("date", { ascending: false });
       if (error) throw error;
       setRecords((data as Timecard[]) || []);
