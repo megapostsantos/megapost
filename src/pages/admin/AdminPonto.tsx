@@ -302,6 +302,7 @@ const AdminPontoView = () => {
   const [editClockOut, setEditClockOut] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [viewMode, setViewMode] = useState<"mensal" | "semanal">("semanal");
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -358,7 +359,6 @@ const AdminPontoView = () => {
     if (!confirm("Remover este registro de ponto?")) return;
     const { error } = await supabase.from("timecards").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
-    // Optimistically remove from local state immediately
     setRecords((prev) => prev.filter((r) => r.id !== id));
     toast.success("Registro removido.");
   };
@@ -389,11 +389,96 @@ const AdminPontoView = () => {
     setEditSubmitting(false);
   };
 
+  const markWeekPaid = async (weekRecords: Timecard[]) => {
+    const pendingIds = weekRecords.filter(r => r.payment_status !== "paid").map(r => r.id);
+    if (pendingIds.length === 0) { toast.info("Todos já estão pagos."); return; }
+    const { error } = await supabase.from("timecards").update({ payment_status: "paid" }).in("id", pendingIds);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Semana marcada como paga!"); load();
+  };
+
+  const markWeekPending = async (weekRecords: Timecard[]) => {
+    const paidIds = weekRecords.filter(r => r.payment_status === "paid").map(r => r.id);
+    if (paidIds.length === 0) return;
+    const { error } = await supabase.from("timecards").update({ payment_status: "pending" }).in("id", paidIds);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Semana revertida para pendente."); load();
+  };
+
+  // Group by user (monthly view)
   const grouped = records.reduce<Record<string, Timecard[]>>((acc, r) => {
     if (!acc[r.user_id]) acc[r.user_id] = [];
     acc[r.user_id].push(r);
     return acc;
   }, {});
+
+  // Group by week (weekly view)
+  const [fYear, fMonth] = dateFilter.split("-").map(Number);
+  const weeklyData = useMemo(() => {
+    const monthStart = startOfMonth(new Date(fYear, fMonth - 1));
+    const monthEnd = endOfMonth(new Date(fYear, fMonth - 1));
+    const weeks = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 1 });
+
+    return weeks.map((ws) => {
+      const we = endOfWeek(ws, { weekStartsOn: 1 });
+      const wsStr = format(ws, "yyyy-MM-dd");
+      const weStr = format(we, "yyyy-MM-dd");
+      const weekRecords = records.filter(r => r.date >= wsStr && r.date <= weStr);
+
+      const byUser: Record<string, Timecard[]> = {};
+      weekRecords.forEach(r => { if (!byUser[r.user_id]) byUser[r.user_id] = []; byUser[r.user_id].push(r); });
+
+      const users = Object.entries(byUser).map(([userId, recs]) => ({
+        userId,
+        name: profiles[userId] || `Usuário ${userId.slice(0, 6)}`,
+        records: recs,
+        totalHours: recs.reduce((s, r) => s + (r.worked_hours || 0), 0),
+        extraHours: recs.reduce((s, r) => s + (r.extra_hours || 0), 0),
+        totalPayment: recs.reduce((s, r) => s + (r.daily_payment || 0), 0),
+        allPaid: recs.every(r => r.payment_status === "paid"),
+      }));
+
+      const allPaid = weekRecords.length > 0 && weekRecords.every(r => r.payment_status === "paid");
+      const totalPayment = weekRecords.reduce((s, r) => s + (r.daily_payment || 0), 0);
+
+      return {
+        weekStart: ws,
+        weekEnd: we,
+        wsStr,
+        weStr,
+        label: `${format(ws, "dd/MM")} — ${format(we, "dd/MM")}`,
+        records: weekRecords,
+        users,
+        allPaid,
+        totalPayment,
+      };
+    }).filter(w => w.records.length > 0);
+  }, [records, profiles, fYear, fMonth]);
+
+  const renderRecordRow = (r: Timecard) => (
+    <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-sm gap-2">
+      <span className="font-medium shrink-0">{format(new Date(r.date + "T12:00:00"), "dd/MM")}</span>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-1 justify-center">
+        {r.clock_in && <span>{timeFromISO(r.clock_in)}</span>}
+        {r.clock_out && <span>→ {timeFromISO(r.clock_out)}</span>}
+        <span className="text-foreground">{r.worked_hours.toFixed(1)}h</span>
+        {r.extra_hours > 0 && <span className="text-primary">+{r.extra_hours.toFixed(1)}h</span>}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <span className="text-xs font-medium">R$ {r.daily_payment.toFixed(0)}</span>
+        <Button variant={r.payment_status === "paid" ? "default" : "outline"} size="sm" className="h-6 text-[10px] px-2" onClick={() => togglePayment(r.id, r.payment_status)}>
+          <DollarSign className="h-3 w-3 mr-0.5" />
+          {r.payment_status === "paid" ? "Pago" : "Pendente"}
+        </Button>
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(r)}>
+          <Pencil className="h-3 w-3" />
+        </Button>
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(r.id)}>
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-5">
@@ -405,20 +490,76 @@ const AdminPontoView = () => {
         <Input type="month" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-auto" />
       </div>
 
+      {/* View Toggle */}
+      <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
+        <Button variant={viewMode === "semanal" ? "default" : "ghost"} size="sm" className="text-xs h-7 px-3" onClick={() => setViewMode("semanal")}>
+          Semanal
+        </Button>
+        <Button variant={viewMode === "mensal" ? "default" : "ghost"} size="sm" className="text-xs h-7 px-3" onClick={() => setViewMode("mensal")}>
+          Mensal
+        </Button>
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
-      ) : Object.keys(grouped).length === 0 ? (
+      ) : records.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center space-y-4">
           <Timer className="h-12 w-12 text-muted-foreground" />
           <p className="text-muted-foreground">Nenhum registro encontrado.</p>
         </div>
+      ) : viewMode === "semanal" ? (
+        /* ─── Weekly View ─── */
+        <div className="space-y-5">
+          {weeklyData.map((week) => (
+            <Card key={week.wsStr} className={week.allPaid ? "border-emerald-300 dark:border-emerald-800" : ""}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    <CardTitle className="text-base">{week.label}</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-foreground">R$ {week.totalPayment.toFixed(2)}</span>
+                    {week.allPaid ? (
+                      <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 cursor-pointer text-[10px]" onClick={() => markWeekPending(week.records)}>
+                        <CheckCircle className="h-3 w-3 mr-1" /> Pago
+                      </Badge>
+                    ) : (
+                      <Button size="sm" variant="outline" className="text-xs h-7 px-2" onClick={() => markWeekPaid(week.records)}>
+                        <DollarSign className="h-3 w-3 mr-1" /> Pagar Semana
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {week.users.map((u) => (
+                  <div key={u.userId} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-foreground">{u.name}</p>
+                      <div className="flex gap-3 text-xs text-muted-foreground">
+                        <span>{u.totalHours.toFixed(1)}h</span>
+                        {u.extraHours > 0 && <span className="text-primary">+{u.extraHours.toFixed(1)}h extra</span>}
+                        <span className="font-semibold text-foreground">R$ {u.totalPayment.toFixed(2)}</span>
+                        {u.allPaid && <Badge variant="outline" className="text-[9px] h-4 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">Pago</Badge>}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      {u.records.map(renderRecordRow)}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : (
+        /* ─── Monthly View ─── */
         Object.entries(grouped).map(([userId, userRecords]) => {
           const totalHours = userRecords.reduce((s, r) => s + (r.worked_hours || 0), 0);
           const totalExtra = userRecords.reduce((s, r) => s + (r.extra_hours || 0), 0);
           const totalPayment = userRecords.reduce((s, r) => s + (r.daily_payment || 0), 0);
-          const raw = profiles[userId] || "";
-          const userName = raw || `Usuário ${userId.slice(0, 6)}`;
+          const userName = profiles[userId] || `Usuário ${userId.slice(0, 6)}`;
 
           return (
             <Card key={userId}>
@@ -434,36 +575,14 @@ const AdminPontoView = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-1">
-                  {userRecords.map((r) => (
-                    <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-sm gap-2">
-                      <span className="font-medium shrink-0">{format(new Date(r.date + "T12:00:00"), "dd/MM")}</span>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-1 justify-center">
-                        {r.clock_in && <span>{timeFromISO(r.clock_in)}</span>}
-                        {r.clock_out && <span>→ {timeFromISO(r.clock_out)}</span>}
-                        <span className="text-foreground">{r.worked_hours.toFixed(1)}h</span>
-                        {r.extra_hours > 0 && <span className="text-primary">+{r.extra_hours.toFixed(1)}h</span>}
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-xs font-medium">R$ {r.daily_payment.toFixed(0)}</span>
-                        <Button variant={r.payment_status === "paid" ? "default" : "outline"} size="sm" className="h-6 text-[10px] px-2" onClick={() => togglePayment(r.id, r.payment_status)}>
-                          <DollarSign className="h-3 w-3 mr-0.5" />
-                          {r.payment_status === "paid" ? "Pago" : "Pendente"}
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(r)}>
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(r.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                  {userRecords.map(renderRecordRow)}
                 </div>
               </CardContent>
             </Card>
           );
         })
       )}
+
       {/* Edit Dialog */}
       {editingRecord && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setEditingRecord(null)}>
