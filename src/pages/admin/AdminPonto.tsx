@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Clock, Save, CalendarDays, DollarSign, Timer, Pencil, Trash2, Loader2, CheckCircle } from "lucide-react";
-import { format, startOfWeek, endOfWeek, eachWeekOfInterval, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfWeek, endOfWeek, eachWeekOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const BASE_SHIFT = 6;
@@ -328,11 +328,17 @@ const AdminPontoView = () => {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const startDate = `${dateFilter}-01`;
       const [fYear, fMonth] = dateFilter.split("-").map(Number);
-      const lastDay = new Date(fYear, fMonth, 0).getDate();
-      const endDate = `${dateFilter}-${String(lastDay).padStart(2, "0")}`;
-      const { data, error } = await supabase.from("timecards").select("*").gte("date", startDate).lte("date", endDate).order("date", { ascending: false });
+      const monthStart = new Date(fYear, fMonth - 1, 1);
+      const monthEnd = new Date(fYear, fMonth, 0);
+
+      // Expand range to cover full weeks (Mon-Sun) that overlap the month
+      const firstMonday = startOfWeek(monthStart, { weekStartsOn: 1 });
+      const lastSunday = endOfWeek(monthEnd, { weekStartsOn: 1 });
+
+      const startDate = format(firstMonday, "yyyy-MM-dd");
+      const endDate = format(lastSunday, "yyyy-MM-dd");
+      const { data, error } = await supabase.from("timecards").select("*").gte("date", startDate).lte("date", endDate).order("date", { ascending: true });
       if (error) throw error;
       setRecords((data as Timecard[]) || []);
       if (data && data.length > 0) {
@@ -413,10 +419,10 @@ const AdminPontoView = () => {
   }, {});
 
   // Group by week (weekly view)
-  const [fYear, fMonth] = dateFilter.split("-").map(Number);
   const weeklyData = useMemo(() => {
-    const monthStart = startOfMonth(new Date(fYear, fMonth - 1));
-    const monthEnd = endOfMonth(new Date(fYear, fMonth - 1));
+    const [y, m] = dateFilter.split("-").map(Number);
+    const monthStart = new Date(y, m - 1, 1);
+    const monthEnd = new Date(y, m, 0);
     const weeks = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 1 });
 
     return weeks.map((ws) => {
@@ -431,7 +437,7 @@ const AdminPontoView = () => {
       const users = Object.entries(byUser).map(([userId, recs]) => ({
         userId,
         name: profiles[userId] || `Usuário ${userId.slice(0, 6)}`,
-        records: recs,
+        records: recs.sort((a, b) => a.date.localeCompare(b.date)),
         totalHours: recs.reduce((s, r) => s + (r.worked_hours || 0), 0),
         extraHours: recs.reduce((s, r) => s + (r.extra_hours || 0), 0),
         totalPayment: recs.reduce((s, r) => s + (r.daily_payment || 0), 0),
@@ -453,7 +459,7 @@ const AdminPontoView = () => {
         totalPayment,
       };
     }).filter(w => w.records.length > 0);
-  }, [records, profiles, fYear, fMonth]);
+  }, [records, profiles, dateFilter]);
 
   const renderRecordRow = (r: Timecard) => (
     <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-sm gap-2">
