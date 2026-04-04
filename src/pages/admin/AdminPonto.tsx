@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Clock, Save, CalendarDays, DollarSign, Timer, Pencil, Trash2, Loader2, CheckCircle } from "lucide-react";
-import { format, startOfWeek, endOfWeek, eachWeekOfInterval, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfWeek, endOfWeek, eachWeekOfInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const BASE_SHIFT = 6;
