@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/customSupabase";
 
@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Clock, Save, CalendarDays, DollarSign, Timer, Pencil, Trash2, Loader2 } from "lucide-react";
-import { format } from "date-fns";
+import { Clock, Save, CalendarDays, DollarSign, Timer, Pencil, Trash2, Loader2, CheckCircle } from "lucide-react";
+import { format, startOfWeek, endOfWeek, eachWeekOfInterval, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const BASE_SHIFT = 6;

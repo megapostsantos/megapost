@@ -143,9 +143,9 @@ const AdminFinanceiro = () => {
   const activeEntries = entries.filter(e => e.status !== "liquidada");
 
   // Revenue: previsao vs real (only active, non-liquidated)
-  const receitasPrevistas = activeEntries.filter(e => e.tipo === "previsao");
-  const receitasReais = activeEntries.filter(e => e.tipo === "real");
-  const despesas = activeEntries.filter(e => e.tipo === "despesa" || e.kind === "saida");
+  const receitasPrevistas = activeEntries.filter(e => e.kind === "entrada" && e.tipo === "previsao");
+  const receitasReais = activeEntries.filter(e => e.kind === "entrada" && e.tipo === "real");
+  const despesas = activeEntries.filter(e => e.kind === "saida");
 
   // Route simulation = previsão (calculated, not from DB)
   const receitaRotas = rotasFinalizadas * VALOR_POR_ROTA;
