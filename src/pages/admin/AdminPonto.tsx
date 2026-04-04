@@ -419,10 +419,10 @@ const AdminPontoView = () => {
   }, {});
 
   // Group by week (weekly view)
-  const [fYear, fMonth] = dateFilter.split("-").map(Number);
   const weeklyData = useMemo(() => {
-    const monthStart = startOfMonth(new Date(fYear, fMonth - 1));
-    const monthEnd = endOfMonth(new Date(fYear, fMonth - 1));
+    const [y, m] = dateFilter.split("-").map(Number);
+    const monthStart = new Date(y, m - 1, 1);
+    const monthEnd = new Date(y, m, 0);
     const weeks = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 1 });
 
     return weeks.map((ws) => {
@@ -437,7 +437,7 @@ const AdminPontoView = () => {
       const users = Object.entries(byUser).map(([userId, recs]) => ({
         userId,
         name: profiles[userId] || `Usuário ${userId.slice(0, 6)}`,
-        records: recs,
+        records: recs.sort((a, b) => a.date.localeCompare(b.date)),
         totalHours: recs.reduce((s, r) => s + (r.worked_hours || 0), 0),
         extraHours: recs.reduce((s, r) => s + (r.extra_hours || 0), 0),
         totalPayment: recs.reduce((s, r) => s + (r.daily_payment || 0), 0),
@@ -459,7 +459,7 @@ const AdminPontoView = () => {
         totalPayment,
       };
     }).filter(w => w.records.length > 0);
-  }, [records, profiles, fYear, fMonth]);
+  }, [records, profiles, dateFilter]);
 
   const renderRecordRow = (r: Timecard) => (
     <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-sm gap-2">
