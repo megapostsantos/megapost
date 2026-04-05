@@ -315,6 +315,38 @@ const AdminEscala = () => {
     },
   });
 
+  // Unavailability requests
+  const { data: unavailRequests = [] } = useQuery({
+    queryKey: ["staff-unavailability-admin"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("staff_unavailability")
+        .select("*")
+        .order("date", { ascending: true });
+      if (error) throw error;
+      return data as { id: string; user_id: string; date: string; reason: string | null; status: string; reviewed_by: string | null; reviewed_at: string | null; created_at: string }[];
+    },
+  });
+
+  const pendingUnavail = useMemo(() => unavailRequests.filter(r => r.status === "pendente"), [unavailRequests]);
+
+  const updateUnavailMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await (supabase as any)
+        .from("staff_unavailability")
+        .update({ status, reviewed_by: user?.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff-unavailability-admin"] });
+      toast({ title: "Solicitação atualizada" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar", variant: "destructive" });
+    },
+  });
+
   /* ---------- DERIVED DATA ---------- */
 
   const userMap = useMemo(() => {
