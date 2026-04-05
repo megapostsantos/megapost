@@ -148,6 +148,7 @@ const App = () => (
                 }
               />
             </Routes>
+            </Suspense>
           </BrowserRouter>
         </ContentProvider>
       </AuthProvider>
