@@ -780,6 +780,71 @@ const AdminEscala = () => {
                 })}
               </div>
             </TabsContent>
+
+            {/* ==================== UNAVAILABILITY REQUESTS ==================== */}
+            <TabsContent value="solicitacoes" className="mt-4 space-y-3">
+              {unavailRequests.length === 0 ? (
+                <Card className="p-8 text-center text-muted-foreground">
+                  <p>Nenhuma solicitação de indisponibilidade.</p>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {unavailRequests.map((req) => {
+                    const isPending = req.status === "pendente";
+                    return (
+                      <Card key={req.id} className={`p-4 ${isPending ? "border-amber-300" : ""}`}>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-sm">{getUserLabel(req.user_id)}</span>
+                              <Badge variant="outline" className={`text-[10px] ${
+                                req.status === "pendente" ? "border-amber-300 text-amber-700 bg-amber-500/10" :
+                                req.status === "aprovado" ? "border-emerald-300 text-emerald-700 bg-emerald-500/10" :
+                                "border-red-300 text-red-700 bg-red-500/10"
+                              }`}>
+                                {req.status === "pendente" ? "Pendente" : req.status === "aprovado" ? "Aprovado" : "Rejeitado"}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(req.date + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                            </p>
+                            {req.reason && (
+                              <p className="text-xs text-muted-foreground mt-1 italic">
+                                Motivo: {req.reason}
+                              </p>
+                            )}
+                          </div>
+                          {isPending && (
+                            <div className="flex gap-2 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                                disabled={updateUnavailMutation.isPending}
+                                onClick={() => updateUnavailMutation.mutate({ id: req.id, status: "aprovado" })}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                Aprovar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-700 border-red-300 hover:bg-red-50"
+                                disabled={updateUnavailMutation.isPending}
+                                onClick={() => updateUnavailMutation.mutate({ id: req.id, status: "rejeitado" })}
+                              >
+                                <XCircle className="h-3.5 w-3.5 mr-1" />
+                                Rejeitar
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
           </>
         )}
       </Tabs>
