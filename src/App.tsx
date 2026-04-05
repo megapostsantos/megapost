@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,44 +9,45 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
-import Home from "@/pages/Home";
-import LandingPage from "@/pages/LandingPage";
-import ComoFunciona from "@/pages/ComoFunciona";
-import Suporte from "@/pages/Suporte";
-import SejaParceiro from "@/pages/SejaParceiro";
-import RegistrarOcorrencia from "@/pages/RegistrarOcorrencia";
-import NotFound from "@/pages/NotFound";
+// Lazy-loaded pages
+const Home = lazy(() => import("@/pages/Home"));
+const LandingPage = lazy(() => import("@/pages/LandingPage"));
+const ComoFunciona = lazy(() => import("@/pages/ComoFunciona"));
+const Suporte = lazy(() => import("@/pages/Suporte"));
+const SejaParceiro = lazy(() => import("@/pages/SejaParceiro"));
+const RegistrarOcorrencia = lazy(() => import("@/pages/RegistrarOcorrencia"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
 
 // Admin pages
-import AdminLogin from "@/pages/admin/AdminLogin";
-import AdminLayout from "@/components/admin/AdminLayout";
-import ProtectedRoute from "@/components/admin/ProtectedRoute";
-import AdminDashboard from "@/pages/admin/AdminDashboard";
-import AdminDia from "@/pages/admin/AdminDia";
-import AdminRotas from "@/pages/admin/AdminRotas";
-import AdminCheckin from "@/pages/admin/AdminCheckin";
-import AdminSaida from "@/pages/admin/AdminSaida";
-import AdminOcorrencias from "@/pages/admin/AdminOcorrencias";
-import AdminDrivers from "@/pages/admin/AdminDrivers";
-import AdminEstoque from "@/pages/admin/AdminEstoque";
-import AdminEstoqueArquivo from "@/pages/admin/AdminEstoqueArquivo";
-import AdminSettings from "@/pages/admin/AdminSettings";
-import AdminTV from "@/pages/admin/AdminTV";
-import AdminAjuda from "@/pages/admin/AdminAjuda";
-import AdminFinanceiro from "@/pages/admin/AdminFinanceiro";
-import AdminDocumentos from "@/pages/admin/AdminDocumentos";
-import AdminSellers from "@/pages/admin/AdminSellers";
-import AdminUsers from "@/pages/admin/AdminUsers";
-import AdminControle from "@/pages/admin/AdminControle";
-import AdminTreinamento from "@/pages/admin/AdminTreinamento";
-import AdminPonto from "@/pages/admin/AdminPonto";
-import AdminEscala from "@/pages/admin/AdminEscala";
+const AdminLogin = lazy(() => import("@/pages/admin/AdminLogin"));
+const AdminLayout = lazy(() => import("@/components/admin/AdminLayout"));
+const ProtectedRoute = lazy(() => import("@/components/admin/ProtectedRoute"));
+const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
+const AdminDia = lazy(() => import("@/pages/admin/AdminDia"));
+const AdminRotas = lazy(() => import("@/pages/admin/AdminRotas"));
+const AdminCheckin = lazy(() => import("@/pages/admin/AdminCheckin"));
+const AdminSaida = lazy(() => import("@/pages/admin/AdminSaida"));
+const AdminOcorrencias = lazy(() => import("@/pages/admin/AdminOcorrencias"));
+const AdminDrivers = lazy(() => import("@/pages/admin/AdminDrivers"));
+const AdminEstoque = lazy(() => import("@/pages/admin/AdminEstoque"));
+const AdminEstoqueArquivo = lazy(() => import("@/pages/admin/AdminEstoqueArquivo"));
+const AdminSettings = lazy(() => import("@/pages/admin/AdminSettings"));
+const AdminTV = lazy(() => import("@/pages/admin/AdminTV"));
+const AdminAjuda = lazy(() => import("@/pages/admin/AdminAjuda"));
+const AdminFinanceiro = lazy(() => import("@/pages/admin/AdminFinanceiro"));
+const AdminDocumentos = lazy(() => import("@/pages/admin/AdminDocumentos"));
+const AdminSellers = lazy(() => import("@/pages/admin/AdminSellers"));
+const AdminUsers = lazy(() => import("@/pages/admin/AdminUsers"));
+const AdminControle = lazy(() => import("@/pages/admin/AdminControle"));
+const AdminTreinamento = lazy(() => import("@/pages/admin/AdminTreinamento"));
+const AdminPonto = lazy(() => import("@/pages/admin/AdminPonto"));
+const AdminEscala = lazy(() => import("@/pages/admin/AdminEscala"));
 
 // Operator pages
-import OpLogin from "@/pages/op/OpLogin";
-import OpLayout from "@/components/op/OpLayout";
-import OpHistorico from "@/pages/op/OpHistorico";
-import OpEscala from "@/pages/op/OpEscala";
+const OpLogin = lazy(() => import("@/pages/op/OpLogin"));
+const OpLayout = lazy(() => import("@/components/op/OpLayout"));
+const OpHistorico = lazy(() => import("@/pages/op/OpHistorico"));
+const OpEscala = lazy(() => import("@/pages/op/OpEscala"));
 
 const queryClient = new QueryClient();
 
@@ -65,6 +67,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Carregando...</div>}>
             <Routes>
               {/* Public site */}
               <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
@@ -145,6 +148,7 @@ const App = () => (
                 }
               />
             </Routes>
+            </Suspense>
           </BrowserRouter>
         </ContentProvider>
       </AuthProvider>
