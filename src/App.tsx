@@ -67,6 +67,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Carregando...</div>}>
             <Routes>
               {/* Public site */}
               <Route path="/" element={<PublicLayout><LandingPage /></PublicLayout>} />
