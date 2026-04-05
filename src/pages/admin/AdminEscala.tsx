@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -31,6 +32,9 @@ import {
   CalendarDays,
   BarChart3,
   Edit2,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import {
   format,
@@ -235,7 +239,7 @@ const WeekDayCard = ({ day, dayEntries, isAdmin, openEditDialog, getUserLabel, e
 /* ------------------------------------------------------------------ */
 
 const AdminEscala = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -308,6 +312,38 @@ const AdminEscala = () => {
         .lte("date", dateRange.to);
       if (error) throw error;
       return data as ScheduleEntry[];
+    },
+  });
+
+  // Unavailability requests
+  const { data: unavailRequests = [] } = useQuery({
+    queryKey: ["staff-unavailability-admin"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("staff_unavailability")
+        .select("*")
+        .order("date", { ascending: true });
+      if (error) throw error;
+      return data as { id: string; user_id: string; date: string; reason: string | null; status: string; reviewed_by: string | null; reviewed_at: string | null; created_at: string }[];
+    },
+  });
+
+  const pendingUnavail = useMemo(() => unavailRequests.filter(r => r.status === "pendente"), [unavailRequests]);
+
+  const updateUnavailMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await (supabase as any)
+        .from("staff_unavailability")
+        .update({ status, reviewed_by: user?.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff-unavailability-admin"] });
+      toast({ title: "Solicitação atualizada" });
+    },
+    onError: () => {
+      toast({ title: "Erro ao atualizar", variant: "destructive" });
     },
   });
 
@@ -488,6 +524,15 @@ const AdminEscala = () => {
             <TabsTrigger value="cobertura" className="gap-1">
               <BarChart3 className="h-3.5 w-3.5" />
               Cobertura
+            </TabsTrigger>
+            <TabsTrigger value="solicitacoes" className="gap-1 relative">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Solicitações
+              {pendingUnavail.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[9px] rounded-full h-4 w-4 flex items-center justify-center font-bold">
+                  {pendingUnavail.length}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -734,6 +779,71 @@ const AdminEscala = () => {
                   );
                 })}
               </div>
+            </TabsContent>
+
+            {/* ==================== UNAVAILABILITY REQUESTS ==================== */}
+            <TabsContent value="solicitacoes" className="mt-4 space-y-3">
+              {unavailRequests.length === 0 ? (
+                <Card className="p-8 text-center text-muted-foreground">
+                  <p>Nenhuma solicitação de indisponibilidade.</p>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {unavailRequests.map((req) => {
+                    const isPending = req.status === "pendente";
+                    return (
+                      <Card key={req.id} className={`p-4 ${isPending ? "border-amber-300" : ""}`}>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-sm">{getUserLabel(req.user_id)}</span>
+                              <Badge variant="outline" className={`text-[10px] ${
+                                req.status === "pendente" ? "border-amber-300 text-amber-700 bg-amber-500/10" :
+                                req.status === "aprovado" ? "border-emerald-300 text-emerald-700 bg-emerald-500/10" :
+                                "border-red-300 text-red-700 bg-red-500/10"
+                              }`}>
+                                {req.status === "pendente" ? "Pendente" : req.status === "aprovado" ? "Aprovado" : "Rejeitado"}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(req.date + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                            </p>
+                            {req.reason && (
+                              <p className="text-xs text-muted-foreground mt-1 italic">
+                                Motivo: {req.reason}
+                              </p>
+                            )}
+                          </div>
+                          {isPending && (
+                            <div className="flex gap-2 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                                disabled={updateUnavailMutation.isPending}
+                                onClick={() => updateUnavailMutation.mutate({ id: req.id, status: "aprovado" })}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                Aprovar
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-700 border-red-300 hover:bg-red-50"
+                                disabled={updateUnavailMutation.isPending}
+                                onClick={() => updateUnavailMutation.mutate({ id: req.id, status: "rejeitado" })}
+                              >
+                                <XCircle className="h-3.5 w-3.5 mr-1" />
+                                Rejeitar
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
             </TabsContent>
           </>
         )}

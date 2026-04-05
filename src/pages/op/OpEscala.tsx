@@ -1,13 +1,40 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/customSupabase";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Loader2, AlertCircle } from "lucide-react";
-import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from "date-fns";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  AlertCircle,
+  CalendarOff,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from "lucide-react";
+import {
+  format,
+  startOfWeek,
+  addDays,
+  addWeeks,
+  subWeeks,
+  isSameDay,
+  isBefore,
+  startOfDay,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 interface ScheduleEntry {
   id: string;
@@ -18,9 +45,17 @@ interface ScheduleEntry {
   notes: string | null;
   shift_start_time: string | null;
   shift_end_time: string | null;
-  is_open_shift?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+interface UnavailabilityEntry {
+  id: string;
+  user_id: string;
+  date: string;
+  reason: string | null;
+  status: string;
+  created_at: string;
 }
 
 const STATUS_OPTIONS = [
@@ -30,26 +65,33 @@ const STATUS_OPTIONS = [
   { value: "falta", label: "Falta", color: "bg-red-500/20 text-red-700 border-red-300" },
 ];
 
+const UNAVAIL_STATUS_MAP: Record<string, { label: string; icon: typeof Clock; className: string }> = {
+  pendente: { label: "Pendente", icon: Clock, className: "text-amber-600" },
+  aprovado: { label: "Aprovado", icon: CheckCircle2, className: "text-emerald-600" },
+  rejeitado: { label: "Rejeitado", icon: XCircle, className: "text-red-600" },
+};
+
 const getStatusStyle = (status: string) =>
   STATUS_OPTIONS.find((s) => s.value === status)?.color ?? "bg-muted text-muted-foreground";
 
 const getStatusLabel = (status: string) =>
   STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
 
-const SHIFTS = [
-  { value: "manha", label: "Manhã" },
-  { value: "tarde", label: "Tarde" },
-];
-
 const formatTime = (t: string | null) => {
   if (!t) return null;
-  // t is "HH:MM:SS" or "HH:MM"
   return t.substring(0, 5);
 };
 
 const OpEscala = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+
+  // Unavailability modal
+  const [unavailOpen, setUnavailOpen] = useState(false);
+  const [unavailDate, setUnavailDate] = useState<Date | null>(null);
+  const [unavailReason, setUnavailReason] = useState("");
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const dateRange = {
@@ -57,6 +99,7 @@ const OpEscala = () => {
     to: format(weekDays[6], "yyyy-MM-dd"),
   };
 
+  // Fetch schedule entries for this user
   const { data: entries = [], isLoading, isError } = useQuery({
     queryKey: ["my-schedule", user?.id, dateRange.from, dateRange.to],
     enabled: !!user,
@@ -66,16 +109,72 @@ const OpEscala = () => {
         .select("*")
         .eq("user_id", user!.id)
         .gte("date", dateRange.from)
-        .lte("date", dateRange.to);
+        .lte("date", dateRange.to)
+        .order("date", { ascending: true });
       if (error) throw error;
       return (data || []) as ScheduleEntry[];
     },
   });
 
-  const getEntriesForDay = (date: Date, shift: string) =>
-    entries.filter(
-      (e) => e.date === format(date, "yyyy-MM-dd") && e.shift === shift
-    );
+  // Fetch unavailability requests for this user this week
+  const { data: unavailEntries = [] } = useQuery({
+    queryKey: ["my-unavailability", user?.id, dateRange.from, dateRange.to],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("staff_unavailability")
+        .select("*")
+        .eq("user_id", user!.id)
+        .gte("date", dateRange.from)
+        .lte("date", dateRange.to);
+      if (error) throw error;
+      return (data || []) as UnavailabilityEntry[];
+    },
+  });
+
+  const unavailMap = useMemo(() => {
+    const m = new Map<string, UnavailabilityEntry>();
+    unavailEntries.forEach((u) => m.set(u.date, u));
+    return m;
+  }, [unavailEntries]);
+
+  const getEntriesForDay = (date: Date) =>
+    entries.filter((e) => e.date === format(date, "yyyy-MM-dd"));
+
+  // Submit unavailability
+  const submitUnavail = useMutation({
+    mutationFn: async () => {
+      if (!unavailDate || !user) throw new Error("Dados inválidos");
+      const dateStr = format(unavailDate, "yyyy-MM-dd");
+      const { error } = await (supabase as any)
+        .from("staff_unavailability")
+        .insert({
+          user_id: user.id,
+          date: dateStr,
+          reason: unavailReason.trim() || null,
+          status: "pendente",
+        });
+      if (error) {
+        if (error.code === "23505") throw new Error("Você já sinalizou indisponibilidade para este dia.");
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["my-unavailability"] });
+      setUnavailOpen(false);
+      setUnavailReason("");
+      toast({ title: "Solicitação enviada", description: "O admin será notificado." });
+    },
+    onError: (err: any) => {
+      toast({ title: err?.message || "Erro ao enviar", variant: "destructive" });
+    },
+  });
+
+  const openUnavailModal = (day: Date) => {
+    setUnavailDate(day);
+    setUnavailReason("");
+    setUnavailOpen(true);
+  };
 
   return (
     <div className="space-y-4">
@@ -114,15 +213,21 @@ const OpEscala = () => {
           <p className="text-sm text-destructive">Erro ao carregar escala.</p>
         </Card>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
           {weekDays.map((day) => {
             const isToday = isSameDay(day, new Date());
+            const dayStr = format(day, "yyyy-MM-dd");
+            const dayEntries = getEntriesForDay(day);
+            const unavail = unavailMap.get(dayStr);
+            const isPast = isBefore(startOfDay(day), startOfDay(new Date()));
+            const canRequestUnavail = !isPast && !unavail;
+
             return (
               <Card
                 key={day.toISOString()}
-                className={`p-3 text-center space-y-2 ${isToday ? "ring-2 ring-primary" : ""}`}
+                className={`p-3 space-y-2 ${isToday ? "ring-2 ring-primary" : ""}`}
               >
-                <div>
+                <div className="text-center">
                   <p className={`text-xs font-medium uppercase ${isToday ? "text-primary" : "text-muted-foreground"}`}>
                     {format(day, "EEE", { locale: ptBR })}
                   </p>
@@ -130,35 +235,22 @@ const OpEscala = () => {
                     {format(day, "dd")}
                   </p>
                 </div>
+
+                {/* Schedule entries */}
                 <div className="space-y-1">
-                  {SHIFTS.map((shift) => {
-                    const dayEntries = getEntriesForDay(day, shift.value);
-                    if (dayEntries.length === 0) {
-                      return (
-                        <div
-                          key={shift.value}
-                          className="rounded px-2 py-1.5 text-xs font-medium border bg-muted/40 text-muted-foreground/50 border-transparent"
-                        >
-                          <span className="block text-[10px] opacity-70">{shift.label}</span>
-                          —
-                        </div>
-                      );
-                    }
-                    return dayEntries.map((entry) => (
+                  {dayEntries.length === 0 ? (
+                    <div className="rounded px-2 py-1.5 text-xs text-center text-muted-foreground/50 border bg-muted/40 border-transparent">
+                      —
+                    </div>
+                  ) : (
+                    dayEntries.map((entry) => (
                       <div
                         key={entry.id}
-                        className={`rounded px-2 py-1.5 text-xs font-medium border ${
-                          entry.is_open_shift
-                            ? "bg-muted/60 text-muted-foreground border-dashed border-muted-foreground/40"
-                            : getStatusStyle(entry.status)
-                        }`}
+                        className={`rounded px-2 py-1.5 text-xs font-medium border ${getStatusStyle(entry.status)}`}
                       >
-                        <span className="block text-[10px] opacity-70">{shift.label}</span>
-                        {entry.is_open_shift ? (
-                          <span className="italic">Turno em aberto</span>
-                        ) : (
-                          getStatusLabel(entry.status)
-                        )}
+                        <span className="block font-semibold">
+                          {getStatusLabel(entry.status)}
+                        </span>
                         {(entry.shift_start_time || entry.shift_end_time) && (
                           <span className="block text-[10px] mt-0.5">
                             {formatTime(entry.shift_start_time) || "?"} – {formatTime(entry.shift_end_time) || "?"}
@@ -170,9 +262,30 @@ const OpEscala = () => {
                           </span>
                         )}
                       </div>
-                    ));
-                  })}
+                    ))
+                  )}
                 </div>
+
+                {/* Unavailability status or button */}
+                {unavail ? (
+                  <div className={`flex items-center gap-1 justify-center text-[10px] font-medium ${UNAVAIL_STATUS_MAP[unavail.status]?.className ?? "text-muted-foreground"}`}>
+                    {(() => {
+                      const Icon = UNAVAIL_STATUS_MAP[unavail.status]?.icon ?? Clock;
+                      return <Icon className="h-3 w-3" />;
+                    })()}
+                    {UNAVAIL_STATUS_MAP[unavail.status]?.label ?? unavail.status}
+                  </div>
+                ) : canRequestUnavail ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-[10px] h-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => openUnavailModal(day)}
+                  >
+                    <CalendarOff className="h-3 w-3 mr-1" />
+                    Não posso
+                  </Button>
+                ) : null}
               </Card>
             );
           })}
@@ -184,6 +297,45 @@ const OpEscala = () => {
           Nenhuma escala definida para esta semana.
         </Card>
       )}
+
+      {/* Unavailability Modal */}
+      <Dialog open={unavailOpen} onOpenChange={setUnavailOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sinalizar Indisponibilidade</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Data:</p>
+              <p className="font-medium">
+                {unavailDate ? format(unavailDate, "EEEE, dd 'de' MMMM", { locale: ptBR }) : ""}
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Motivo (opcional)</label>
+              <Textarea
+                value={unavailReason}
+                onChange={(e) => setUnavailReason(e.target.value)}
+                placeholder="Ex: consulta médica, compromisso pessoal..."
+                className="mt-1"
+                maxLength={500}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUnavailOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => submitUnavail.mutate()}
+              disabled={submitUnavail.isPending}
+            >
+              {submitUnavail.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Enviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
