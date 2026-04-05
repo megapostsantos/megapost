@@ -146,8 +146,8 @@ const OpEscala = () => {
     mutationFn: async () => {
       if (!unavailDate || !user) throw new Error("Dados inválidos");
       const dateStr = format(unavailDate, "yyyy-MM-dd");
-      const { error } = await supabase
-        .from("staff_unavailability" as any)
+      const { error } = await (supabase as any)
+        .from("staff_unavailability")
         .insert({
           user_id: user.id,
           date: dateStr,
