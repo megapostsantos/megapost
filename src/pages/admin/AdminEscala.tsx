@@ -31,6 +31,9 @@ import {
   CalendarDays,
   BarChart3,
   Edit2,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import {
   format,
