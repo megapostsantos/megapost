@@ -525,6 +525,15 @@ const AdminEscala = () => {
               <BarChart3 className="h-3.5 w-3.5" />
               Cobertura
             </TabsTrigger>
+            <TabsTrigger value="solicitacoes" className="gap-1 relative">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Solicitações
+              {pendingUnavail.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[9px] rounded-full h-4 w-4 flex items-center justify-center font-bold">
+                  {pendingUnavail.length}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {isAdmin && (
