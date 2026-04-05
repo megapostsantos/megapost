@@ -239,7 +239,7 @@ const WeekDayCard = ({ day, dayEntries, isAdmin, openEditDialog, getUserLabel, e
 /* ------------------------------------------------------------------ */
 
 const AdminEscala = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
 
