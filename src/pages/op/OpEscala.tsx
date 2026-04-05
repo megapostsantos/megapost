@@ -121,8 +121,8 @@ const OpEscala = () => {
     queryKey: ["my-unavailability", user?.id, dateRange.from, dateRange.to],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("staff_unavailability" as any)
+      const { data, error } = await (supabase as any)
+        .from("staff_unavailability")
         .select("*")
         .eq("user_id", user!.id)
         .gte("date", dateRange.from)
