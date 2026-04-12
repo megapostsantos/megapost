@@ -64,7 +64,7 @@ const AdminDashboard = () => {
         .from("dias").select("id, data, status").eq("data", today).maybeSingle();
 
       const { data: estoque } = await supabase
-        .from("estoque").select("*").eq("status", "NO_LOCAL");
+        .from("estoque").select("tipo_insucesso, data_entrada").eq("status", "NO_LOCAL");
 
       const allEstoque = estoque || [];
       const avarias = allEstoque.filter((p: any) => p.tipo_insucesso === "AVARIA").length;
@@ -91,7 +91,7 @@ const AdminDashboard = () => {
       setDiaAtivo(dia.id);
 
       const [{ data: rotas }, { data: vermelhos }] = await Promise.all([
-        supabase.from("rotas").select("*, drivers(nome, placa, farol)").eq("dia_id", dia.id)
+        supabase.from("rotas").select("id, rota_codigo, periodo, status, driver_id, tempo_atendimento_min, updated_at, drivers(nome)").eq("dia_id", dia.id)
           .order("updated_at", { ascending: false }),
         supabase.from("drivers").select("id").eq("farol", "VERMELHO").eq("ativo", true),
       ]);
@@ -139,8 +139,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     loadDashboard();
-    const interval = setInterval(loadDashboard, 30000);
-    return () => clearInterval(interval);
+    // No auto-refresh — use manual refresh button to save bandwidth
   }, [loadDashboard]);
 
   const metricCards = [

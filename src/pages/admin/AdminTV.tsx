@@ -77,7 +77,7 @@ const AdminTV = () => {
 
   useEffect(() => {
     loadMetrics();
-    const interval = setInterval(loadMetrics, 30000);
+    const interval = setInterval(loadMetrics, 120000); // 2 min instead of 30s
     return () => clearInterval(interval);
   }, [loadMetrics]);
 
