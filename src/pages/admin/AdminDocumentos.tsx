@@ -36,7 +36,7 @@ const AdminDocumentos = () => {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadDocs = useCallback(async () => {
-    let query = supabase.from("documentos").select("*").order("created_at", { ascending: false });
+    let query = supabase.from("documentos").select("id, titulo, tipo, status, valor, data_referencia, arquivo_nome, arquivo_url, observacao, created_at").order("created_at", { ascending: false }).limit(100);
     if (filterStatus !== "todos") query = query.eq("status", filterStatus);
     const { data } = await query;
     setDocs(data || []);
