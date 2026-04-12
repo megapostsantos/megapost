@@ -70,8 +70,8 @@ const AdminDia = () => {
     setExpandedDia(diaId);
 
     const [{ data: rotas }, { data: estoque }] = await Promise.all([
-      supabase.from("rotas").select("*").eq("dia_id", diaId),
-      supabase.from("estoque").select("*").eq("dia_id", diaId),
+      supabase.from("rotas").select("id, status, periodo, hora_chegada, hora_saida, driver_id, tempo_atendimento_min").eq("dia_id", diaId),
+      supabase.from("estoque").select("id, tipo_insucesso, status").eq("dia_id", diaId),
     ]);
 
     const allRotas = rotas || [];
