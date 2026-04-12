@@ -106,7 +106,7 @@ const OpEscala = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_schedules")
-        .select("*")
+        .select("id, user_id, date, shift, shift_start_time, shift_end_time, status, notes")
         .eq("user_id", user!.id)
         .gte("date", dateRange.from)
         .lte("date", dateRange.to)
@@ -123,7 +123,7 @@ const OpEscala = () => {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("staff_unavailability")
-        .select("*")
+        .select("id, user_id, date, reason, status")
         .eq("user_id", user!.id)
         .gte("date", dateRange.from)
         .lte("date", dateRange.to);

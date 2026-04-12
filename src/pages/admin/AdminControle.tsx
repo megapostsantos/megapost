@@ -43,9 +43,9 @@ const DivergenciasSection = () => {
     setLoading(true);
     const { data } = await supabase
       .from("divergencias")
-      .select("*")
+      .select("id, tipo, descricao, status, notas, user_id, created_at")
       .order("created_at", { ascending: false })
-      .limit(100);
+      .limit(50);
     setRecords(data || []);
     setLoading(false);
   }, []);
