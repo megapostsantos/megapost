@@ -124,7 +124,7 @@ const AdminDrivers = () => {
   useEffect(() => { loadDrivers(); }, []);
 
   const loadDrivers = async () => {
-    const { data } = await supabase.from("drivers").select("*").order("nome");
+    const { data } = await supabase.from("drivers").select("id, nome, telefone, placa, ativo, tipo, transportadora_nome, farol, observacao, cidade, bairro, foto_url").order("nome");
     setDrivers(data || []);
     setLoading(false);
   };

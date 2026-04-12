@@ -82,8 +82,8 @@ const AdminFinanceiro = () => {
     setLoading(true);
     try {
       const [entriesRes, tcRes, profRes] = await Promise.all([
-        supabase.from("finance_entries").select("*").gte("data", mesInicio).lt("data", nextMonth).order("created_at", { ascending: false }),
-        supabase.from("timecards").select("*").gte("date", mesInicio).lt("date", nextMonth).order("date"),
+        supabase.from("finance_entries").select("id, descricao, valor, tipo, kind, categoria, status, data, observacao").gte("data", mesInicio).lt("data", nextMonth).order("created_at", { ascending: false }),
+        supabase.from("timecards").select("user_id, date, worked_hours, extra_hours, daily_payment, payment_status").gte("date", mesInicio).lt("date", nextMonth).order("date"),
         supabase.from("profiles").select("user_id, display_name"),
       ]);
       setEntries(entriesRes.data || []);
@@ -665,7 +665,7 @@ const PayrollSection = ({ profiles, syncFinanceEntry, reloadAll }: { profiles: R
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from("timecards").select("*").gte("date", wStartStr).lte("date", wEndStr).order("date");
+    const { data } = await supabase.from("timecards").select("user_id, date, worked_hours, extra_hours, daily_payment, payment_status").gte("date", wStartStr).lte("date", wEndStr).order("date");
     setTimecards(data || []);
     setLoading(false);
   }, [wStartStr, wEndStr]);

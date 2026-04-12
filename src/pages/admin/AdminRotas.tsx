@@ -519,9 +519,9 @@ const AdminRotas = () => {
     if (expandedRota === rotaId) { setExpandedRota(null); return; }
     setExpandedRota(rotaId);
     const [{ data: estoque }, { data: faltantes }, { data: reentregas }] = await Promise.all([
-      supabase.from("estoque").select("*").eq("rota_id", rotaId).in("tipo_insucesso", ["TENTATIVA", "AVARIA"]).order("created_at", { ascending: false }),
-      supabase.from("estoque").select("*").eq("rota_id", rotaId).eq("tipo_insucesso", "FALTANTE_BAIXADO").order("created_at", { ascending: false }),
-      supabase.from("estoque").select("*").eq("saida_route_id", rotaId).eq("status", "SAIU_EM_REENTREGA").order("created_at", { ascending: false }),
+      supabase.from("estoque").select("id, codigo_pacote, tipo_insucesso, motivo, data_entrada").eq("rota_id", rotaId).in("tipo_insucesso", ["TENTATIVA", "AVARIA"]).order("created_at", { ascending: false }).limit(50),
+      supabase.from("estoque").select("id, codigo_pacote, tipo_insucesso, motivo, data_entrada").eq("rota_id", rotaId).eq("tipo_insucesso", "FALTANTE_BAIXADO").order("created_at", { ascending: false }).limit(50),
+      supabase.from("estoque").select("id, codigo_pacote, tipo_insucesso, status, data_entrada").eq("saida_route_id", rotaId).eq("status", "SAIU_EM_REENTREGA").order("created_at", { ascending: false }).limit(50),
     ]);
     setRotaEstoque(estoque || []);
     setRotaFaltantes(faltantes || []);

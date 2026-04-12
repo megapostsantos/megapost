@@ -32,7 +32,7 @@ const AdminSellers = () => {
   const [editObservacao, setEditObservacao] = useState("");
 
   const loadSellers = useCallback(async () => {
-    const { data } = await supabase.from("sellers").select("*").order("nome");
+    const { data } = await supabase.from("sellers").select("id, nome, telefone, cidade, cnpj, ativo, observacao").order("nome");
     setSellers(data || []);
     setLoading(false);
   }, []);

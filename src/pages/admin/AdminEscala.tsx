@@ -307,7 +307,7 @@ const AdminEscala = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_schedules")
-        .select("*")
+        .select("id, user_id, date, shift, shift_start_time, shift_end_time, status, notes")
         .gte("date", dateRange.from)
         .lte("date", dateRange.to);
       if (error) throw error;
@@ -321,7 +321,8 @@ const AdminEscala = () => {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("staff_unavailability")
-        .select("*")
+        .select("id, user_id, date, reason, status, reviewed_by, reviewed_at")
+        .eq("status", "pendente")
         .order("date", { ascending: true });
       if (error) throw error;
       return data as { id: string; user_id: string; date: string; reason: string | null; status: string; reviewed_by: string | null; reviewed_at: string | null; created_at: string }[];

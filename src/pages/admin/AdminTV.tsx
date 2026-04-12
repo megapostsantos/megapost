@@ -32,7 +32,7 @@ const AdminTV = () => {
 
     const { data: rotas } = await supabase
       .from("rotas")
-      .select("*, drivers(nome)")
+      .select("id, rota_codigo, periodo, status, hora_chegada, hora_saida, driver_id, drivers(nome)")
       .eq("dia_id", dia.id);
 
     const allRotas = rotas || [];
@@ -77,7 +77,7 @@ const AdminTV = () => {
 
   useEffect(() => {
     loadMetrics();
-    const interval = setInterval(loadMetrics, 30000);
+    const interval = setInterval(loadMetrics, 120000); // 2 min instead of 30s
     return () => clearInterval(interval);
   }, [loadMetrics]);
 

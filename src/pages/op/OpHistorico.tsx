@@ -99,9 +99,10 @@ const OpHistorico = () => {
     setExpandedRota(rotaId);
     const { data } = await supabase
       .from("estoque")
-      .select("*")
+      .select("id, codigo_pacote, tipo_insucesso, status, motivo, data_entrada")
       .eq("rota_id", rotaId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(50);
     setRotaEstoque(data || []);
   };
 

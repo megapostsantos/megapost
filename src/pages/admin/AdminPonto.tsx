@@ -63,7 +63,7 @@ const OperatorPonto = ({ userId }: { userId: string }) => {
       setLoading(true);
       const { data, error } = await supabase
         .from("timecards")
-        .select("*")
+        .select("id, user_id, date, clock_in, clock_out, worked_hours, extra_hours, daily_payment, payment_status, notes")
         .eq("user_id", userId)
         .eq("date", selectedDate)
         .maybeSingle();
@@ -250,7 +250,7 @@ const RecentHistory = ({ userId }: { userId: string }) => {
       const sevenDaysAgo = format(new Date(Date.now() - 7 * 86400000), "yyyy-MM-dd");
       const { data } = await supabase
         .from("timecards")
-        .select("*")
+        .select("id, date, clock_in, clock_out, worked_hours, extra_hours, daily_payment, payment_status")
         .eq("user_id", userId)
         .gte("date", sevenDaysAgo)
         .order("date", { ascending: false });
@@ -338,7 +338,7 @@ const AdminPontoView = () => {
 
       const startDate = format(firstMonday, "yyyy-MM-dd");
       const endDate = format(lastSunday, "yyyy-MM-dd");
-      const { data, error } = await supabase.from("timecards").select("*").gte("date", startDate).lte("date", endDate).order("date", { ascending: true });
+      const { data, error } = await supabase.from("timecards").select("id, user_id, date, clock_in, clock_out, worked_hours, extra_hours, daily_payment, payment_status, notes").gte("date", startDate).lte("date", endDate).order("date", { ascending: true });
       if (error) throw error;
       setRecords((data as Timecard[]) || []);
       if (data && data.length > 0) {
