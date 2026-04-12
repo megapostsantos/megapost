@@ -140,7 +140,7 @@ const AdminEstoque = () => {
       .from("estoque")
       .select("*, rotas:rota_id(rota_codigo, periodo), drivers:origem_driver_id(nome)")
       .order("data_entrada", { ascending: false })
-      .limit(500);
+      .limit(200);
 
     if (filterStatus !== "ALL") {
       query = query.eq("status", filterStatus);

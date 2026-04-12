@@ -665,7 +665,7 @@ const PayrollSection = ({ profiles, syncFinanceEntry, reloadAll }: { profiles: R
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from("timecards").select("*").gte("date", wStartStr).lte("date", wEndStr).order("date");
+    const { data } = await supabase.from("timecards").select("user_id, date, worked_hours, extra_hours, daily_payment, payment_status").gte("date", wStartStr).lte("date", wEndStr).order("date");
     setTimecards(data || []);
     setLoading(false);
   }, [wStartStr, wEndStr]);
