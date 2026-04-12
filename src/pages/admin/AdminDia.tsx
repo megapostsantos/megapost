@@ -33,9 +33,9 @@ const AdminDia = () => {
   const loadHistory = useCallback(async () => {
     const { data: dias } = await supabase
       .from("dias")
-      .select("*")
+      .select("id, data, status, am0_previsto, am1_previsto")
       .order("data", { ascending: false })
-      .limit(30);
+      .limit(15);
     setDiasHistorico(dias || []);
     setLoadingHistory(false);
   }, []);
