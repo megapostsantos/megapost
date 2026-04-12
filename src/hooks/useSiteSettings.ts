@@ -5,11 +5,23 @@ export interface SiteSettingsMap {
   [key: string]: string;
 }
 
+// Module-level cache to avoid re-fetching across components
+let cachedSettings: SiteSettingsMap | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export const useSiteSettings = () => {
-  const [settings, setSettings] = useState<SiteSettingsMap>({});
-  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<SiteSettingsMap>(cachedSettings || {});
+  const [loading, setLoading] = useState(!cachedSettings);
 
   const fetchSettings = useCallback(async () => {
+    // Use cache if fresh
+    if (cachedSettings && Date.now() - cacheTimestamp < CACHE_TTL) {
+      setSettings(cachedSettings);
+      setLoading(false);
+      return;
+    }
+
     const { data } = await supabase
       .from("site_settings")
       .select("key, value");
@@ -19,6 +31,8 @@ export const useSiteSettings = () => {
       data.forEach((row: any) => {
         obj[row.key] = row.value || "";
       });
+      cachedSettings = obj;
+      cacheTimestamp = Date.now();
       setSettings(obj);
     }
     setLoading(false);
@@ -37,7 +51,10 @@ export const useSiteSettings = () => {
       );
 
     if (!error) {
-      setSettings((prev) => ({ ...prev, [key]: value }));
+      const updated = { ...settings, [key]: value };
+      cachedSettings = updated;
+      cacheTimestamp = Date.now();
+      setSettings(updated);
     }
     return { error };
   };
