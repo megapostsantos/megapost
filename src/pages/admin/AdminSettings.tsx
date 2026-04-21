@@ -83,7 +83,7 @@ const AdminSettings = () => {
 
   const fields: { key: string; label: string; type: "text" | "textarea" | "number" }[] = [
     { key: "link_grupo_wpp", label: "Link do Grupo Operacional (WhatsApp)", type: "text" },
-    { key: "whatsapp_megapost", label: "WhatsApp Mega POST (apenas números, ex: 5513988218339)", type: "text" },
+    { key: "whatsapp_megapost", label: "WhatsApp Mega POST (apenas números, ex: 5513991141474)", type: "text" },
     { key: "whatsapp_mercadolivre", label: "WhatsApp Suporte Mercado Livre (apenas números)", type: "text" },
     { key: "hero_btn1_texto", label: 'Texto do Botão 1 (Home)', type: "text" },
     { key: "hero_btn2_texto", label: 'Texto do Botão 2 (Home)', type: "text" },

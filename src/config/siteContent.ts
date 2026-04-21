@@ -5,8 +5,8 @@ export interface SiteContent {
 export const defaultContent: SiteContent = {
   // === LINKS ===
   link_grupo_wpp: "https://chat.whatsapp.com/SEU_GRUPO_AQUI",
-  link_suporte_wpp: "https://wa.me/5513988218339",
-  telefone_suporte: "13 98821-8339",
+  link_suporte_wpp: "https://wa.me/5513991141474",
+  telefone_suporte: "13 99114-1474",
 
   // === HOME ===
   hero_titulo: "Mega POST — Drive Thru de Carregamento e Suporte Operacional",
@@ -121,7 +121,7 @@ export const defaultContent: SiteContent = {
   faq5_resposta: "Acesse a página de Suporte e preencha o formulário de ocorrência. Você também pode reportar diretamente no grupo operacional.",
 
   faq6_pergunta: "Quem posso contatar em caso de emergência?",
-  faq6_resposta: "Ligue para o suporte no número 13 98821-8339 ou envie mensagem pelo WhatsApp.",
+  faq6_resposta: "Ligue para o suporte no número 13 99114-1474 ou envie mensagem pelo WhatsApp.",
 
   // === SEJA PARCEIRO ===
   parceiro_titulo: "Seja Parceiro Mega POST",
@@ -140,7 +140,7 @@ export const defaultContent: SiteContent = {
 
   // === RODAPÉ ===
   footer_texto: "Mega POST — Operação logística inteligente. Drive thru de carregamento padronizado para máxima eficiência.",
-  footer_contato: "Contato: 13 98821-8339",
+  footer_contato: "Contato: 13 99114-1474",
   footer_copy: "© 2025 Mega POST. Todos os direitos reservados.",
 
   // === LANDING PAGE INSTITUCIONAL ===
@@ -232,7 +232,7 @@ export const defaultContent: SiteContent = {
 
   // FOOTER LANDING
   lp_footer_texto: "Mega POST — Soluções logísticas para sellers, parceiros e operações.",
-  lp_footer_telefone: "13 98821-8339",
+  lp_footer_telefone: "13 99114-1474",
   lp_footer_email: "contato@megapost.com.br",
   lp_footer_endereco: "Santos / SP",
   lp_footer_copy: "© 2025 Mega POST. Todos os direitos reservados.",
