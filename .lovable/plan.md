@@ -1,78 +1,50 @@
 
 
-## Analysis
+## Problem
 
-The current auth system uses the Lovable Cloud Supabase client (`src/integrations/supabase/client.ts`) for everything: authentication AND data queries. The user wants to split this so that **auth goes through their own Supabase** (`tcajkhmwmmnltzfshugh.supabase.co`) while **data queries continue using the Cloud client**.
+When marking a week as paid on the **Ponto** page (`/admin/ponto`), the system only updates `timecards.payment_status = 'paid'` but never creates the corresponding `finance_entries` row. As a result the Financial module never sees the expense, and the DRE shows R$ 0,00 for "Funcionários".
 
-### Critical blocker
+The Finance page (`/admin/financeiro` → tab Pagamento) has its own `syncFinanceEntry` helper that does this correctly — but the Ponto page bypasses it.
 
-The user has not provided the **anon key** for their Supabase project. The URL alone is not sufficient to create a client. We need:
-- `SUPABASE_URL`: `https://tcajkhmwmmnltzfshugh.supabase.co` (provided)
-- `SUPABASE_ANON_KEY`: **missing**
+Database confirmed: 0 rows in `finance_entries` with `categoria = 'FUNCIONARIO'` or `observacao LIKE 'payroll:%'`, even though weeks have been marked as paid on Ponto.
 
-Additionally, their Supabase project must have:
-- Users created in `auth.users`
-- A `public.user_roles` table with `user_id` and `role` columns
-- RLS policies that allow authenticated users to read their own role
+## Fix (single file)
 
-### Important architectural consideration
+Update `src/pages/admin/AdminPonto.tsx` so every payment-status change inside the admin view also writes the matching `finance_entries` row, using the **same reference scheme** Finance already uses (`payroll:{userId}:{weekStartISO}`). This keeps both modules in sync and prevents duplication.
 
-Even after creating a separate auth client, the **data client** (Cloud) will still use its own JWT for RLS. Since all tables have RLS policies using `has_role(auth.uid(), ...)`, and `auth.uid()` comes from the Cloud Supabase session, **data access will break** if users are only authenticated against the external Supabase.
+### 1. Add a shared `syncFinanceEntry` helper inside `AdminPontoView`
 
-This means either:
-1. The same user must exist in **both** Supabase instances (Cloud + external), OR
-2. All RLS policies on the Cloud database must be rewritten to not depend on `auth.uid()`, OR
-3. All data must also move to the external Supabase (defeating the purpose of Cloud)
+Same signature/logic as the one in `AdminFinanceiro.tsx`:
+- builds `ref = payroll:{userId}:{wsStr}`
+- looks up existing row by `observacao = ref`
+- if exists → `update` with new total/status
+- if not exists and status === "pago" → `insert`
+- payload: `{ kind: 'saida', tipo: 'despesa', categoria: 'FUNCIONARIO', descricao: 'Pagamento {nome} (dd/MM–dd/MM)', valor: total, data: weekEnd, status, observacao: ref }`
 
-This is a fundamental constraint, not a code limitation.
+### 2. Wire it into the existing handlers
 
----
+- **`markWeekPaid(weekRecords)`**: after the bulk timecards update succeeds, group `weekRecords` by `user_id`, compute each operator's weekly total (`sum daily_payment`) and weekly range (Monday→Sunday of any record's date), call `syncFinanceEntry(userId, name, ws, we, total, "pago")` per user.
+- **`markWeekPending(weekRecords)`**: same grouping, but call with `"pendente"` so the Finance entry is updated (not deleted) to reflect the reversal.
+- **`togglePayment(id, currentStatus)`** (single-day toggle): after updating, recompute that user's full week total from `records` state for the week containing that date and call `syncFinanceEntry` with the new aggregated total + new status. This keeps single-day toggles consistent with the weekly aggregate Finance expects.
 
-## Proposed plan (contingent on resolving the above)
+### 3. Week boundary helper
 
-### Step 1 — Get the anon key
-Ask the user for their Supabase anon key.
+Reuse `startOfWeek` / `endOfWeek` from `date-fns` (already imported) with `weekStartsOn: 1` to derive `ws`/`we` for any record date. Format with `format(d, 'yyyy-MM-dd')`.
 
-### Step 2 — Create `src/lib/customSupabase.ts`
-A second Supabase client pointing to `tcajkhmwmmnltzfshugh.supabase.co` with the provided anon key, used exclusively for auth operations.
+### 4. Name resolution
 
-### Step 3 — Update `useAuth.tsx`
-Replace all `supabase.auth.*` calls with `customSupabase.auth.*`. The `user_roles` query must also go through `customSupabase` (since the roles table lives on the external Supabase).
+Use the existing `profiles[userId]` map already populated in `AdminPontoView` (display_name + email fallback) so the Finance description shows a real name.
 
-### Step 4 — Update login pages
-No changes needed — they already use `useAuth` which will be rewired internally.
+## Files changed
 
-### Step 5 — ProtectedRoute
-No changes needed — it already uses `useAuth`.
+- `src/pages/admin/AdminPonto.tsx` — add `syncFinanceEntry` helper + call it from `markWeekPaid`, `markWeekPending`, and `togglePayment`.
 
-### Step 6 — Admin user management page
-Create `/admin/usuarios` page allowing admins to:
-- List users (via edge function on external Supabase using service role key)
-- Create operator accounts
-- Assign/change roles
-- Enable/disable access
+No DB migration, no schema change, no UI/layout change. The Finance page's `PayrollSection` continues to work unchanged because both sides now use the same `payroll:{userId}:{weekStart}` key (idempotent upsert, no duplicates).
 
-### Step 7 — Logout in sidebar components
-Update `AdminLayout` and `OpLayout` signOut calls (already go through `useAuth`, so no change needed).
+## Expected result
 
----
-
-## What blocks this migration
-
-**RLS on the Cloud database**: Every table (`drivers`, `rotas`, `dias`, `estoque`, `finance_entries`, etc.) uses `has_role(auth.uid(), ...)` which requires the user to be authenticated against the **Cloud** Supabase. If auth moves to an external instance, `auth.uid()` on the Cloud instance will be `null` and all data queries will return empty or fail with permission errors.
-
-**Options to resolve:**
-- A) Create matching users in both instances (complex, fragile)
-- B) Disable RLS on all Cloud tables (insecure)
-- C) Migrate all data to the external Supabase (large effort, loses Cloud benefits)
-- D) Keep auth on Cloud and create users there via admin tooling (simplest)
-
-I recommend **option D**: keep using Cloud auth but build an admin page to manage users (create operators, assign roles) directly in the Cloud Supabase. This gives you full control over who can log in without needing an external instance.
-
----
-
-## Before proceeding, I need:
-
-1. Your **anon key** for `tcajkhmwmmnltzfshugh.supabase.co`
-2. Your decision on the RLS problem described above — which option (A/B/C/D) do you prefer?
+- Marking a week as paid on Ponto immediately creates/updates a `finance_entries` row in `FUNCIONARIO`.
+- DRE → "DESPESAS → Funcionários" reflects the real payroll.
+- Lucro Líquido updates correctly.
+- Finance's "Pagamento" tab and Ponto's "Pagar Semana" stay perfectly in sync (same key, no double counting).
 
