@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Clock, Save, CalendarDays, DollarSign, Timer, Pencil, Trash2, Loader2, CheckCircle } from "lucide-react";
-import { format, startOfWeek, endOfWeek, eachWeekOfInterval } from "date-fns";
+import { format, startOfWeek, endOfWeek, eachWeekOfInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const BASE_SHIFT = 6;
@@ -353,10 +353,65 @@ const AdminPontoView = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  const resolveName = (userId: string) => profiles[userId] || userEmailsRef.current[userId] || "Operador";
+
+  const syncFinanceEntry = async (
+    userId: string,
+    name: string,
+    ws: string,
+    we: string,
+    total: number,
+    status: "pago" | "pendente"
+  ) => {
+    const ref = `payroll:${userId}:${ws}`;
+    const { data: existing } = await supabase
+      .from("finance_entries")
+      .select("id")
+      .eq("observacao", ref)
+      .maybeSingle();
+    const payload: any = {
+      kind: "saida",
+      tipo: "despesa",
+      descricao: `Pagamento ${name} (${format(parseISO(ws), "dd/MM")}–${format(parseISO(we), "dd/MM")})`,
+      valor: total,
+      categoria: "FUNCIONARIO",
+      data: we,
+      status,
+      observacao: ref,
+    };
+    if (existing) {
+      await supabase.from("finance_entries").update(payload).eq("id", existing.id);
+    } else if (status === "pago") {
+      await supabase.from("finance_entries").insert(payload);
+    }
+  };
+
+  const syncWeekForUser = async (userId: string, anyDate: string) => {
+    const dateObj = parseISO(anyDate);
+    const ws = startOfWeek(dateObj, { weekStartsOn: 1 });
+    const we = endOfWeek(dateObj, { weekStartsOn: 1 });
+    const wsStr = format(ws, "yyyy-MM-dd");
+    const weStr = format(we, "yyyy-MM-dd");
+    // fetch latest week records for this user from DB to get accurate aggregates
+    const { data } = await supabase
+      .from("timecards")
+      .select("daily_payment, payment_status")
+      .eq("user_id", userId)
+      .gte("date", wsStr)
+      .lte("date", weStr);
+    const rows = (data as any[]) || [];
+    const total = rows.reduce((s, r) => s + (Number(r.daily_payment) || 0), 0);
+    const allPaid = rows.length > 0 && rows.every((r) => r.payment_status === "paid");
+    const status: "pago" | "pendente" = allPaid ? "pago" : "pendente";
+    await syncFinanceEntry(userId, resolveName(userId), wsStr, weStr, total, status);
+  };
+
   const togglePayment = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === "paid" ? "pending" : "paid";
+    const rec = records.find((r) => r.id === id);
     const { error } = await supabase.from("timecards").update({ payment_status: newStatus }).eq("id", id);
     if (error) { toast.error(error.message); return; }
+    if (rec) await syncWeekForUser(rec.user_id, rec.date);
     toast.success(newStatus === "paid" ? "Marcado como pago" : "Marcado como pendente");
     load();
   };
@@ -395,11 +450,28 @@ const AdminPontoView = () => {
     setEditSubmitting(false);
   };
 
+  const syncFinanceForWeekRecords = async (weekRecords: Timecard[], status: "pago" | "pendente") => {
+    const byUser: Record<string, Timecard[]> = {};
+    weekRecords.forEach((r) => {
+      if (!byUser[r.user_id]) byUser[r.user_id] = [];
+      byUser[r.user_id].push(r);
+    });
+    for (const userId of Object.keys(byUser)) {
+      const rows = byUser[userId];
+      const anyDate = rows[0].date;
+      const ws = startOfWeek(parseISO(anyDate), { weekStartsOn: 1 });
+      const we = endOfWeek(parseISO(anyDate), { weekStartsOn: 1 });
+      const total = rows.reduce((s, r) => s + (Number(r.daily_payment) || 0), 0);
+      await syncFinanceEntry(userId, resolveName(userId), format(ws, "yyyy-MM-dd"), format(we, "yyyy-MM-dd"), total, status);
+    }
+  };
+
   const markWeekPaid = async (weekRecords: Timecard[]) => {
     const pendingIds = weekRecords.filter(r => r.payment_status !== "paid").map(r => r.id);
     if (pendingIds.length === 0) { toast.info("Todos já estão pagos."); return; }
     const { error } = await supabase.from("timecards").update({ payment_status: "paid" }).in("id", pendingIds);
     if (error) { toast.error(error.message); return; }
+    await syncFinanceForWeekRecords(weekRecords, "pago");
     toast.success("Semana marcada como paga!"); load();
   };
 
@@ -408,6 +480,7 @@ const AdminPontoView = () => {
     if (paidIds.length === 0) return;
     const { error } = await supabase.from("timecards").update({ payment_status: "pending" }).in("id", paidIds);
     if (error) { toast.error(error.message); return; }
+    await syncFinanceForWeekRecords(weekRecords, "pendente");
     toast.success("Semana revertida para pendente."); load();
   };
 
