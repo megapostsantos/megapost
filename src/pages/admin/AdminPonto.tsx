@@ -437,6 +437,7 @@ const AdminPontoView = () => {
     }
   };
 
+  const syncWeekForUser = async (userId: string, anyDate: string) => {
     const dateObj = parseISO(anyDate);
     const ws = startOfWeek(dateObj, { weekStartsOn: 1 });
     const we = endOfWeek(dateObj, { weekStartsOn: 1 });
