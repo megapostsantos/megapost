@@ -14,9 +14,9 @@ import {
   Calendar, PieChart, EyeOff,
 } from "lucide-react";
 import {
-  format, startOfWeek, endOfWeek, addWeeks, parseISO, startOfMonth, endOfMonth,
-  eachWeekOfInterval,
+  format, startOfWeek, endOfWeek, addWeeks, parseISO,
 } from "date-fns";
+import { getMonthWeeks } from "@/lib/financeWeeks";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import {
@@ -131,16 +131,11 @@ const AdminFinanceiro = () => {
 
   // Weekly cost data (only from finance_entries to avoid duplication)
   const weeklyCostData = useMemo(() => {
-    const monthStart = startOfMonth(new Date(y, m - 1));
-    const monthEnd = endOfMonth(new Date(y, m - 1));
-    const weeks = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 1 });
-    return weeks.map((ws, i) => {
-      const we = endOfWeek(ws, { weekStartsOn: 1 });
-      const wsStr = format(ws, "yyyy-MM-dd");
-      const weStr = format(we, "yyyy-MM-dd");
-      const funcionarios = despesas.filter(e => e.data >= wsStr && e.data <= weStr && e.categoria === "FUNCIONARIO").reduce((s, e) => s + Number(e.valor), 0);
-      const outras = despesas.filter(e => e.data >= wsStr && e.data <= weStr && e.categoria !== "FUNCIONARIO").reduce((s, e) => s + Number(e.valor), 0);
-      return { name: `Sem ${i + 1}`, funcionarios, outras };
+    const weeks = getMonthWeeks(y, m);
+    return weeks.map((w) => {
+      const funcionarios = despesas.filter(e => e.data >= w.startStr && e.data <= w.endStr && e.categoria === "FUNCIONARIO").reduce((s, e) => s + Number(e.valor), 0);
+      const outras = despesas.filter(e => e.data >= w.startStr && e.data <= w.endStr && e.categoria !== "FUNCIONARIO").reduce((s, e) => s + Number(e.valor), 0);
+      return { name: w.label, funcionarios, outras };
     });
   }, [despesas, y, m]);
 
@@ -165,19 +160,23 @@ const AdminFinanceiro = () => {
     })).sort((a, b) => b.total - a.total);
   }, [timecards, profiles]);
 
-  // Payment forecast
+  // Payment forecast — gera todas as semanas Seg-Dom que cruzam o mês,
+  // inclusive vazias (não esconder).
   const paymentForecast = useMemo(() => {
-    const monthStart = startOfMonth(new Date(y, m - 1));
-    const monthEnd = endOfMonth(new Date(y, m - 1));
-    const weeks = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 1 });
-    return weeks.map((ws, i) => {
-      const we = endOfWeek(ws, { weekStartsOn: 1 });
-      const wsStr = format(ws, "yyyy-MM-dd");
-      const weStr = format(we, "yyyy-MM-dd");
-      const funcCost = despesas.filter(e => e.data >= wsStr && e.data <= weStr && e.categoria === "FUNCIONARIO").reduce((s, e) => s + Number(e.valor), 0);
-      const otherCost = despesas.filter(e => e.data >= wsStr && e.data <= weStr && e.categoria !== "FUNCIONARIO").reduce((s, e) => s + Number(e.valor), 0);
-      const pending = despesas.filter(e => e.data >= wsStr && e.data <= weStr && e.status === "pendente").reduce((s, e) => s + Number(e.valor), 0);
-      return { label: `Sem ${i + 1} (${format(ws, "dd/MM")}–${format(we, "dd/MM")})`, funcionarios: funcCost, outras: otherCost, pendente: pending, total: funcCost + otherCost };
+    const weeks = getMonthWeeks(y, m);
+    return weeks.map((w) => {
+      const funcCost = despesas.filter(e => e.data >= w.startStr && e.data <= w.endStr && e.categoria === "FUNCIONARIO").reduce((s, e) => s + Number(e.valor), 0);
+      const otherCost = despesas.filter(e => e.data >= w.startStr && e.data <= w.endStr && e.categoria !== "FUNCIONARIO").reduce((s, e) => s + Number(e.valor), 0);
+      const pending = despesas.filter(e => e.data >= w.startStr && e.data <= w.endStr && e.status === "pendente").reduce((s, e) => s + Number(e.valor), 0);
+      return {
+        label: w.label,
+        wsStr: w.startStr,
+        weStr: w.endStr,
+        funcionarios: funcCost,
+        outras: otherCost,
+        pendente: pending,
+        total: funcCost + otherCost,
+      };
     });
   }, [despesas, y, m]);
 
