@@ -14,9 +14,9 @@ import {
   Calendar, PieChart, EyeOff,
 } from "lucide-react";
 import {
-  format, startOfWeek, endOfWeek, addWeeks, parseISO, startOfMonth, endOfMonth,
-  eachWeekOfInterval,
+  format, startOfWeek, endOfWeek, addWeeks, parseISO,
 } from "date-fns";
+import { getMonthWeeks } from "@/lib/financeWeeks";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import {
