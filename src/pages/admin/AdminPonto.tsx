@@ -387,7 +387,56 @@ const AdminPontoView = () => {
     }
   };
 
-  const syncWeekForUser = async (userId: string, anyDate: string) => {
+  const [reconciling, setReconciling] = useState(false);
+  const reconcileAllPayroll = async () => {
+    if (!confirm("Reconciliar todos os pagamentos já marcados como 'Pago' no Ponto com o Financeiro?\n\nIsso irá criar/atualizar as despesas em FUNCIONARIO. É seguro rodar várias vezes (não duplica).")) return;
+    setReconciling(true);
+    try {
+      const { data, error } = await supabase
+        .from("timecards")
+        .select("user_id, date, daily_payment, payment_status")
+        .eq("payment_status", "paid");
+      if (error) throw error;
+      const rows = (data as any[]) || [];
+      if (rows.length === 0) { toast.info("Nenhum pagamento marcado como pago encontrado."); return; }
+
+      // Load names for all distinct user_ids
+      const userIds = Array.from(new Set(rows.map(r => r.user_id)));
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .in("user_id", userIds);
+      const nameMap: Record<string, string> = { ...profiles };
+      (profs as any[] | null)?.forEach(p => { if (p.display_name) nameMap[p.user_id] = p.display_name; });
+
+      // Group by user_id + week start
+      const groups = new Map<string, { userId: string; ws: string; we: string; total: number }>();
+      for (const r of rows) {
+        const d = parseISO(r.date);
+        const ws = format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        const we = format(endOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        const key = `${r.user_id}:${ws}`;
+        const existing = groups.get(key);
+        const val = Number(r.daily_payment) || 0;
+        if (existing) existing.total += val;
+        else groups.set(key, { userId: r.user_id, ws, we, total: val });
+      }
+
+      const operatorSet = new Set<string>();
+      for (const g of groups.values()) {
+        const name = nameMap[g.userId] || userEmailsRef.current[g.userId] || "Operador";
+        await syncFinanceEntry(g.userId, name, g.ws, g.we, g.total, "pago");
+        operatorSet.add(g.userId);
+      }
+      toast.success(`${groups.size} semanas reconciliadas (${operatorSet.size} operadores)`);
+      await load();
+    } catch (e: any) {
+      toast.error("Erro ao reconciliar: " + (e?.message || e));
+    } finally {
+      setReconciling(false);
+    }
+  };
+
     const dateObj = parseISO(anyDate);
     const ws = startOfWeek(dateObj, { weekStartsOn: 1 });
     const we = endOfWeek(dateObj, { weekStartsOn: 1 });
