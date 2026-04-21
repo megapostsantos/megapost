@@ -615,7 +615,13 @@ const AdminPontoView = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">Ponto - Gestão</h1>
           <p className="text-xs sm:text-sm text-muted-foreground">Controle de ponto dos operadores</p>
         </div>
-        <Input type="month" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-auto" />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={reconcileAllPayroll} disabled={reconciling} className="text-xs h-9">
+            {reconciling ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+            Reconciliar Financeiro
+          </Button>
+          <Input type="month" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-auto" />
+        </div>
       </div>
 
       {/* View Toggle */}
