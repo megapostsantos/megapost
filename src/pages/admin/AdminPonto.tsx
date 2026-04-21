@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Clock, Save, CalendarDays, DollarSign, Timer, Pencil, Trash2, Loader2, CheckCircle } from "lucide-react";
-import { format, startOfWeek, endOfWeek, eachWeekOfInterval, parseISO } from "date-fns";
+import { format, startOfWeek, endOfWeek, parseISO } from "date-fns";
+import { getMonthWeeks } from "@/lib/financeWeeks";
 import { ptBR } from "date-fns/locale";
 
 const BASE_SHIFT = 6;
@@ -491,18 +492,15 @@ const AdminPontoView = () => {
     return acc;
   }, {});
 
-  // Group by week (weekly view)
+  // Group by week (weekly view) — uses shared helper so all financial
+  // screens render the SAME set of weeks, including weeks that cross
+  // month boundaries (ex.: 30/03–05/04 ou 27/04–03/05) and empty weeks.
   const weeklyData = useMemo(() => {
     const [y, m] = dateFilter.split("-").map(Number);
-    const monthStart = new Date(y, m - 1, 1);
-    const monthEnd = new Date(y, m, 0);
-    const weeks = eachWeekOfInterval({ start: monthStart, end: monthEnd }, { weekStartsOn: 1 });
+    const weeks = getMonthWeeks(y, m);
 
-    return weeks.map((ws) => {
-      const we = endOfWeek(ws, { weekStartsOn: 1 });
-      const wsStr = format(ws, "yyyy-MM-dd");
-      const weStr = format(we, "yyyy-MM-dd");
-      const weekRecords = records.filter(r => r.date >= wsStr && r.date <= weStr);
+    return weeks.map((w) => {
+      const weekRecords = records.filter(r => r.date >= w.startStr && r.date <= w.endStr);
 
       const byUser: Record<string, Timecard[]> = {};
       weekRecords.forEach(r => { if (!byUser[r.user_id]) byUser[r.user_id] = []; byUser[r.user_id].push(r); });
@@ -521,17 +519,18 @@ const AdminPontoView = () => {
       const totalPayment = weekRecords.reduce((s, r) => s + (r.daily_payment || 0), 0);
 
       return {
-        weekStart: ws,
-        weekEnd: we,
-        wsStr,
-        weStr,
-        label: `${format(ws, "dd/MM")} — ${format(we, "dd/MM")}`,
+        weekStart: w.start,
+        weekEnd: w.end,
+        wsStr: w.startStr,
+        weStr: w.endStr,
+        label: w.label.replace("–", " — "),
         records: weekRecords,
         users,
         allPaid,
         totalPayment,
       };
-    }).filter(w => w.records.length > 0);
+    });
+    // NÃO filtra semanas vazias — exibir todas as semanas do mês com R$ 0,00.
   }, [records, profiles, dateFilter]);
 
   const renderRecordRow = (r: Timecard) => (
