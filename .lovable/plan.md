@@ -1,50 +1,69 @@
 
 
-## Problem
+## Causa raiz
 
-When marking a week as paid on the **Ponto** page (`/admin/ponto`), the system only updates `timecards.payment_status = 'paid'` but never creates the corresponding `finance_entries` row. As a result the Financial module never sees the expense, and the DRE shows R$ 0,00 for "Funcionários".
+A integração Ponto → Financeiro **só foi criada na sessão anterior**. Toda semana que você marcou como "Pago" **antes** dessa mudança não gerou linha em `finance_entries`, e por isso:
 
-The Finance page (`/admin/financeiro` → tab Pagamento) has its own `syncFinanceEntry` helper that does this correctly — but the Ponto page bypasses it.
+- não aparece na aba **Despesas**
+- não soma no **Dashboard** (Receita/Despesas/Lucro)
+- não soma no **DRE → Funcionários**
 
-Database confirmed: 0 rows in `finance_entries` with `categoria = 'FUNCIONARIO'` or `observacao LIKE 'payroll:%'`, even though weeks have been marked as paid on Ponto.
+Exemplo claro nas suas imagens: a semana **13/04–19/04** está com badge "Pago" (R$ 1.268,85) no Ponto, mas na lista de Despesas só existem pagamentos das semanas **05/04** e **12/04** — exatamente as que foram marcadas **depois** do fix. As novas semanas funcionam; as antigas ficaram órfãs.
 
-## Fix (single file)
+Pagamentos pontuais avulsos (ex.: "Alcino R$ 480,00") foram lançados manualmente e por isso aparecem normalmente.
 
-Update `src/pages/admin/AdminPonto.tsx` so every payment-status change inside the admin view also writes the matching `finance_entries` row, using the **same reference scheme** Finance already uses (`payroll:{userId}:{weekStartISO}`). This keeps both modules in sync and prevents duplication.
+## Solução: botão de reconciliação retroativa
 
-### 1. Add a shared `syncFinanceEntry` helper inside `AdminPontoView`
+Adicionar **um botão único** no topo da tela `/admin/ponto` (área admin):
 
-Same signature/logic as the one in `AdminFinanceiro.tsx`:
-- builds `ref = payroll:{userId}:{wsStr}`
-- looks up existing row by `observacao = ref`
-- if exists → `update` with new total/status
-- if not exists and status === "pago" → `insert`
-- payload: `{ kind: 'saida', tipo: 'despesa', categoria: 'FUNCIONARIO', descricao: 'Pagamento {nome} (dd/MM–dd/MM)', valor: total, data: weekEnd, status, observacao: ref }`
+> **"Reconciliar Pagamentos no Financeiro"**
 
-### 2. Wire it into the existing handlers
+Quando clicado:
 
-- **`markWeekPaid(weekRecords)`**: after the bulk timecards update succeeds, group `weekRecords` by `user_id`, compute each operator's weekly total (`sum daily_payment`) and weekly range (Monday→Sunday of any record's date), call `syncFinanceEntry(userId, name, ws, we, total, "pago")` per user.
-- **`markWeekPending(weekRecords)`**: same grouping, but call with `"pendente"` so the Finance entry is updated (not deleted) to reflect the reversal.
-- **`togglePayment(id, currentStatus)`** (single-day toggle): after updating, recompute that user's full week total from `records` state for the week containing that date and call `syncFinanceEntry` with the new aggregated total + new status. This keeps single-day toggles consistent with the weekly aggregate Finance expects.
+1. Busca em `timecards` **todos** os registros com `payment_status = 'paid'` (sem filtro de mês — uma única vez resolve o histórico inteiro).
+2. Agrupa por `user_id` + semana (Seg→Dom usando `startOfWeek`/`endOfWeek` `weekStartsOn:1`).
+3. Para cada grupo, soma `daily_payment` e chama o `syncFinanceEntry` já existente com a chave idempotente `payroll:{userId}:{weekStart}`.
+4. Como o helper faz **upsert por chave**, não cria duplicata se a semana já tiver entrada — apenas atualiza valor/status.
+5. Mostra toast com resumo: `"X semanas reconciliadas (Y operadores)"`.
 
-### 3. Week boundary helper
+## Por que essa abordagem
 
-Reuse `startOfWeek` / `endOfWeek` from `date-fns` (already imported) with `weekStartsOn: 1` to derive `ws`/`we` for any record date. Format with `format(d, 'yyyy-MM-dd')`.
+- **Idempotente**: pode rodar quantas vezes quiser, sem duplicar despesa.
+- **Usa o helper que já existe** (`syncFinanceEntry`) — zero risco de divergir da lógica atual.
+- **Não mexe em RLS, schema, triggers nem nas telas existentes**.
+- **Resolve passado e futuro**: uma vez rodado, a integração que já está no `markWeekPaid` cuida do resto sozinha.
+- **Reversível**: se algo sair errado, basta apagar manualmente em Despesas.
 
-### 4. Name resolution
+## Detalhes técnicos
 
-Use the existing `profiles[userId]` map already populated in `AdminPontoView` (display_name + email fallback) so the Finance description shows a real name.
+**Arquivo único alterado**: `src/pages/admin/AdminPonto.tsx`
 
-## Files changed
+- Adicionar handler `reconcileAllPayroll()` dentro de `AdminPontoView`:
+  - `supabase.from("timecards").select("user_id, date, daily_payment, payment_status").eq("payment_status", "paid")` (sem filtro de data).
+  - Carregar nomes via `profiles` para todos os `user_id` distintos retornados (uma única query).
+  - Agrupar em `Map<string, {ws, we, total}>` chaveado por `${userId}:${wsStr}`.
+  - Loop sequencial chamando `syncFinanceEntry(userId, name, wsStr, weStr, total, "pago")`.
+  - Mostrar `loading` + `toast.success` no fim e chamar `load()`.
 
-- `src/pages/admin/AdminPonto.tsx` — add `syncFinanceEntry` helper + call it from `markWeekPaid`, `markWeekPending`, and `togglePayment`.
+- Adicionar botão no header da tela (ao lado do `<Input type="month">`):
+  ```
+  <Button variant="outline" size="sm" onClick={reconcileAllPayroll}>
+    <RefreshCw className="h-3 w-3 mr-1" /> Reconciliar Financeiro
+  </Button>
+  ```
 
-No DB migration, no schema change, no UI/layout change. The Finance page's `PayrollSection` continues to work unchanged because both sides now use the same `payroll:{userId}:{weekStart}` key (idempotent upsert, no duplicates).
+- Confirmar com `confirm()` antes de rodar para evitar clique acidental.
 
-## Expected result
+## Resultado esperado
 
-- Marking a week as paid on Ponto immediately creates/updates a `finance_entries` row in `FUNCIONARIO`.
-- DRE → "DESPESAS → Funcionários" reflects the real payroll.
-- Lucro Líquido updates correctly.
-- Finance's "Pagamento" tab and Ponto's "Pagar Semana" stay perfectly in sync (same key, no double counting).
+Depois de clicar uma vez no botão:
+- Todas as semanas já marcadas como pagas viram linhas em `finance_entries` (categoria `FUNCIONARIO`).
+- Aba **Despesas** mostra todas (incluindo a semana 13/04–19/04 da imagem com R$ 1.268,85).
+- **Dashboard** e **DRE** somam corretamente.
+- Pagamentos futuros continuam sincronizando automaticamente via `markWeekPaid` (já implementado).
 
+## Arquivos alterados
+
+- `src/pages/admin/AdminPonto.tsx` — adicionar `reconcileAllPayroll()` + botão no header.
+
+Sem migração de DB, sem mudança de schema, sem alteração de UI das outras telas.
