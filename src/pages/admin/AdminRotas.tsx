@@ -1086,12 +1086,20 @@ const AdminRotas = () => {
             const s = getStatusSummary(p);
             return (
               <TabsContent key={p} value={p}>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs">
-                  <span className="text-orange-600">Abertas: {s.aberto}</span>
-                  <span className="text-blue-600">Check-in: {s.checkin}</span>
-                  <span className="text-indigo-600">Carregando: {s.carregando}</span>
-                  <span className="text-green-600">Finalizadas: {s.finalizada}</span>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                    <span className="text-orange-600">Abertas: {s.aberto}</span>
+                    <span className="text-blue-600">Check-in: {s.checkin}</span>
+                    <span className="text-indigo-600">Carregando: {s.carregando}</span>
+                    <span className="text-green-600">Finalizadas: {s.finalizada}</span>
+                  </div>
+                  {s.finalizada > 0 && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => exportSaidasWhatsApp(p)}>
+                      <Share2 className="h-3 w-3 mr-1" /> Exportar Saídas
+                    </Button>
+                  )}
                 </div>
+
                 <div className="space-y-2">
                   {rotasByPeriodo(p).map(renderRotaCard)}
                   {rotasByPeriodo(p).length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Nenhuma rota {p}.</p>}
