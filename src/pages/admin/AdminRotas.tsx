@@ -711,6 +711,56 @@ const AdminRotas = () => {
     setShowExportModal(true);
   };
 
+  // Export finalized routes (with hora_saida) as WhatsApp-formatted text
+  const exportSaidasWhatsApp = async (ciclo: string) => {
+    const list = rotas
+      .filter(r => r.periodo === ciclo)
+      .filter(r => normalizeStatus(r.status) === "Finalizada" && r.hora_saida)
+      .sort((a, b) => new Date(a.hora_saida).getTime() - new Date(b.hora_saida).getTime());
+
+    if (list.length === 0) {
+      toast.warning("Nenhuma rota finalizada com saída registrada neste ciclo.");
+      return;
+    }
+
+    const dataFmt = diaData ? format(new Date(diaData + "T12:00:00"), "dd/MM/yyyy") : format(new Date(), "dd/MM/yyyy");
+    const header = `*Saídas ${ciclo} — ${dataFmt}*\nTotal: ${list.length} rota${list.length > 1 ? "s" : ""}\n`;
+
+    const blocks = list.map((r, i) => {
+      const lines: string[] = [];
+      const horaSaida = format(new Date(r.hora_saida), "HH:mm");
+      lines.push(`${i + 1}. *${r.rota_codigo}* — ${horaSaida}`);
+      const d = r.drivers;
+      if (d?.nome) lines.push(`   👤 ${d.nome}${d.placa ? ` (${d.placa})` : ""}`);
+      if (d?.telefone) lines.push(`   📱 ${d.telefone}`);
+      const codes: string[] = [];
+      if (r.qr_codigo) codes.push(`QR: ${r.qr_codigo}`);
+      if (r.nx_codigo) codes.push(`NX: ${r.nx_codigo}`);
+      if (r.mx_codigo) codes.push(`MX: ${r.mx_codigo}`);
+      if (codes.length) lines.push(`   ${codes.join(" | ")}`);
+      if (r.hora_chegada) {
+        const chegada = format(new Date(r.hora_chegada), "HH:mm");
+        const tempo = r.tempo_atendimento_min != null ? `⏱ ${Math.round(r.tempo_atendimento_min)} min (chegou ${chegada})` : `⏱ chegou ${chegada}`;
+        lines.push(`   ${tempo}`);
+      }
+      if (r.observacoes) lines.push(`   📝 ${r.observacoes}`);
+      return lines.join("\n");
+    });
+
+    const footer = `\n_Exportado em ${format(new Date(), "dd/MM/yyyy HH:mm")}_`;
+    const text = `${header}\n${blocks.join("\n\n")}\n${footer}`;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Lista copiada — escolha o grupo no WhatsApp");
+    } catch {
+      toast.message("Abrindo WhatsApp…");
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
+
+
   // ── Helpers ────────────────────────────────────────────
   const rotasByPeriodo = (p: string) => {
     let list = rotas.filter((r) => r.periodo === p);
