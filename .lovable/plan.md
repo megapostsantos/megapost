@@ -1,69 +1,62 @@
+## Objetivo
 
+Adicionar um botão em `/admin/rotas` (e `/op/rotas`, já que a tela é compartilhada — `isOpArea`) para gerar um **texto formatado pronto pra colar no WhatsApp** com todas as rotas **finalizadas e com `hora_saida` registrada** do ciclo (AM0 ou AM1) do dia selecionado.
 
-## Causa raiz
+## Comportamento
 
-A integração Ponto → Financeiro **só foi criada na sessão anterior**. Toda semana que você marcou como "Pago" **antes** dessa mudança não gerou linha em `finance_entries`, e por isso:
+- Botão **"Exportar Saídas (WhatsApp)"** no cabeçalho da aba do ciclo, ao lado dos controles existentes.
+- Usa o **dia selecionado** e o **ciclo da aba ativa** (AM0 ou AM1).
+- Filtra: `status = "Finalizada"` **E** `hora_saida != null`.
+- Ordena por `hora_saida` crescente (ordem real de despacho).
+- Gera texto e:
+  1. Copia automaticamente para o clipboard (`navigator.clipboard.writeText`).
+  2. Abre `https://wa.me/?text=<encoded>` em nova aba para já cair na seleção de grupo do galpão.
+  3. Toast: "Lista copiada — escolha o grupo no WhatsApp".
 
-- não aparece na aba **Despesas**
-- não soma no **Dashboard** (Receita/Despesas/Lucro)
-- não soma no **DRE → Funcionários**
+## Formato do texto (otimizado pra WhatsApp)
 
-Exemplo claro nas suas imagens: a semana **13/04–19/04** está com badge "Pago" (R$ 1.268,85) no Ponto, mas na lista de Despesas só existem pagamentos das semanas **05/04** e **12/04** — exatamente as que foram marcadas **depois** do fix. As novas semanas funcionam; as antigas ficaram órfãs.
+```
+*Saídas AM0 — 29/05/2026*
+Total: 12 rotas
 
-Pagamentos pontuais avulsos (ex.: "Alcino R$ 480,00") foram lançados manualmente e por isso aparecem normalmente.
+1. *AM0-001* — 07:42
+   👤 João Silva (ABC1D23)
+   📱 13991141474
+   QR: 12345678901 | NX: NX-0099
+   ⏱ 35 min (chegou 07:07)
 
-## Solução: botão de reconciliação retroativa
+2. *AM0-002* — 07:48
+   ...
 
-Adicionar **um botão único** no topo da tela `/admin/ponto` (área admin):
+_Exportado em 29/05/2026 09:15_
+```
 
-> **"Reconciliar Pagamentos no Financeiro"**
+- Negrito com `*...*`, itálico com `_..._` (sintaxe nativa do WhatsApp).
+- Campos vazios são omitidos linha a linha (sem "null"/"undefined").
+- Observações da rota entram como última linha `📝 ...` se existirem.
 
-Quando clicado:
+## Implementação
 
-1. Busca em `timecards` **todos** os registros com `payment_status = 'paid'` (sem filtro de mês — uma única vez resolve o histórico inteiro).
-2. Agrupa por `user_id` + semana (Seg→Dom usando `startOfWeek`/`endOfWeek` `weekStartsOn:1`).
-3. Para cada grupo, soma `daily_payment` e chama o `syncFinanceEntry` já existente com a chave idempotente `payroll:{userId}:{weekStart}`.
-4. Como o helper faz **upsert por chave**, não cria duplicata se a semana já tiver entrada — apenas atualiza valor/status.
-5. Mostra toast com resumo: `"X semanas reconciliadas (Y operadores)"`.
+**Arquivo único alterado:** `src/pages/admin/AdminRotas.tsx`
 
-## Por que essa abordagem
+1. Novo handler `exportSaidasWhatsApp(ciclo: "AM0" | "AM1")`:
+   - Pega `rotasByPeriodo(ciclo)` já existente.
+   - Faz join com `drivers` (já vem no `select` atual da tela — confirmar; se não, buscar nomes/telefones/placa via `drivers` map já carregado).
+   - Filtra finalizadas com `hora_saida`.
+   - Monta string com `format(new Date(hora_saida), "HH:mm")` (date-fns já usado).
+   - `navigator.clipboard.writeText(texto)` + `window.open("https://wa.me/?text=" + encodeURIComponent(texto), "_blank")`.
+   - Toast de sucesso ou aviso "Nenhuma rota finalizada com saída registrada neste ciclo".
 
-- **Idempotente**: pode rodar quantas vezes quiser, sem duplicar despesa.
-- **Usa o helper que já existe** (`syncFinanceEntry`) — zero risco de divergir da lógica atual.
-- **Não mexe em RLS, schema, triggers nem nas telas existentes**.
-- **Resolve passado e futuro**: uma vez rodado, a integração que já está no `markWeekPaid` cuida do resto sozinha.
-- **Reversível**: se algo sair errado, basta apagar manualmente em Despesas.
+2. Botão no header de cada aba de ciclo (dentro do `["AM0","AM1"].map`):
+   ```tsx
+   <Button size="sm" variant="outline" onClick={() => exportSaidasWhatsApp(p)}>
+     <Share2 className="h-3 w-3 mr-1" /> Exportar Saídas
+   </Button>
+   ```
+   (ícone `Share2` do `lucide-react`).
 
-## Detalhes técnicos
+3. Sem mudanças em DB, RLS, schema ou outras telas. Funciona pra admin e operador (tela compartilhada).
 
-**Arquivo único alterado**: `src/pages/admin/AdminPonto.tsx`
+## Resultado
 
-- Adicionar handler `reconcileAllPayroll()` dentro de `AdminPontoView`:
-  - `supabase.from("timecards").select("user_id, date, daily_payment, payment_status").eq("payment_status", "paid")` (sem filtro de data).
-  - Carregar nomes via `profiles` para todos os `user_id` distintos retornados (uma única query).
-  - Agrupar em `Map<string, {ws, we, total}>` chaveado por `${userId}:${wsStr}`.
-  - Loop sequencial chamando `syncFinanceEntry(userId, name, wsStr, weStr, total, "pago")`.
-  - Mostrar `loading` + `toast.success` no fim e chamar `load()`.
-
-- Adicionar botão no header da tela (ao lado do `<Input type="month">`):
-  ```
-  <Button variant="outline" size="sm" onClick={reconcileAllPayroll}>
-    <RefreshCw className="h-3 w-3 mr-1" /> Reconciliar Financeiro
-  </Button>
-  ```
-
-- Confirmar com `confirm()` antes de rodar para evitar clique acidental.
-
-## Resultado esperado
-
-Depois de clicar uma vez no botão:
-- Todas as semanas já marcadas como pagas viram linhas em `finance_entries` (categoria `FUNCIONARIO`).
-- Aba **Despesas** mostra todas (incluindo a semana 13/04–19/04 da imagem com R$ 1.268,85).
-- **Dashboard** e **DRE** somam corretamente.
-- Pagamentos futuros continuam sincronizando automaticamente via `markWeekPaid` (já implementado).
-
-## Arquivos alterados
-
-- `src/pages/admin/AdminPonto.tsx` — adicionar `reconcileAllPayroll()` + botão no header.
-
-Sem migração de DB, sem mudança de schema, sem alteração de UI das outras telas.
+Operador no galpão clica → texto já copiado → WhatsApp abre → escolhe o grupo → cola → envia. Lista contém todas as rotas finalizadas do ciclo com motorista, placa, telefone, QR/NX, horário de saída e tempo de atendimento.
