@@ -723,6 +723,24 @@ const AdminRotas = () => {
       return;
     }
 
+    // Carrega faltantes e avarias/tentativas das rotas exportadas
+    const ids = list.map(r => r.id);
+    const { data: insucessos } = await supabase
+      .from("estoque")
+      .select("rota_id, codigo_pacote, tipo_insucesso, motivo")
+      .in("rota_id", ids)
+      .in("tipo_insucesso", ["FALTANTE_BAIXADO", "AVARIA", "TENTATIVA"])
+      .order("created_at", { ascending: true });
+
+    const byRota = new Map<string, { faltantes: any[]; avarias: any[]; tentativas: any[] }>();
+    (insucessos || []).forEach((it: any) => {
+      const entry = byRota.get(it.rota_id) || { faltantes: [], avarias: [], tentativas: [] };
+      if (it.tipo_insucesso === "FALTANTE_BAIXADO") entry.faltantes.push(it);
+      else if (it.tipo_insucesso === "AVARIA") entry.avarias.push(it);
+      else if (it.tipo_insucesso === "TENTATIVA") entry.tentativas.push(it);
+      byRota.set(it.rota_id, entry);
+    });
+
     const dataFmt = diaData ? format(new Date(diaData + "T12:00:00"), "dd/MM/yyyy") : format(new Date(), "dd/MM/yyyy");
     const header = `*Saídas ${ciclo} — ${dataFmt}*\nTotal: ${list.length} rota${list.length > 1 ? "s" : ""}\n`;
 
@@ -744,6 +762,23 @@ const AdminRotas = () => {
         lines.push(`   ${tempo}`);
       }
       if (r.observacoes) lines.push(`   📝 ${r.observacoes}`);
+
+      const ins = byRota.get(r.id);
+      if (ins) {
+        const fmtItem = (it: any) => `${it.codigo_pacote}${it.motivo ? ` — ${it.motivo}` : ""}`;
+        if (ins.faltantes.length) {
+          lines.push(`   ⚠️ *Faltantes (${ins.faltantes.length}):*`);
+          ins.faltantes.forEach(it => lines.push(`      • ${fmtItem(it)}`));
+        }
+        if (ins.avarias.length) {
+          lines.push(`   📦 *Avarias (${ins.avarias.length}):*`);
+          ins.avarias.forEach(it => lines.push(`      • ${fmtItem(it)}`));
+        }
+        if (ins.tentativas.length) {
+          lines.push(`   🔁 *Tentativas (${ins.tentativas.length}):*`);
+          ins.tentativas.forEach(it => lines.push(`      • ${fmtItem(it)}`));
+        }
+      }
       return lines.join("\n");
     });
 
