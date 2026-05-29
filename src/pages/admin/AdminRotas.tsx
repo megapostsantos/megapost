@@ -711,6 +711,56 @@ const AdminRotas = () => {
     setShowExportModal(true);
   };
 
+  // Export finalized routes (with hora_saida) as WhatsApp-formatted text
+  const exportSaidasWhatsApp = async (ciclo: string) => {
+    const list = rotas
+      .filter(r => r.periodo === ciclo)
+      .filter(r => normalizeStatus(r.status) === "Finalizada" && r.hora_saida)
+      .sort((a, b) => new Date(a.hora_saida).getTime() - new Date(b.hora_saida).getTime());
+
+    if (list.length === 0) {
+      toast.warning("Nenhuma rota finalizada com saída registrada neste ciclo.");
+      return;
+    }
+
+    const dataFmt = diaData ? format(new Date(diaData + "T12:00:00"), "dd/MM/yyyy") : format(new Date(), "dd/MM/yyyy");
+    const header = `*Saídas ${ciclo} — ${dataFmt}*\nTotal: ${list.length} rota${list.length > 1 ? "s" : ""}\n`;
+
+    const blocks = list.map((r, i) => {
+      const lines: string[] = [];
+      const horaSaida = format(new Date(r.hora_saida), "HH:mm");
+      lines.push(`${i + 1}. *${r.rota_codigo}* — ${horaSaida}`);
+      const d = r.drivers;
+      if (d?.nome) lines.push(`   👤 ${d.nome}${d.placa ? ` (${d.placa})` : ""}`);
+      if (d?.telefone) lines.push(`   📱 ${d.telefone}`);
+      const codes: string[] = [];
+      if (r.qr_codigo) codes.push(`QR: ${r.qr_codigo}`);
+      if (r.nx_codigo) codes.push(`NX: ${r.nx_codigo}`);
+      if (r.mx_codigo) codes.push(`MX: ${r.mx_codigo}`);
+      if (codes.length) lines.push(`   ${codes.join(" | ")}`);
+      if (r.hora_chegada) {
+        const chegada = format(new Date(r.hora_chegada), "HH:mm");
+        const tempo = r.tempo_atendimento_min != null ? `⏱ ${Math.round(r.tempo_atendimento_min)} min (chegou ${chegada})` : `⏱ chegou ${chegada}`;
+        lines.push(`   ${tempo}`);
+      }
+      if (r.observacoes) lines.push(`   📝 ${r.observacoes}`);
+      return lines.join("\n");
+    });
+
+    const footer = `\n_Exportado em ${format(new Date(), "dd/MM/yyyy HH:mm")}_`;
+    const text = `${header}\n${blocks.join("\n\n")}\n${footer}`;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Lista copiada — escolha o grupo no WhatsApp");
+    } catch {
+      toast.message("Abrindo WhatsApp…");
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
+
+
   // ── Helpers ────────────────────────────────────────────
   const rotasByPeriodo = (p: string) => {
     let list = rotas.filter((r) => r.periodo === p);
@@ -1036,12 +1086,20 @@ const AdminRotas = () => {
             const s = getStatusSummary(p);
             return (
               <TabsContent key={p} value={p}>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs">
-                  <span className="text-orange-600">Abertas: {s.aberto}</span>
-                  <span className="text-blue-600">Check-in: {s.checkin}</span>
-                  <span className="text-indigo-600">Carregando: {s.carregando}</span>
-                  <span className="text-green-600">Finalizadas: {s.finalizada}</span>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                    <span className="text-orange-600">Abertas: {s.aberto}</span>
+                    <span className="text-blue-600">Check-in: {s.checkin}</span>
+                    <span className="text-indigo-600">Carregando: {s.carregando}</span>
+                    <span className="text-green-600">Finalizadas: {s.finalizada}</span>
+                  </div>
+                  {s.finalizada > 0 && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => exportSaidasWhatsApp(p)}>
+                      <Share2 className="h-3 w-3 mr-1" /> Exportar Saídas
+                    </Button>
+                  )}
                 </div>
+
                 <div className="space-y-2">
                   {rotasByPeriodo(p).map(renderRotaCard)}
                   {rotasByPeriodo(p).length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Nenhuma rota {p}.</p>}
