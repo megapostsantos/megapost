@@ -442,8 +442,41 @@ const AdminDrivers = () => {
                 type="file"
                 accept="image/*"
                 onChange={handleFileChange}
-                className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:opacity-90"
+                className="hidden"
               />
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="default"
+                  className="w-full"
+                  onClick={() => {
+                    const el = fileInputRef.current;
+                    if (!el) return;
+                    el.setAttribute("capture", "environment");
+                    el.click();
+                    // remove capture right after, so the next click can open gallery
+                    setTimeout(() => el.removeAttribute("capture"), 500);
+                  }}
+                >
+                  📷 Tirar foto
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    const el = fileInputRef.current;
+                    if (!el) return;
+                    el.removeAttribute("capture");
+                    el.click();
+                  }}
+                >
+                  🖼️ Galeria
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Use "Tirar foto" para abrir a câmera direto. Se travar, use a Galeria.
+              </p>
               {photoPreview && (
                 <div className="mt-2 flex items-center gap-3">
                   <img src={photoPreview} alt="Preview" className="h-16 w-16 rounded-lg object-cover border border-border" />
