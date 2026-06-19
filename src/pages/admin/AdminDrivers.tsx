@@ -568,10 +568,16 @@ const AdminDrivers = () => {
                     <div className="relative group shrink-0">
                       {d.foto_url ? (
                         <img
-                          src={d.foto_url}
+                          src={thumbUrl(d.foto_url, 160)}
                           alt={d.nome}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (img.src !== d.foto_url) img.src = d.foto_url;
+                          }}
                           onClick={() => setZoomedPhoto({ url: d.foto_url, nome: d.nome })}
-                          className="h-16 w-16 sm:h-20 sm:w-20 rounded-full object-cover border border-border cursor-zoom-in hover:opacity-90 transition-opacity"
+                          className="h-16 w-16 sm:h-20 sm:w-20 rounded-full object-cover border border-border cursor-zoom-in hover:opacity-90 transition-opacity bg-muted"
                         />
                       ) : (
                         <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-muted flex items-center justify-center relative">
