@@ -529,6 +529,72 @@ const AdminDashboard = () => {
         </CardContent>
       </Card>
 
+      {/* Ranking de motoristas */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-yellow-500" /> Ranking de motoristas
+            <span className="text-[10px] text-muted-foreground font-normal">(rotas finalizadas)</span>
+          </CardTitle>
+          <div className="flex gap-1">
+            {([
+              { id: "7d", label: "7 dias" },
+              { id: "week", label: "Semana" },
+              { id: "month", label: "Mês" },
+            ] as const).map((opt) => (
+              <Button
+                key={opt.id}
+                variant={rankingRange === opt.id ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs px-3"
+                onClick={() => setRankingRange(opt.id)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {ranking.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Nenhuma rota finalizada no período.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {ranking.map((r, idx) => {
+                const max = ranking[0]?.total || 1;
+                const pct = (r.total / max) * 100;
+                const medal = idx === 0 ? "text-yellow-500" : idx === 1 ? "text-gray-400" : idx === 2 ? "text-amber-700" : "";
+                return (
+                  <div key={r.nome + idx} className="flex items-center gap-3 text-sm">
+                    <div className="w-6 text-center">
+                      {idx < 3 ? (
+                        <Medal className={`h-4 w-4 mx-auto ${medal}`} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground font-medium">{idx + 1}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-medium truncate">{r.nome}</span>
+                        <span className="text-xs font-semibold tabular-nums">{r.total}</span>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
       {/* Financial weekly (admin only) */}
       {isAdmin && (
         <Card>
