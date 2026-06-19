@@ -35,6 +35,16 @@ const tipoOptions = [
   { value: "TRANSPORTADORA", label: "Transportadora" },
 ];
 
+// Gera URL de miniatura via endpoint de transformação de imagem do Storage.
+// Reduz drasticamente o tamanho baixado na listagem (de MBs para ~10-30KB).
+const thumbUrl = (url: string, size = 160) => {
+  if (!url) return url;
+  const transformed = url.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/");
+  if (transformed === url) return url;
+  const sep = transformed.includes("?") ? "&" : "?";
+  return `${transformed}${sep}width=${size}&height=${size}&resize=cover&quality=70`;
+};
+
 const AdminDrivers = () => {
   const { isAdmin } = useAuth();
   const [drivers, setDrivers] = useState<any[]>([]);
