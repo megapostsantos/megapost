@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Route, Users, HelpCircle,
   Menu, X, ChevronLeft, LogOut as LogOutIcon,
-  Store, Tv, ClipboardList, BookOpen, Clock, CalendarDays,
+  Store, Tv, ClipboardList, BookOpen, Clock, CalendarDays, MoreHorizontal,
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +19,13 @@ const navItems = [
   { to: "/op/ponto", label: "Ponto", icon: Clock },
   { to: "/op/escala", label: "Minha Escala", icon: CalendarDays },
   { to: "/op/tv", label: "Painel TV", icon: Tv },
+];
+
+const bottomNavItems = [
+  { to: "/op/rotas", label: "Rotas", icon: Route },
+  { to: "/op/controle", label: "Controle", icon: ClipboardList },
+  { to: "/op/motoristas", label: "Motoristas", icon: Users },
+  { to: "/op/dashboard", label: "Painel", icon: LayoutDashboard },
 ];
 
 const OpLayout = () => {
@@ -97,9 +104,38 @@ const OpLayout = () => {
           <span className="font-bold text-sm text-foreground">MegaPost Ops</span>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 overflow-auto">
+        <main className="flex-1 p-4 md:p-6 overflow-auto pb-24 lg:pb-6">
           <Outlet />
         </main>
+
+        {/* Bottom nav (mobile only) */}
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border shadow-[0_-2px_8px_rgba(0,0,0,0.04)] pb-[env(safe-area-inset-bottom)]">
+          <div className="grid grid-cols-5">
+            {bottomNavItems.map((item) => {
+              const isActive = location.pathname === item.to || location.pathname.startsWith(item.to + "/");
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={`flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] text-[10px] font-medium transition-colors ${
+                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <item.icon className={`h-5 w-5 ${isActive ? "text-primary" : ""}`} />
+                  {item.label}
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+              Mais
+            </button>
+          </div>
+        </nav>
       </div>
     </div>
   );
