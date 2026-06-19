@@ -108,6 +108,8 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [ultimoDia, setUltimoDia] = useState<string | null>(null);
+  const [rankingRange, setRankingRange] = useState<"7d" | "week" | "month">("7d");
+  const [ranking, setRanking] = useState<{ nome: string; total: number }[]>([]);
   const { settings } = useSiteSettings();
   const diasAlerta = parseInt(settings.dias_alerta_estoque || "3") || 3;
 
