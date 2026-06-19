@@ -339,10 +339,10 @@ const AdminDrivers = () => {
         : Promise.resolve({ data: [] } as any),
     ]);
 
-    const rotaIdToDia = new Map((allRotas || []).map((r: any) => [r.id, r.dia_id]));
+    const rotaIdToDia = new Map<string, string>((allRotas || []).map((r: any) => [r.id, r.dia_id]));
     const monthEstoque = (allEstoque || []).filter((e: any) => {
       const rotaDia = rotaIdToDia.get(e.rota_id);
-      return rotaDia && diaIdSet.has(rotaDia);
+      return !!rotaDia && diaIdSet.has(rotaDia);
     });
 
     const countByStatus = (arr: any[], status: string) => arr.filter((r: any) => r.status === status).length;
