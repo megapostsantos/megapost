@@ -698,6 +698,29 @@ const AdminDrivers = () => {
           </p>
         )}
       </div>
+
+      {zoomedPhoto && (
+        <div
+          onClick={() => setZoomedPhoto(null)}
+          className="fixed inset-0 z-[100] bg-black/85 flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in"
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setZoomedPhoto(null); }}
+            className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/40 rounded-full p-2"
+            aria-label="Fechar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="flex flex-col items-center gap-3 max-w-[92vw] max-h-[92vh]" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={zoomedPhoto.url}
+              alt={zoomedPhoto.nome}
+              className="max-w-[92vw] max-h-[80vh] rounded-lg object-contain shadow-2xl"
+            />
+            <p className="text-white text-sm font-medium">{zoomedPhoto.nome}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
