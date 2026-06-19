@@ -319,50 +319,42 @@ const AdminDrivers = () => {
     setExpandedDriver(driverId);
     setDriverMetrics(null);
 
-    // 1) Resolve dias do mês PRIMEIRO — para limitar as queries de rotas/estoque ao período.
+    const isFinalizada = (s?: string) => (s || "").toLowerCase() === "finalizada";
+
+    // 1) Resolve dias do mês selecionado
     const monthStart = `${metricsMonth}-01`;
     const monthEnd = format(endOfMonth(new Date(metricsMonth + "-01")), "yyyy-MM-dd");
     const { data: diasDoMes } = await supabase.from("dias").select("id")
       .gte("data", monthStart).lte("data", monthEnd);
-    const diaIds = (diasDoMes || []).map(d => d.id);
-    const diaIdSet = new Set(diaIds);
+    const diaIdSet = new Set((diasDoMes || []).map((d: any) => d.id));
 
-    // 2) Agora puxa rotas/estoque APENAS desses dias (em vez de histórico inteiro do motorista).
-    const [{ data: monthData }, { data: allRotas }, { data: allEstoque }] = await Promise.all([
-      supabase.from("v_driver_monthly" as any).select("driver_id, month_id, atribuidas, com_saida, finalizadas")
-        .eq("driver_id", driverId).eq("month_id", metricsMonth).maybeSingle(),
-      diaIds.length > 0
-        ? supabase.from("rotas").select("id, status, hora_saida, dia_id").eq("driver_id", driverId).in("dia_id", diaIds).limit(500)
-        : Promise.resolve({ data: [] } as any),
-      diaIds.length > 0
-        ? supabase.from("estoque").select("id, tipo_insucesso, rota_id").eq("origem_driver_id", driverId).limit(500)
-        : Promise.resolve({ data: [] } as any),
+    // 2) Conta direto de `rotas` (mesma fonte do ranking), filtrando por dia_id do mês.
+    const [{ data: allRotas }, { data: allEstoque }] = await Promise.all([
+      supabase.from("rotas").select("id, status, hora_saida, dia_id").eq("driver_id", driverId).limit(2000),
+      supabase.from("estoque").select("id, tipo_insucesso, rota_id").eq("origem_driver_id", driverId).limit(2000),
     ]);
 
+    const rotasMes = (allRotas || []).filter((r: any) => diaIdSet.has(r.dia_id));
     const rotaIdToDia = new Map<string, string>((allRotas || []).map((r: any) => [r.id, r.dia_id]));
     const monthEstoque = (allEstoque || []).filter((e: any) => {
       const rotaDia = rotaIdToDia.get(e.rota_id);
       return !!rotaDia && diaIdSet.has(rotaDia);
     });
 
-    const countByStatus = (arr: any[], status: string) => arr.filter((r: any) => r.status === status).length;
-    const countWithSaida = (arr: any[]) => arr.filter((r: any) => r.hora_saida).length;
-
-    const md = monthData as any;
     setDriverMetrics({
-      mesRotas: md?.atribuidas || 0,
-      mesComSaida: md?.com_saida || 0,
-      mesFinalizadas: md?.finalizadas || 0,
+      mesRotas: rotasMes.length,
+      mesComSaida: rotasMes.filter((r: any) => r.hora_saida).length,
+      mesFinalizadas: rotasMes.filter((r: any) => isFinalizada(r.status)).length,
       mesInsucessos: monthEstoque.length,
       mesAvarias: monthEstoque.filter((e: any) => e.tipo_insucesso === "AVARIA").length,
       mesFaltantes: monthEstoque.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length,
       totalRotas: allRotas?.length || 0,
-      totalComSaida: countWithSaida(allRotas || []),
-      totalFinalizadas: countByStatus(allRotas || [], "Finalizada"),
+      totalComSaida: (allRotas || []).filter((r: any) => r.hora_saida).length,
+      totalFinalizadas: (allRotas || []).filter((r: any) => isFinalizada(r.status)).length,
       totalInsucessos: allEstoque?.length || 0,
       totalAvarias: allEstoque?.filter((e: any) => e.tipo_insucesso === "AVARIA").length || 0,
       totalFaltantes: allEstoque?.filter((e: any) => e.tipo_insucesso === "FALTANTE_BAIXADO").length || 0,
-      dateMethod: "v_driver_monthly (dia_id)",
+      dateMethod: "rotas.status=Finalizada por dia_id (mesma fonte do ranking)",
     });
   }, [expandedDriver, metricsMonth]);
 
