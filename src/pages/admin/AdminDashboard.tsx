@@ -1,13 +1,21 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/customSupabase";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Route, Users, Clock, AlertTriangle, CheckCircle, Package, ArrowRight,
   UserCheck, RefreshCw, Truck, Archive, Flag, History, Tv, ClipboardList,
+  TrendingUp, TrendingDown, Minus, DollarSign,
 } from "lucide-react";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInDays, subDays, startOfWeek, endOfWeek, subWeeks } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Button } from "@/components/ui/button";
+import { useLocation, Link } from "react-router-dom";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 
 const normalizeStatus = (status?: string) => {
   const s = (status || "").toLowerCase();
@@ -17,9 +25,6 @@ const normalizeStatus = (status?: string) => {
   if (s.includes("final")) return "Finalizada";
   return status || "";
 };
-import { ptBR } from "date-fns/locale";
-import { Button } from "@/components/ui/button";
-import { useLocation, Link } from "react-router-dom";
 
 interface DayMetrics {
   totalAM0: number;
@@ -38,10 +43,54 @@ interface DayMetrics {
   motoristasVermelhos: number;
 }
 
+interface DeltaMetrics {
+  totalRotas: number;
+  finalizada: number;
+  ocorrencias: number;
+  tempoMedio: number | null;
+}
+
+interface TrendPoint {
+  date: string;
+  label: string;
+  rotas: number;
+  finalizadas: number;
+  ocorrencias: number;
+}
+
+interface WeekFin {
+  receita: number;
+  despesa: number;
+  lucro: number;
+}
+
+const fmtPct = (curr: number, prev: number): { v: string; dir: "up" | "down" | "flat" } => {
+  if (prev === 0 && curr === 0) return { v: "0%", dir: "flat" };
+  if (prev === 0) return { v: "+100%", dir: "up" };
+  const diff = ((curr - prev) / prev) * 100;
+  if (Math.abs(diff) < 0.5) return { v: "0%", dir: "flat" };
+  return { v: `${diff > 0 ? "+" : ""}${diff.toFixed(0)}%`, dir: diff > 0 ? "up" : "down" };
+};
+
+const Delta = ({ curr, prev, invert = false }: { curr: number; prev: number; invert?: boolean }) => {
+  const { v, dir } = fmtPct(curr, prev);
+  const positive = invert ? dir === "down" : dir === "up";
+  const negative = invert ? dir === "up" : dir === "down";
+  const color = dir === "flat" ? "text-muted-foreground" : positive ? "text-green-600" : negative ? "text-red-600" : "text-muted-foreground";
+  const Icon = dir === "flat" ? Minus : dir === "up" ? TrendingUp : TrendingDown;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${color}`}>
+      <Icon className="h-3 w-3" />
+      {v}
+    </span>
+  );
+};
+
 const AdminDashboard = () => {
   const location = useLocation();
   const isOpArea = location.pathname.startsWith("/op");
   const basePath = isOpArea ? "/op" : "/admin";
+  const { isAdmin } = useAuth();
 
   const [metrics, setMetrics] = useState<DayMetrics>({
     totalAM0: 0, totalAM1: 0, emAberto: 0, checkin: 0,
@@ -49,6 +98,11 @@ const AdminDashboard = () => {
     estoqueAtivo: 0, estoqueAvarias: 0, estoqueTentativas: 0, pacotesParados: 0,
     rotasSemMotorista: 0, motoristasVermelhos: 0,
   });
+  const [yesterday, setYesterday] = useState<DeltaMetrics>({ totalRotas: 0, finalizada: 0, ocorrencias: 0, tempoMedio: null });
+  const [trend, setTrend] = useState<TrendPoint[]>([]);
+  const [trendRange, setTrendRange] = useState<7 | 30>(7);
+  const [weekFin, setWeekFin] = useState<WeekFin>({ receita: 0, despesa: 0, lucro: 0 });
+  const [prevWeekFin, setPrevWeekFin] = useState<WeekFin>({ receita: 0, despesa: 0, lucro: 0 });
   const [recentRoutes, setRecentRoutes] = useState<any[]>([]);
   const [diaAtivo, setDiaAtivo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +114,9 @@ const AdminDashboard = () => {
   const loadDashboard = useCallback(async () => {
     try {
       const today = format(new Date(), "yyyy-MM-dd");
+      const yest = format(subDays(new Date(), 1), "yyyy-MM-dd");
+      const trendStart = format(subDays(new Date(), trendRange - 1), "yyyy-MM-dd");
+
       const { data: dia } = await supabase
         .from("dias").select("id, data, status").eq("data", today).maybeSingle();
 
@@ -73,9 +130,91 @@ const AdminDashboard = () => {
         (p: any) => differenceInDays(new Date(), new Date(p.data_entrada)) >= diasAlerta
       ).length;
 
+      // Trend data: fetch dias + rotas + ocorrencias in window
+      const { data: diasWindow } = await supabase
+        .from("dias").select("id, data").gte("data", trendStart).lte("data", today);
+      const diasIds = (diasWindow || []).map((d: any) => d.id);
+      const diaIdToDate: Record<string, string> = {};
+      (diasWindow || []).forEach((d: any) => { diaIdToDate[d.id] = d.data; });
+
+      const [rotasTrendRes, ocTrendRes] = await Promise.all([
+        diasIds.length > 0
+          ? supabase.from("rotas").select("id, dia_id, status").in("dia_id", diasIds)
+          : Promise.resolve({ data: [] } as any),
+        supabase.from("ocorrencias").select("created_at").gte("created_at", `${trendStart}T00:00:00`),
+      ]);
+
+      const rotasByDate: Record<string, { total: number; finalizadas: number }> = {};
+      (rotasTrendRes.data || []).forEach((r: any) => {
+        const d = diaIdToDate[r.dia_id];
+        if (!d) return;
+        rotasByDate[d] = rotasByDate[d] || { total: 0, finalizadas: 0 };
+        rotasByDate[d].total++;
+        if (normalizeStatus(r.status) === "Finalizada") rotasByDate[d].finalizadas++;
+      });
+      const ocByDate: Record<string, number> = {};
+      (ocTrendRes.data || []).forEach((o: any) => {
+        const d = (o.created_at || "").slice(0, 10);
+        if (!d) return;
+        ocByDate[d] = (ocByDate[d] || 0) + 1;
+      });
+
+      const trendPoints: TrendPoint[] = [];
+      for (let i = trendRange - 1; i >= 0; i--) {
+        const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+        const r = rotasByDate[d] || { total: 0, finalizadas: 0 };
+        trendPoints.push({
+          date: d,
+          label: format(subDays(new Date(), i), trendRange === 7 ? "EEE dd" : "dd/MM", { locale: ptBR }),
+          rotas: r.total,
+          finalizadas: r.finalizadas,
+          ocorrencias: ocByDate[d] || 0,
+        });
+      }
+      setTrend(trendPoints);
+
+      // Yesterday metrics for deltas
+      const { data: diaYest } = await supabase
+        .from("dias").select("id").eq("data", yest).maybeSingle();
+      let yestData: DeltaMetrics = { totalRotas: 0, finalizada: 0, ocorrencias: 0, tempoMedio: null };
+      if (diaYest) {
+        const [rYest, ocYest] = await Promise.all([
+          supabase.from("rotas").select("id, status, tempo_atendimento_min").eq("dia_id", diaYest.id),
+          supabase.from("ocorrencias").select("id, rota_id").gte("created_at", `${yest}T00:00:00`).lt("created_at", `${today}T00:00:00`),
+        ]);
+        const rArr = rYest.data || [];
+        const tempos = rArr.filter((r: any) => r.tempo_atendimento_min != null);
+        yestData = {
+          totalRotas: rArr.length,
+          finalizada: rArr.filter((r: any) => normalizeStatus(r.status) === "Finalizada").length,
+          ocorrencias: (ocYest.data || []).length,
+          tempoMedio: tempos.length > 0 ? tempos.reduce((s: number, r: any) => s + Number(r.tempo_atendimento_min), 0) / tempos.length : null,
+        };
+      }
+      setYesterday(yestData);
+
+      // Weekly financial (admin only)
+      if (isAdmin) {
+        const wStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+        const wEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+        const pwStart = format(startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 }), "yyyy-MM-dd");
+        const pwEnd = format(endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 }), "yyyy-MM-dd");
+        const [curW, prvW] = await Promise.all([
+          supabase.from("finance_entries").select("valor, kind, tipo, status").gte("data", wStart).lte("data", wEnd),
+          supabase.from("finance_entries").select("valor, kind, tipo, status").gte("data", pwStart).lte("data", pwEnd),
+        ]);
+        const calc = (rows: any[]): WeekFin => {
+          const active = rows.filter(e => e.status !== "liquidada");
+          const r = active.filter(e => e.kind === "entrada" && e.tipo === "real").reduce((s, e) => s + Number(e.valor), 0);
+          const d = active.filter(e => e.kind === "saida").reduce((s, e) => s + Number(e.valor), 0);
+          return { receita: r, despesa: d, lucro: r - d };
+        };
+        setWeekFin(calc(curW.data || []));
+        setPrevWeekFin(calc(prvW.data || []));
+      }
+
       if (!dia) {
         setDiaAtivo(null);
-        // Fetch last operated day
         const { data: lastDia } = await supabase
           .from("dias").select("data").order("data", { ascending: false }).limit(1).maybeSingle();
         setUltimoDia(lastDia?.data || null);
@@ -85,6 +224,7 @@ const AdminDashboard = () => {
           estoqueTentativas: tentativas, pacotesParados: parados,
         }));
         setLoading(false);
+        setLastRefresh(new Date());
         return;
       }
 
@@ -135,28 +275,52 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [diasAlerta]);
+  }, [diasAlerta, trendRange, isAdmin]);
 
   useEffect(() => {
     loadDashboard();
-    // No auto-refresh — use manual refresh button to save bandwidth
   }, [loadDashboard]);
 
-  const metricCards = [
-    { label: "Rotas AM0", value: metrics.totalAM0, icon: Route, color: "text-primary", href: `${basePath}/rotas` },
-    { label: "Rotas AM1", value: metrics.totalAM1, icon: Route, color: "text-primary", href: `${basePath}/rotas` },
-    { label: "Em aberto", value: metrics.emAberto, icon: Package, color: "text-orange-500", href: `${basePath}/rotas` },
-    { label: "Check-in", value: metrics.checkin, icon: UserCheck, color: "text-blue-500", href: `${basePath}/rotas` },
-    { label: "Carregando", value: metrics.carregando, icon: Truck, color: "text-indigo-500", href: `${basePath}/rotas` },
-    { label: "Finalizadas", value: metrics.finalizada, icon: CheckCircle, color: "text-green-600", href: `${basePath}/rotas` },
-    { label: "Ocorrências", value: metrics.ocorrenciasAbertas, icon: AlertTriangle, color: "text-destructive", href: `${basePath}/ocorrencias` },
+  const totalRotasHoje = metrics.totalAM0 + metrics.totalAM1;
+
+  const kpiCards = useMemo(() => [
+    {
+      label: "Rotas (AM0+AM1)", value: totalRotasHoje, icon: Route, color: "text-primary",
+      href: `${basePath}/rotas`, prev: yesterday.totalRotas, invert: false,
+    },
+    {
+      label: "Finalizadas", value: metrics.finalizada, icon: CheckCircle, color: "text-green-600",
+      href: `${basePath}/rotas`, prev: yesterday.finalizada, invert: false,
+    },
+    {
+      label: "Em aberto", value: metrics.emAberto, icon: Package, color: "text-orange-500",
+      href: `${basePath}/rotas`, prev: null, invert: true,
+    },
+    {
+      label: "Check-in", value: metrics.checkin, icon: UserCheck, color: "text-blue-500",
+      href: `${basePath}/rotas`, prev: null, invert: false,
+    },
+    {
+      label: "Carregando", value: metrics.carregando, icon: Truck, color: "text-indigo-500",
+      href: `${basePath}/rotas`, prev: null, invert: false,
+    },
+    {
+      label: "Ocorrências", value: metrics.ocorrenciasAbertas, icon: AlertTriangle, color: "text-destructive",
+      href: `${basePath}/ocorrencias`, prev: yesterday.ocorrencias, invert: true,
+    },
     {
       label: "Tempo médio",
       value: metrics.tempoMedio != null ? `${Math.round(metrics.tempoMedio)} min` : "—",
       icon: Clock, color: "text-violet-500", href: `${basePath}/rotas`,
+      prev: yesterday.tempoMedio != null ? Math.round(yesterday.tempoMedio) : null,
+      currNum: metrics.tempoMedio != null ? Math.round(metrics.tempoMedio) : null,
+      invert: true,
     },
-    { label: "Estoque ativo", value: metrics.estoqueAtivo, icon: Archive, color: "text-indigo-500", href: `${basePath}/estoque` },
-  ];
+    {
+      label: "Estoque ativo", value: metrics.estoqueAtivo, icon: Archive, color: "text-indigo-500",
+      href: `${basePath}/estoque`, prev: null, invert: true,
+    },
+  ], [metrics, totalRotasHoje, yesterday, basePath]);
 
   const stockCards = [
     { label: "Avarias", value: metrics.estoqueAvarias, color: "text-red-500" },
@@ -171,13 +335,16 @@ const AdminDashboard = () => {
     "Finalizada": "bg-green-100 text-green-800",
   };
 
+  const fmtMoney = (v: number) =>
+    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Painel</h1>
           <p className="text-sm text-muted-foreground">
@@ -240,10 +407,10 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {metricCards.map((card) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {kpiCards.map((card: any) => (
             <a key={card.label} href={card.href}>
-              <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+              <Card className="hover:bg-accent/50 transition-colors cursor-pointer h-full">
                 <CardHeader className="pb-2 pt-4 px-4">
                   <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                     <card.icon className={`h-3.5 w-3.5 ${card.color}`} />
@@ -251,12 +418,116 @@ const AdminDashboard = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
-                  <p className="text-2xl font-bold text-foreground">{card.value}</p>
+                  <div className="flex items-end justify-between gap-2">
+                    <p className="text-2xl font-bold text-foreground">{card.value}</p>
+                    {card.prev != null && (
+                      <Delta
+                        curr={typeof card.value === "number" ? card.value : (card.currNum ?? 0)}
+                        prev={card.prev}
+                        invert={card.invert}
+                      />
+                    )}
+                  </div>
+                  {card.prev != null && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">ontem: {card.prev}</p>
+                  )}
                 </CardContent>
               </Card>
             </a>
           ))}
         </div>
+      )}
+
+      {/* Trend chart */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" /> Tendência operacional
+          </CardTitle>
+          <div className="flex gap-1">
+            {([7, 30] as const).map((d) => (
+              <Button
+                key={d}
+                variant={trendRange === d ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs px-3"
+                onClick={() => setTrendRange(d)}
+              >
+                {d}d
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trend} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                <defs>
+                  <linearGradient id="gRotas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gFin" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#16a34a" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#16a34a" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gOc" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--destructive))" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={trendRange === 30 ? 3 : 0} />
+                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Area type="monotone" dataKey="rotas" name="Rotas totais" stroke="hsl(var(--primary))" fill="url(#gRotas)" strokeWidth={2} />
+                <Area type="monotone" dataKey="finalizadas" name="Finalizadas" stroke="#16a34a" fill="url(#gFin)" strokeWidth={2} />
+                <Area type="monotone" dataKey="ocorrencias" name="Ocorrências" stroke="hsl(var(--destructive))" fill="url(#gOc)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Financial weekly (admin only) */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <DollarSign className="h-4 w-4" /> Financeiro da semana
+              <span className="text-[10px] text-muted-foreground font-normal">
+                (seg–dom)
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Receita</p>
+                <p className="text-xl font-bold text-green-600">{fmtMoney(weekFin.receita)}</p>
+                <Delta curr={weekFin.receita} prev={prevWeekFin.receita} />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Despesa</p>
+                <p className="text-xl font-bold text-red-600">{fmtMoney(weekFin.despesa)}</p>
+                <Delta curr={weekFin.despesa} prev={prevWeekFin.despesa} invert />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Lucro</p>
+                <p className={`text-xl font-bold ${weekFin.lucro >= 0 ? "text-foreground" : "text-red-600"}`}>{fmtMoney(weekFin.lucro)}</p>
+                <Delta curr={weekFin.lucro} prev={prevWeekFin.lucro} />
+              </div>
+            </div>
+            <div className="mt-3 text-right">
+              <Link to="/admin/financeiro" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                Ver financeiro completo <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Stock Summary */}
