@@ -686,21 +686,17 @@ const AdminDrivers = () => {
                 {driverMetrics ? (
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mês selecionado</p>
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
-                      <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesRotas}</p><p className="text-[10px] text-muted-foreground">Atribuídas</p></div>
-                      <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesComSaida}</p><p className="text-[10px] text-muted-foreground">Com saída</p></div>
-                      <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesFinalizadas}</p><p className="text-[10px] text-muted-foreground">Finalizadas</p></div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesFinalizadas}</p><p className="text-[10px] text-muted-foreground">Rotas finalizadas</p></div>
                       <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesInsucessos}</p><p className="text-[10px] text-muted-foreground">Insucessos</p></div>
                       <div><p className="text-sm font-bold text-foreground">{driverMetrics.mesFaltantes}</p><p className="text-[10px] text-muted-foreground">Faltantes</p></div>
-                     <div><p className="text-sm font-bold text-red-500">{driverMetrics.mesAvarias}</p><p className="text-[10px] text-muted-foreground">Avarias</p></div>
+                      <div><p className="text-sm font-bold text-red-500">{driverMetrics.mesAvarias}</p><p className="text-[10px] text-muted-foreground">Avarias</p></div>
                     </div>
                     {driverMetrics.dateMethod && <p className="text-[9px] text-muted-foreground/50 mt-1">Filtro mensal usando: {driverMetrics.dateMethod}</p>}
                     <div className="pt-2 border-t border-border/50">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Histórico total</p>
-                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
-                        <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalRotas}</p><p className="text-[10px] text-muted-foreground">Atribuídas</p></div>
-                        <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalComSaida}</p><p className="text-[10px] text-muted-foreground">Com saída</p></div>
-                        <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalFinalizadas}</p><p className="text-[10px] text-muted-foreground">Finalizadas</p></div>
+                      <div className="grid grid-cols-4 gap-2 text-center">
+                        <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalFinalizadas}</p><p className="text-[10px] text-muted-foreground">Rotas finalizadas</p></div>
                         <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalInsucessos}</p><p className="text-[10px] text-muted-foreground">Insucessos</p></div>
                         <div><p className="text-sm font-bold text-foreground">{driverMetrics.totalFaltantes}</p><p className="text-[10px] text-muted-foreground">Faltantes</p></div>
                         <div><p className="text-sm font-bold text-red-500">{driverMetrics.totalAvarias}</p><p className="text-[10px] text-muted-foreground">Avarias</p></div>
