@@ -59,6 +59,7 @@ const AdminDrivers = () => {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [zoomedPhoto, setZoomedPhoto] = useState<{ url: string; nome: string } | null>(null);
 
   // Edit form
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -556,10 +557,15 @@ const AdminDrivers = () => {
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="relative group shrink-0">
                       {d.foto_url ? (
-                        <img src={d.foto_url} alt={d.nome} className="h-12 w-12 rounded-full object-cover border border-border" />
+                        <img
+                          src={d.foto_url}
+                          alt={d.nome}
+                          onClick={() => setZoomedPhoto({ url: d.foto_url, nome: d.nome })}
+                          className="h-16 w-16 sm:h-20 sm:w-20 rounded-full object-cover border border-border cursor-zoom-in hover:opacity-90 transition-opacity"
+                        />
                       ) : (
-                        <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center relative">
-                          <Users className="h-6 w-6 text-muted-foreground" />
+                        <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-muted flex items-center justify-center relative">
+                          <Users className="h-7 w-7 text-muted-foreground" />
                           <Camera className="h-4 w-4 text-muted-foreground absolute -bottom-0.5 -right-0.5 bg-background rounded-full p-0.5" />
                         </div>
                       )}
@@ -570,7 +576,7 @@ const AdminDrivers = () => {
                           input.onchange = (e) => handleEditPhoto(e as any, d.id);
                           input.click();
                         }}
-                        className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
                         title="Alterar foto"
                       >
                         <Camera className="h-3 w-3" />
