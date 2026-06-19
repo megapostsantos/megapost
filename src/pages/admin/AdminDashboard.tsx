@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   Route, Users, Clock, AlertTriangle, CheckCircle, Package, ArrowRight,
   UserCheck, RefreshCw, Truck, Archive, Flag, History, Tv, ClipboardList,
-  TrendingUp, TrendingDown, Minus, DollarSign,
+  TrendingUp, TrendingDown, Minus, DollarSign, Trophy, Medal,
 } from "lucide-react";
 import { format, differenceInDays, subDays, startOfWeek, endOfWeek, subWeeks, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
