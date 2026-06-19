@@ -7,9 +7,9 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   Route, Users, Clock, AlertTriangle, CheckCircle, Package, ArrowRight,
   UserCheck, RefreshCw, Truck, Archive, Flag, History, Tv, ClipboardList,
-  TrendingUp, TrendingDown, Minus, DollarSign,
+  TrendingUp, TrendingDown, Minus, DollarSign, Trophy, Medal,
 } from "lucide-react";
-import { format, differenceInDays, subDays, startOfWeek, endOfWeek, subWeeks } from "date-fns";
+import { format, differenceInDays, subDays, startOfWeek, endOfWeek, subWeeks, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { useLocation, Link } from "react-router-dom";
@@ -108,6 +108,8 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [ultimoDia, setUltimoDia] = useState<string | null>(null);
+  const [rankingRange, setRankingRange] = useState<"7d" | "week" | "month">("7d");
+  const [ranking, setRanking] = useState<{ nome: string; total: number }[]>([]);
   const { settings } = useSiteSettings();
   const diasAlerta = parseInt(settings.dias_alerta_estoque || "3") || 3;
 
@@ -280,6 +282,41 @@ const AdminDashboard = () => {
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    const loadRanking = async () => {
+      const now = new Date();
+      let startDate: string;
+      let endDate: string = format(now, "yyyy-MM-dd");
+      if (rankingRange === "7d") {
+        startDate = format(subDays(now, 6), "yyyy-MM-dd");
+      } else if (rankingRange === "week") {
+        startDate = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        endDate = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+      } else {
+        startDate = format(startOfMonth(now), "yyyy-MM-dd");
+        endDate = format(endOfMonth(now), "yyyy-MM-dd");
+      }
+      const { data: diasW } = await supabase
+        .from("dias").select("id").gte("data", startDate).lte("data", endDate);
+      const ids = (diasW || []).map((d: any) => d.id);
+      if (ids.length === 0) { setRanking([]); return; }
+      const { data: rts } = await supabase
+        .from("rotas").select("driver_id, status, drivers(nome)")
+        .in("dia_id", ids).not("driver_id", "is", null);
+      const counts: Record<string, { nome: string; total: number }> = {};
+      (rts || []).forEach((r: any) => {
+        if (normalizeStatus(r.status) !== "Finalizada") return;
+        if (!r.driver_id) return;
+        const nome = r.drivers?.nome || "—";
+        counts[r.driver_id] = counts[r.driver_id] || { nome, total: 0 };
+        counts[r.driver_id].total++;
+      });
+      const arr = Object.values(counts).sort((a, b) => b.total - a.total).slice(0, 10);
+      setRanking(arr);
+    };
+    loadRanking();
+  }, [rankingRange, lastRefresh]);
 
   const totalRotasHoje = metrics.totalAM0 + metrics.totalAM1;
 
@@ -491,6 +528,72 @@ const AdminDashboard = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Ranking de motoristas */}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-yellow-500" /> Ranking de motoristas
+            <span className="text-[10px] text-muted-foreground font-normal">(rotas finalizadas)</span>
+          </CardTitle>
+          <div className="flex gap-1">
+            {([
+              { id: "7d", label: "7 dias" },
+              { id: "week", label: "Semana" },
+              { id: "month", label: "Mês" },
+            ] as const).map((opt) => (
+              <Button
+                key={opt.id}
+                variant={rankingRange === opt.id ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs px-3"
+                onClick={() => setRankingRange(opt.id)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {ranking.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Nenhuma rota finalizada no período.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {ranking.map((r, idx) => {
+                const max = ranking[0]?.total || 1;
+                const pct = (r.total / max) * 100;
+                const medal = idx === 0 ? "text-yellow-500" : idx === 1 ? "text-gray-400" : idx === 2 ? "text-amber-700" : "";
+                return (
+                  <div key={r.nome + idx} className="flex items-center gap-3 text-sm">
+                    <div className="w-6 text-center">
+                      {idx < 3 ? (
+                        <Medal className={`h-4 w-4 mx-auto ${medal}`} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground font-medium">{idx + 1}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-medium truncate">{r.nome}</span>
+                        <span className="text-xs font-semibold tabular-nums">{r.total}</span>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
 
       {/* Financial weekly (admin only) */}
       {isAdmin && (
