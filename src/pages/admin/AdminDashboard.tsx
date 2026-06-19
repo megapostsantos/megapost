@@ -9,7 +9,7 @@ import {
   UserCheck, RefreshCw, Truck, Archive, Flag, History, Tv, ClipboardList,
   TrendingUp, TrendingDown, Minus, DollarSign,
 } from "lucide-react";
-import { format, differenceInDays, subDays, startOfWeek, endOfWeek, subWeeks } from "date-fns";
+import { format, differenceInDays, subDays, startOfWeek, endOfWeek, subWeeks, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { useLocation, Link } from "react-router-dom";
