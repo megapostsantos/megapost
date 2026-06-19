@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserEmails } from "@/hooks/useUserEmails";
 import { supabase } from "@/lib/customSupabase";
 
-const MANAGE_USERS_URL = `https://otfjcpajobmjlwitgnqi.supabase.co/functions/v1/manage-users`;
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -293,6 +293,7 @@ const RecentHistory = ({ userId }: { userId: string }) => {
 // ── Admin View ──
 const AdminPontoView = () => {
   const { session } = useAuth();
+  const userEmails = useUserEmails();
   const [records, setRecords] = useState<Timecard[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState(format(new Date(), "yyyy-MM"));
@@ -305,26 +306,11 @@ const AdminPontoView = () => {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<"mensal" | "semanal">("semanal");
 
+  // Sincroniza emails do hook compartilhado (cache de módulo, 1 fetch a cada 5min)
   useEffect(() => {
-    if (!session?.access_token) return;
-    const loadEmails = async () => {
-      try {
-        const res = await fetch(MANAGE_USERS_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ action: "list" }),
-        });
-        const data = await res.json();
-        if (data.users) {
-          const map: Record<string, string> = {};
-          data.users.forEach((u: any) => { map[u.id] = u.email; });
-          userEmailsRef.current = map;
-          setProfiles((prev) => ({ ...map, ...prev }));
-        }
-      } catch {}
-    };
-    loadEmails();
-  }, [session?.access_token]);
+    userEmailsRef.current = userEmails;
+    setProfiles((prev) => ({ ...userEmails, ...prev }));
+  }, [userEmails]);
 
   const load = useCallback(async () => {
     try {

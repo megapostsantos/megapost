@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/lib/customSupabase";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserEmails } from "@/hooks/useUserEmails";
 import {
   DollarSign, Plus, Edit2, Trash2, ArrowDownCircle,
   Users, CheckCircle, Clock, TrendingUp, BarChart3,
@@ -42,36 +43,21 @@ const CATEGORIAS_SAIDA = [
 const PIE_COLORS = ["hsl(var(--primary))", "#ef4444", "#f59e0b", "#10b981", "#6366f1", "#8b5cf6"];
 
 /* ─── Main Component ─── */
-const MANAGE_USERS_URL_MAIN = `https://otfjcpajobmjlwitgnqi.supabase.co/functions/v1/manage-users`;
 
 const AdminFinanceiro = () => {
   const { isAdmin, session } = useAuth();
+  const userEmails = useUserEmails();
   const [mesRef, setMesRef] = useState(format(new Date(), "yyyy-MM"));
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [timecards, setTimecards] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
 
-  // Load user emails as fallback for profile names
+  // Emails via hook compartilhado (cache 5min, antes eram 2 fetches simultâneos)
   useEffect(() => {
-    if (!session?.access_token) return;
-    const loadEmails = async () => {
-      try {
-        const res = await fetch(MANAGE_USERS_URL_MAIN, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ action: "list" }),
-        });
-        const data = await res.json();
-        if (data.users) {
-          const emailMap: Record<string, string> = {};
-          data.users.forEach((u: any) => { emailMap[u.id] = u.email; });
-          setProfiles(prev => ({ ...emailMap, ...prev }));
-        }
-      } catch {}
-    };
-    loadEmails();
-  }, [session?.access_token]);
+    if (Object.keys(userEmails).length === 0) return;
+    setProfiles(prev => ({ ...userEmails, ...prev }));
+  }, [userEmails]);
 
   const mesInicio = `${mesRef}-01`;
   const [y, m] = mesRef.split("-").map(Number);
@@ -623,38 +609,18 @@ const EntryForm = ({ formDescricao, setFormDescricao, formValor, setFormValor, f
 );
 
 /* ─── Payroll Section ─── */
-const MANAGE_USERS_URL_FIN = `https://otfjcpajobmjlwitgnqi.supabase.co/functions/v1/manage-users`;
-
 const PayrollSection = ({ profiles, syncFinanceEntry, reloadAll }: { profiles: Record<string, string>; syncFinanceEntry: any; reloadAll: () => Promise<void> }) => {
   const { session } = useAuth();
+  const userEmails = useUserEmails();
   const [timecards, setTimecards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
   const [mergedProfiles, setMergedProfiles] = useState<Record<string, string>>(profiles);
 
+  // Merge: emails do cache compartilhado + profiles do banco (antes era um fetch redundante)
   useEffect(() => {
-    if (!session?.access_token) return;
-    const loadEmails = async () => {
-      try {
-        const res = await fetch(MANAGE_USERS_URL_FIN, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ action: "list" }),
-        });
-        const data = await res.json();
-        if (data.users) {
-          const emailMap: Record<string, string> = {};
-          data.users.forEach((u: any) => { emailMap[u.id] = u.email; });
-          setMergedProfiles(prev => ({ ...emailMap, ...prev }));
-        }
-      } catch {}
-    };
-    loadEmails();
-  }, [session?.access_token]);
-
-  useEffect(() => {
-    setMergedProfiles(prev => ({ ...prev, ...profiles }));
-  }, [profiles]);
+    setMergedProfiles(prev => ({ ...userEmails, ...prev, ...profiles }));
+  }, [userEmails, profiles]);
 
   const refDate = addWeeks(new Date(), weekOffset);
   const wStart = startOfWeek(refDate, { weekStartsOn: 1 });

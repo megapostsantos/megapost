@@ -601,8 +601,17 @@ const AdminUsers = () => {
                   <div className="space-y-2">
                     <div className="relative border rounded-lg overflow-hidden bg-muted">
                       <img
-                        src={selectedUser.documento_foto_url}
+                        src={selectedUser.documento_foto_url.replace(
+                          "/storage/v1/object/public/",
+                          "/storage/v1/render/image/public/"
+                        ) + (selectedUser.documento_foto_url.includes("?") ? "&" : "?") + "width=600&quality=70"}
                         alt="Documento"
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          if (img.src !== selectedUser.documento_foto_url) img.src = selectedUser.documento_foto_url;
+                        }}
                         className="w-full max-h-64 object-contain"
                       />
                       <Button

@@ -123,7 +123,7 @@ const AdminDashboard = () => {
         .from("dias").select("id, data, status").eq("data", today).maybeSingle();
 
       const { data: estoque } = await supabase
-        .from("estoque").select("tipo_insucesso, data_entrada").eq("status", "NO_LOCAL");
+        .from("estoque").select("tipo_insucesso, data_entrada").eq("status", "NO_LOCAL").limit(2000);
 
       const allEstoque = estoque || [];
       const avarias = allEstoque.filter((p: any) => p.tipo_insucesso === "AVARIA").length;
@@ -141,9 +141,9 @@ const AdminDashboard = () => {
 
       const [rotasTrendRes, ocTrendRes] = await Promise.all([
         diasIds.length > 0
-          ? supabase.from("rotas").select("id, dia_id, status").in("dia_id", diasIds)
+          ? supabase.from("rotas").select("id, dia_id, status").in("dia_id", diasIds).limit(5000)
           : Promise.resolve({ data: [] } as any),
-        supabase.from("ocorrencias").select("created_at").gte("created_at", `${trendStart}T00:00:00`),
+        supabase.from("ocorrencias").select("created_at").gte("created_at", `${trendStart}T00:00:00`).limit(2000),
       ]);
 
       const rotasByDate: Record<string, { total: number; finalizadas: number }> = {};

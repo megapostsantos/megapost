@@ -158,14 +158,18 @@ const AdminEstoque = () => {
     loadPacotes();
   }, [loadPacotes]);
 
-  // Counters from NO_LOCAL items
+  // Counters from NO_LOCAL items — carrega só no mount e quando diasAlerta muda.
+  // Antes: dispatch a cada mudança de `pacotes` (double-query). Agora reaproveita CRUDs
+  // via `countersTick` (incrementado nas operações de add/remove/edit).
   const [counters, setCounters] = useState({ total: 0, avaria: 0, tentativa: 0, faltante: 0, alerta: 0 });
+  const [countersTick, setCountersTick] = useState(0);
   useEffect(() => {
     const loadCounters = async () => {
       const { data } = await supabase
         .from("estoque")
         .select("tipo_insucesso, data_entrada")
-        .eq("status", "NO_LOCAL");
+        .eq("status", "NO_LOCAL")
+        .limit(2000);
       const items = data || [];
       setCounters({
         total: items.length,
@@ -176,7 +180,7 @@ const AdminEstoque = () => {
       });
     };
     loadCounters();
-  }, [pacotes, diasAlerta]);
+  }, [diasAlerta, countersTick]);
 
   // Search routes for add form
   const searchRotas = async (term: string) => {
