@@ -319,23 +319,30 @@ const AdminDrivers = () => {
     setExpandedDriver(driverId);
     setDriverMetrics(null);
 
-    const [{ data: monthData }, { data: allRotas }, { data: allEstoque }] = await Promise.all([
-      supabase.from("v_driver_monthly" as any).select("*")
-        .eq("driver_id", driverId).eq("month_id", metricsMonth).maybeSingle(),
-      supabase.from("rotas").select("id, status, hora_saida, dia_id").eq("driver_id", driverId),
-      supabase.from("estoque").select("id, tipo_insucesso, rota_id").eq("origem_driver_id", driverId),
-    ]);
-
+    // 1) Resolve dias do mês PRIMEIRO — para limitar as queries de rotas/estoque ao período.
     const monthStart = `${metricsMonth}-01`;
     const monthEnd = format(endOfMonth(new Date(metricsMonth + "-01")), "yyyy-MM-dd");
     const { data: diasDoMes } = await supabase.from("dias").select("id")
       .gte("data", monthStart).lte("data", monthEnd);
-    const diaIds = new Set((diasDoMes || []).map(d => d.id));
+    const diaIds = (diasDoMes || []).map(d => d.id);
+    const diaIdSet = new Set(diaIds);
+
+    // 2) Agora puxa rotas/estoque APENAS desses dias (em vez de histórico inteiro do motorista).
+    const [{ data: monthData }, { data: allRotas }, { data: allEstoque }] = await Promise.all([
+      supabase.from("v_driver_monthly" as any).select("driver_id, month_id, atribuidas, com_saida, finalizadas")
+        .eq("driver_id", driverId).eq("month_id", metricsMonth).maybeSingle(),
+      diaIds.length > 0
+        ? supabase.from("rotas").select("id, status, hora_saida, dia_id").eq("driver_id", driverId).in("dia_id", diaIds).limit(500)
+        : Promise.resolve({ data: [] } as any),
+      diaIds.length > 0
+        ? supabase.from("estoque").select("id, tipo_insucesso, rota_id").eq("origem_driver_id", driverId).limit(500)
+        : Promise.resolve({ data: [] } as any),
+    ]);
 
     const rotaIdToDia = new Map((allRotas || []).map((r: any) => [r.id, r.dia_id]));
     const monthEstoque = (allEstoque || []).filter((e: any) => {
       const rotaDia = rotaIdToDia.get(e.rota_id);
-      return rotaDia && diaIds.has(rotaDia);
+      return rotaDia && diaIdSet.has(rotaDia);
     });
 
     const countByStatus = (arr: any[], status: string) => arr.filter((r: any) => r.status === status).length;
