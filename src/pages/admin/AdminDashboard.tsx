@@ -283,6 +283,41 @@ const AdminDashboard = () => {
     loadDashboard();
   }, [loadDashboard]);
 
+  useEffect(() => {
+    const loadRanking = async () => {
+      const now = new Date();
+      let startDate: string;
+      let endDate: string = format(now, "yyyy-MM-dd");
+      if (rankingRange === "7d") {
+        startDate = format(subDays(now, 6), "yyyy-MM-dd");
+      } else if (rankingRange === "week") {
+        startDate = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        endDate = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+      } else {
+        startDate = format(startOfMonth(now), "yyyy-MM-dd");
+        endDate = format(endOfMonth(now), "yyyy-MM-dd");
+      }
+      const { data: diasW } = await supabase
+        .from("dias").select("id").gte("data", startDate).lte("data", endDate);
+      const ids = (diasW || []).map((d: any) => d.id);
+      if (ids.length === 0) { setRanking([]); return; }
+      const { data: rts } = await supabase
+        .from("rotas").select("driver_id, status, drivers(nome)")
+        .in("dia_id", ids).not("driver_id", "is", null);
+      const counts: Record<string, { nome: string; total: number }> = {};
+      (rts || []).forEach((r: any) => {
+        if (normalizeStatus(r.status) !== "Finalizada") return;
+        if (!r.driver_id) return;
+        const nome = r.drivers?.nome || "—";
+        counts[r.driver_id] = counts[r.driver_id] || { nome, total: 0 };
+        counts[r.driver_id].total++;
+      });
+      const arr = Object.values(counts).sort((a, b) => b.total - a.total).slice(0, 10);
+      setRanking(arr);
+    };
+    loadRanking();
+  }, [rankingRange, lastRefresh]);
+
   const totalRotasHoje = metrics.totalAM0 + metrics.totalAM1;
 
   const kpiCards = useMemo(() => [
