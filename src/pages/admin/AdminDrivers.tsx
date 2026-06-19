@@ -35,6 +35,16 @@ const tipoOptions = [
   { value: "TRANSPORTADORA", label: "Transportadora" },
 ];
 
+// Gera URL de miniatura via endpoint de transformação de imagem do Storage.
+// Reduz drasticamente o tamanho baixado na listagem (de MBs para ~10-30KB).
+const thumbUrl = (url: string, size = 160) => {
+  if (!url) return url;
+  const transformed = url.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/");
+  if (transformed === url) return url;
+  const sep = transformed.includes("?") ? "&" : "?";
+  return `${transformed}${sep}width=${size}&height=${size}&resize=cover&quality=70`;
+};
+
 const AdminDrivers = () => {
   const { isAdmin } = useAuth();
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -558,10 +568,16 @@ const AdminDrivers = () => {
                     <div className="relative group shrink-0">
                       {d.foto_url ? (
                         <img
-                          src={d.foto_url}
+                          src={thumbUrl(d.foto_url, 160)}
                           alt={d.nome}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (img.src !== d.foto_url) img.src = d.foto_url;
+                          }}
                           onClick={() => setZoomedPhoto({ url: d.foto_url, nome: d.nome })}
-                          className="h-16 w-16 sm:h-20 sm:w-20 rounded-full object-cover border border-border cursor-zoom-in hover:opacity-90 transition-opacity"
+                          className="h-16 w-16 sm:h-20 sm:w-20 rounded-full object-cover border border-border cursor-zoom-in hover:opacity-90 transition-opacity bg-muted"
                         />
                       ) : (
                         <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-muted flex items-center justify-center relative">
