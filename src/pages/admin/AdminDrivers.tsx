@@ -150,23 +150,50 @@ const AdminDrivers = () => {
     setPhotoPreview(url);
   };
 
+  const compressImage = (file: File, maxSizeKB = 300): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        const maxDim = 1200;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
+          else { width = Math.round((width * maxDim) / height); height = maxDim; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        let quality = 0.85;
+        const tryCompress = () => {
+          canvas.toBlob((blob) => {
+            if (!blob) { reject(new Error('Falha ao comprimir imagem')); return; }
+            if (blob.size <= maxSizeKB * 1024 || quality <= 0.3) { resolve(blob); return; }
+            quality -= 0.1;
+            tryCompress();
+          }, 'image/jpeg', quality);
+        };
+        tryCompress();
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  };
+
   const uploadPhoto = async (file: File, driverId: string): Promise<string | null> => {
     try {
-      // Validate file type
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
       if (!allowedTypes.includes(file.type)) {
         toast.error("Apenas imagens JPEG, PNG e WebP são permitidas.");
         return null;
       }
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("Imagem muito grande. Máximo 5MB.");
-        return null;
-      }
       setUploading(true);
-      const ext = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/png' ? 'png' : 'webp';
-      const path = `${driverId}.${ext}`;
-      const { error } = await supabase.storage.from("driver-photos").upload(path, file, { upsert: true });
+      const compressed = await compressImage(file);
+      const path = `${driverId}.jpg`;
+      const { error } = await supabase.storage.from("driver-photos").upload(path, compressed, { upsert: true, contentType: 'image/jpeg' });
       if (error) throw error;
       const { data: urlData } = supabase.storage.from("driver-photos").getPublicUrl(path);
       return urlData.publicUrl + "?t=" + Date.now();
