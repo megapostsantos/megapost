@@ -1,12 +1,13 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/customSupabase";
-import { Users, Plus, Search, Edit2, Check, X, Power, Camera, ChevronDown, ChevronUp, Flag, AlertTriangle, MessageCircle, Trash2, Loader2 } from "lucide-react";
+import { Users, Plus, Search, Edit2, Check, X, Power, Camera, ChevronDown, ChevronUp, AlertTriangle, MessageCircle, Trash2, Loader2, Download, MapPin } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   AlertDialog,
@@ -50,6 +51,8 @@ const AdminDrivers = () => {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [cityFilter, setCityFilter] = useState("all");
+  const [neighborhoodFilter, setNeighborhoodFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
 
   // Create form — restored from sessionStorage on mount
@@ -385,9 +388,71 @@ const AdminDrivers = () => {
     });
   }, [expandedDriver, metricsMonth]);
 
-  const filtered = drivers.filter(
-    (d) => d.nome.toLowerCase().includes(search.toLowerCase()) || (d.telefone && d.telefone.includes(search))
-  );
+  const normalizeLocation = (value?: string | null) => (value || "").trim().toLocaleLowerCase("pt-BR");
+
+  const cities = useMemo(() => {
+    const unique = new Map<string, string>();
+    drivers.forEach((driver) => {
+      const label = driver.cidade?.trim();
+      if (label) unique.set(normalizeLocation(label), label);
+    });
+    return Array.from(unique.entries())
+      .sort((a, b) => a[1].localeCompare(b[1], "pt-BR"))
+      .map(([value, label]) => ({ value, label }));
+  }, [drivers]);
+
+  const neighborhoods = useMemo(() => {
+    const unique = new Map<string, string>();
+    drivers.forEach((driver) => {
+      if (cityFilter !== "all" && normalizeLocation(driver.cidade) !== cityFilter) return;
+      const label = driver.bairro?.trim();
+      if (label) unique.set(normalizeLocation(label), label);
+    });
+    return Array.from(unique.entries())
+      .sort((a, b) => a[1].localeCompare(b[1], "pt-BR"))
+      .map(([value, label]) => ({ value, label }));
+  }, [drivers, cityFilter]);
+
+  const filtered = drivers.filter((driver) => {
+    const query = search.trim().toLocaleLowerCase("pt-BR");
+    const matchesSearch = !query
+      || driver.nome.toLocaleLowerCase("pt-BR").includes(query)
+      || (driver.telefone || "").includes(search.trim());
+    if (!isAdmin) return matchesSearch;
+    const matchesCity = cityFilter === "all" || normalizeLocation(driver.cidade) === cityFilter;
+    const matchesNeighborhood = neighborhoodFilter === "all" || normalizeLocation(driver.bairro) === neighborhoodFilter;
+    return matchesSearch && matchesCity && matchesNeighborhood;
+  });
+
+  const clearLocationFilters = () => {
+    setCityFilter("all");
+    setNeighborhoodFilter("all");
+  };
+
+  const exportDrivers = () => {
+    const escapeCsv = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const headers = ["Nome", "Telefone", "Placa", "Cidade", "Bairro", "Tipo", "Transportadora", "Farol", "Status", "Observação"];
+    const rows = filtered.map((driver) => [
+      driver.nome,
+      driver.telefone,
+      driver.placa,
+      driver.cidade,
+      driver.bairro,
+      driver.tipo === "TRANSPORTADORA" ? "Transportadora" : "Envios Extra",
+      driver.transportadora_nome,
+      driver.farol,
+      driver.ativo ? "Ativo" : "Inativo",
+      driver.observacao,
+    ]);
+    const csv = `\uFEFF${[headers, ...rows].map((row) => row.map(escapeCsv).join(";")).join("\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `motoristas-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${filtered.length} motorista(s) exportado(s).`);
+  };
 
   const getFarolDot = (f: string) => {
     const opt = farolOptions.find(o => o.value === f);
@@ -542,9 +607,59 @@ const AdminDrivers = () => {
         </Card>
       )}
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Buscar por nome ou telefone..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-9" placeholder="Buscar por nome ou telefone..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+
+        {isAdmin && (
+          <div className="space-y-2 rounded-md border border-border bg-card p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <MapPin className="h-4 w-4 text-primary" />
+                Localização
+              </div>
+              <span className="text-xs text-muted-foreground">{filtered.length} resultado(s)</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Select
+                value={cityFilter}
+                onValueChange={(value) => {
+                  setCityFilter(value);
+                  setNeighborhoodFilter("all");
+                }}
+              >
+                <SelectTrigger aria-label="Filtrar por cidade">
+                  <SelectValue placeholder="Todas as cidades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as cidades</SelectItem>
+                  {cities.map((city) => <SelectItem key={city.value} value={city.value}>{city.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={neighborhoodFilter} onValueChange={setNeighborhoodFilter}>
+                <SelectTrigger aria-label="Filtrar por bairro">
+                  <SelectValue placeholder="Todos os bairros" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os bairros</SelectItem>
+                  {neighborhoods.map((neighborhood) => <SelectItem key={neighborhood.value} value={neighborhood.value}>{neighborhood.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              {(cityFilter !== "all" || neighborhoodFilter !== "all") && (
+                <Button variant="ghost" size="sm" onClick={clearLocationFilters}>
+                  <X className="mr-1 h-4 w-4" /> Limpar filtros
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={exportDrivers} disabled={filtered.length === 0}>
+                <Download className="mr-1 h-4 w-4" /> Exportar lista
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -732,7 +847,7 @@ const AdminDrivers = () => {
 
         {filtered.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">
-            {search ? "Nenhum motorista encontrado." : "Nenhum motorista cadastrado."}
+            {search || (isAdmin && (cityFilter !== "all" || neighborhoodFilter !== "all")) ? "Nenhum motorista encontrado." : "Nenhum motorista cadastrado."}
           </p>
         )}
       </div>
